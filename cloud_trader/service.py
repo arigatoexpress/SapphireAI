@@ -337,7 +337,7 @@ class TradingService:
                     order_intent = OrderIntent(
                         symbol=symbol,
                         side=decision.action,
-                        quantity=position_size,
+                        notional=position_size,
                         order_type="MARKET",
                     )
 
@@ -448,7 +448,7 @@ class TradingService:
             order_intent = OrderIntent(
                 symbol=symbol,
                 side=close_side,
-                quantity=close_quantity,
+                notional=abs(position.notional),
                 order_type="MARKET",
             )
 
