@@ -362,6 +362,16 @@ class TradingService:
         except Exception as exc:
             logger.error(f"Failed to process LLM inference decision: {exc}")
 
+        # Update Prometheus metrics
+        from .api import TRADING_DECISIONS, LLM_CONFIDENCE, LLM_INFERENCE_TIME
+        if request.confidence is not None:
+            LLM_CONFIDENCE.observe(request.confidence)
+        TRADING_DECISIONS.labels(
+            bot_id=request.bot_id,
+            symbol=request.context.symbol,
+            action=request.decision.action
+        ).inc()
+
         # Always publish decision for telemetry
         decision_payload = {
             "bot_id": request.bot_id,
@@ -520,4 +530,15 @@ class TradingService:
             payload.get("totalPositionInitialMargin", sum(position.notional for position in positions.values()))
         )
         self._portfolio = PortfolioState(balance=balance, total_exposure=total_exposure, positions=positions)
+
+        # Update Prometheus metrics
+        from .api import PORTFOLIO_BALANCE, PORTFOLIO_LEVERAGE, POSITION_SIZE
+        PORTFOLIO_BALANCE.set(balance)
+        leverage_ratio = (total_exposure / balance) if balance > 0 else 0
+        PORTFOLIO_LEVERAGE.set(leverage_ratio)
+
+        # Update position metrics
+        for symbol, position in positions.items():
+            POSITION_SIZE.labels(symbol=symbol).set(position.notional)
+
         await self._publish_portfolio_state()

@@ -12,10 +12,27 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from .service import TradingService
 from .schemas import ChatCompletionRequest, InferenceRequest
 
+# Prometheus metrics
+from prometheus_client import Counter, Gauge, Histogram, generate_latest
+from prometheus_fastapi_instrumentator import Instrumentator
+
+# Trading metrics
+TRADING_DECISIONS = Counter('trading_decisions_total', 'Total trading decisions made', ['bot_id', 'symbol', 'action'])
+PORTFOLIO_BALANCE = Gauge('trading_portfolio_balance', 'Current portfolio balance in USDT')
+PORTFOLIO_LEVERAGE = Gauge('trading_portfolio_leverage', 'Current portfolio leverage ratio')
+LLM_CONFIDENCE = Histogram('trading_llm_confidence', 'LLM decision confidence distribution', buckets=[0.1, 0.3, 0.5, 0.7, 0.9])
+LLM_INFERENCE_TIME = Histogram('trading_llm_inference_duration_seconds', 'LLM inference duration', buckets=[0.1, 0.5, 1.0, 2.0, 5.0, 10.0])
+POSITION_SIZE = Gauge('trading_position_size', 'Current position size', ['symbol'])
+RISK_LIMITS_BREACHED = Counter('trading_risk_limits_breached', 'Risk limit breach events', ['limit_type'])
+
 
 def build_app(service: TradingService | None = None) -> FastAPI:
     trading_service = service or TradingService()
     app = FastAPI(title="Cloud Trader", version="1.0")
+
+    # Add Prometheus instrumentation
+    instrumentator = Instrumentator().instrument(app).expose(app, endpoint="/metrics")
+
     stream_names = {
         "decisions": trading_service.settings.decisions_stream,
         "positions": trading_service.settings.positions_stream,
