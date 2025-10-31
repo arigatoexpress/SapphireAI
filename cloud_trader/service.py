@@ -338,8 +338,7 @@ class TradingService:
                         symbol=symbol,
                         side=decision.action,
                         quantity=position_size,
-                        type="MARKET",
-                        client_order_id=generate_order_tag(request.bot_id, "llm"),
+                        order_type="MARKET",
                     )
 
                     # Execute through orchestrator
@@ -450,8 +449,7 @@ class TradingService:
                 symbol=symbol,
                 side=close_side,
                 quantity=close_quantity,
-                type="MARKET",
-                client_order_id=generate_order_tag(bot_id, "close"),
+                order_type="MARKET",
             )
 
             # Execute through orchestrator
