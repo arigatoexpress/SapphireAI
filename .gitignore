@@ -110,6 +110,8 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+asterai_env/
+asterai_env_fresh/
 
 # Spyder project settings
 .spyderproject

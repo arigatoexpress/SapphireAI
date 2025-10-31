@@ -1,45 +1,33 @@
-# Dockerfile for Autonomous Trading System
 FROM python:3.11-slim
 
-# Set working directory
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
-    make \
-    libffi-dev \
-    libssl-dev \
+# Install only the essentials
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for better caching
-COPY requirements.txt .
-
 # Install Python dependencies
+COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY . .
-
-# Create necessary directories
-RUN mkdir -p /app/logs /app/models /app/data
-
-# Set environment variables
-ENV PYTHONPATH=/app
-ENV PYTHONUNBUFFERED=1
-ENV LOG_LEVEL=INFO
+# Copy source
+COPY cloud_trader ./cloud_trader
+COPY run_live_trader.py ./
+COPY pyproject.toml README.md ./
 
 # Create non-root user
-RUN useradd -m -u 1000 trader && chown -R trader:trader /app
+RUN useradd --create-home --shell /bin/bash trader \
+    && chown -R trader:trader /app
 USER trader
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:8000/health')" || exit 1
+EXPOSE 8080
 
-# Expose ports
-EXPOSE 8000 8001 8002 8003
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD wget -qO- http://127.0.0.1:8080/healthz || exit 1
 
-# Default command
-CMD ["python", "trading_server.py"]
+CMD ["python", "run_live_trader.py", "--host", "0.0.0.0", "--port", "8080"]

@@ -3,79 +3,24 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "rari-trade"
+name = "cloud-trader"
 version = "0.1.0"
-description = "Enterprise-grade AI trading platform powered by ensemble models and advanced risk management"
+description = "Lean cloud-native cryptocurrency trading service for Aster DEX"
 readme = "README.md"
 requires-python = ">=3.10"
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Financial and Insurance Industry",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Topic :: Office/Business :: Financial :: Investment",
-    "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
-    "numpy>=1.24.0",
-    "pandas>=2.0.0",
-    "torch>=2.0.0",
-    "ccxt>=4.0.0",
-    "aiohttp>=3.8.0",
-    "fastapi>=0.100.0",
-    "uvicorn>=0.23.0",
-    "pydantic>=2.0.0",
-    "python-dotenv>=1.0.0",
-    "loguru>=0.7.0",
-    "ta>=0.10.0",
-    "scikit-learn>=1.3.0",
-    "matplotlib>=3.7.0",
-    "seaborn>=0.12.0",
-    "plotly>=5.15.0",
-    "jupyter>=1.0.0",
-    "ipykernel>=6.23.0",
-    "pytest>=7.4.0",
-    "pytest-asyncio>=0.21.0",
-    "pytest-cov>=4.1.0",
-    "black>=23.7.0",
-    "isort>=5.12.0",
-    "flake8>=6.0.0",
-    "mypy>=1.5.0",
-    "bandit>=1.7.0",
-    "pre-commit>=3.4.0",
-    "safety>=2.3.0",
-    "requests>=2.31.0",
-    "textblob>=0.17.0",
-    "yfinance>=0.2.0",
-    "ta-lib>=0.4.0",
-]
-
-[project.optional-dependencies]
-gpu = [
-    "torch[cuda]>=2.0.0",
-    "torchvision>=0.15.0",
-    "torchaudio>=2.0.0",
-    "cupy>=12.0.0",
-    "tensorrt>=8.6.0",
-]
-rl = [
-    "stable-baselines3>=2.0.0",
-    "gymnasium>=0.29.0",
-    "ray[rllib]>=2.6.0",
-    "wandb>=0.15.0",
-]
-dev = [
-    "jupyterlab>=4.0.0",
-    "notebook>=7.0.0",
-    "ipykernel>=6.23.0",
-    "matplotlib>=3.7.0",
-    "seaborn>=0.12.0",
-    "plotly>=5.15.0",
-    "pandas-profiling>=3.6.0",
-    "sweetviz>=2.1.0",
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.24.0",
+    "aiohttp>=3.9.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    "google-cloud-secret-manager>=2.16.0",
 ]
 
 [project.urls]
@@ -86,10 +31,9 @@ Issues = "https://github.com/yourusername/rari-trade/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["mcp_trader*"]
+include = ["cloud_trader*"]
 
-[tool.setuptools.package-data]
-"mcp_trader" = ["config/*.json", "config/*.yaml"]
+
 
 [tool.black]
 line-length = 100
@@ -115,8 +59,8 @@ extend-exclude = '''
 profile = "black"
 multi_line_output = 3
 line_length = 100
-known_first_party = ["mcp_trader"]
-skip = ["rari_trade_env", "rari_trade_env_fresh", "__pycache__"]
+known_first_party = ["cloud_trader"]
+skip = ["__pycache__"]
 
 [tool.flake8]
 max-line-length = 100
@@ -149,44 +93,25 @@ show_error_codes = true
 
 [[tool.mypy.overrides]]
 module = [
-    "ccxt.*",
-    "ta.*",
-    "yfinance.*",
-    "textblob.*",
-    "ray.*",
-    "wandb.*",
-    "cupy.*",
-    "tensorrt.*",
+    "google.cloud.*",
 ]
 ignore_missing_imports = true
 
 [tool.bandit]
-exclude_dirs = ["tests", "rari_trade_env", "rari_trade_env_fresh"]
-skips = ["B101", "B601"]  # Skip assert checks and shell usage
+exclude_dirs = ["tests"]
+skips = ["B101", "B601"]
 
 [tool.pytest.ini_options]
 minversion = "7.4"
-addopts = "-ra -q --strict-markers --strict-config --cov=mcp_trader --cov-report=html --cov-report=term-missing"
+addopts = "-ra -q"
 testpaths = ["tests"]
-python_files = ["test_*.py", "*_test.py"]
-python_classes = ["Test*"]
-python_functions = ["test_*"]
-markers = [
-    "unit: Unit tests",
-    "integration: Integration tests",
-    "e2e: End-to-end tests",
-    "slow: Slow running tests",
-    "gpu: GPU-dependent tests",
-    "network: Network-dependent tests",
-]
+python_files = ["test_*.py"]
 
 [tool.coverage.run]
-source = ["mcp_trader"]
+source = ["cloud_trader"]
 omit = [
     "*/tests/*",
     "*/test_*.py",
-    "*/rari_trade_env/*",
-    "*/rari_trade_env_fresh/*",
 ]
 
 [tool.coverage.report]
