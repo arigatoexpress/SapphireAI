@@ -399,14 +399,14 @@ class TradingService:
             logger.debug("Unable to sync orchestrator portfolio: %s", exc)
             return
 
-        positions_payload = payload.get("positions") or {}
+        positions_payload = payload.get("positions") or []
         positions = {
-            symbol: Position(symbol=symbol, notional=float(notional))
-            for symbol, notional in positions_payload.items()
+            position["symbol"]: Position(symbol=position["symbol"], notional=float(position["notional"]))
+            for position in positions_payload
         }
-        balance = float(payload.get("balance", self._portfolio.balance))
+        balance = float(payload.get("totalWalletBalance", self._portfolio.balance))
         total_exposure = float(
-            payload.get("total_exposure", sum(position.notional for position in positions.values()))
+            payload.get("totalPositionInitialMargin", sum(position.notional for position in positions.values()))
         )
         self._portfolio = PortfolioState(balance=balance, total_exposure=total_exposure, positions=positions)
         await self._publish_portfolio_state()
