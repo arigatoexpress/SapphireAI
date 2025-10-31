@@ -4,8 +4,9 @@ version = "0.1.0"
 description = "Centralized risk & order routing for autonomous trading fleet"
 authors = ["AIAster Team"]
 
-[tool.poetry.packages]
-risk_orchestrator = { include = "risk_orchestrator", from = "src" }
+[[tool.poetry.packages]]
+include = "risk_orchestrator"
+from = "src"
 
 [tool.poetry.dependencies]
 python = "^3.11"
