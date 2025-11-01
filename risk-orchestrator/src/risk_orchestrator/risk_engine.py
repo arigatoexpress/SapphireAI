@@ -15,12 +15,24 @@ def _to_float(value, default: float = 0.0) -> float:
         return default
 
 
+# Per-agent allocation limits (in USD)
+AGENT_ALLOCATIONS = {
+    "deepseek-v3": 125.0,
+    "qwen-7b": 125.0,
+    "deepseek-v3-alt": 125.0,
+    "qwen-7b-alt": 125.0,
+}
+
 class RiskEngine:
-    def __init__(self, portfolio: dict):
+    def __init__(self, portfolio: dict, bot_id: str = None):
         self.portfolio = portfolio
-        self.balance = _to_float(portfolio.get("totalWalletBalance"))
+        self.bot_id = bot_id
+        # For futures trading, use availableBalance (margin available) instead of walletBalance
+        self.balance = _to_float(portfolio.get("availableBalance")) or _to_float(portfolio.get("totalWalletBalance"))
         self.unrealized_pnl = _to_float(portfolio.get("totalUnrealizedPnL"))
         self.peak_balance = _to_float(portfolio.get("maxWalletBalance"), self.balance)
+        # Use agent-specific allocation if available, otherwise use global balance
+        self.agent_allocation = AGENT_ALLOCATIONS.get(bot_id, self.balance)
 
     def check_drawdown(self) -> Tuple[bool, str]:
         peak = max(self.peak_balance, self.balance)
@@ -44,10 +56,11 @@ class RiskEngine:
             self.portfolio.get("lastPrice"), default=0.0
         ) or 50_000
         notional = intent.quantity * reference_price
-        limit = self.balance * settings.MAX_PER_TRADE_PCT / 100
+        # Use agent allocation for per-trade limit instead of global balance
+        limit = self.agent_allocation * settings.MAX_PER_TRADE_PCT / 100
         if notional > limit:
             return False, (
-                f"Trade size {notional:.2f} > {settings.MAX_PER_TRADE_PCT}% of balance"
+                f"Trade size {notional:.2f} > {settings.MAX_PER_TRADE_PCT}% of agent allocation (${self.agent_allocation:.0f})"
             )
         return True, ""
 
