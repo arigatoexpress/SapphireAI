@@ -6,8 +6,9 @@ import asyncio
 import json
 import logging
 from datetime import datetime
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from collections import deque
+from dataclasses import dataclass, field
+from typing import Any, Deque, Dict, List, Optional, Tuple
 
 from .client import AsterClient
 from .config import Settings, get_settings
@@ -15,10 +16,12 @@ from .messaging import RedisStreamsClient, timestamp
 from .optimization.bandit import EpsilonGreedyBandit
 from .order_tags import generate_order_tag
 from .orchestrator.client import RiskOrchestratorClient
+from .orchestrator.schemas import OrderIntent
 from .risk import PortfolioState, RiskManager, Position
 from .secrets import load_credentials
 from .schemas import InferenceRequest
 from .strategy import MarketSnapshot, MomentumStrategy, parse_market_payload
+from .telegram import TelegramService, create_telegram_service
 
 
 logger = logging.getLogger("cloud_trader")
@@ -37,6 +40,65 @@ class HealthStatus:
     running: bool
     paper_trading: bool
     last_error: Optional[str]
+
+
+AGENT_DEFINITIONS: List[Dict[str, Any]] = [
+    {
+        "id": "deepseek-v3",
+        "name": "DeepSeek Momentum",
+        "model": "DeepSeek-V3",
+        "emoji": "💎",
+        "symbols": ["BTCUSDT"],
+        "description": "High-conviction BTC momentum execution powered by DeepSeek-V3.",
+        "baseline_win_rate": 0.68,
+    },
+    {
+        "id": "qwen-7b",
+        "name": "Qwen Adaptive",
+        "model": "Qwen2.5-7B",
+        "emoji": "🜂",
+        "symbols": ["ETHUSDT"],
+        "description": "Adaptive ETH mean-reversion routing using Qwen2.5-7B.",
+        "baseline_win_rate": 0.64,
+    },
+    {
+        "id": "phi3-strategist",
+        "name": "Phi-3 Strategist",
+        "model": "Phi-3 Medium",
+        "emoji": "🔷",
+        "symbols": ["SOLUSDT"],
+        "description": "SOL breakout specialist tuned via Phi-3 Medium.",
+        "baseline_win_rate": 0.62,
+    },
+    {
+        "id": "mistral-guardian",
+        "name": "Mistral Guardian",
+        "model": "Mistral-7B",
+        "emoji": "💠",
+        "symbols": ["SUIUSDT"],
+        "description": "SUI risk-balanced swing trading by Mistral-7B.",
+        "baseline_win_rate": 0.60,
+    },
+]
+
+
+@dataclass
+class AgentState:
+    id: str
+    name: str
+    model: str
+    emoji: str
+    symbols: List[str]
+    description: str
+    baseline_win_rate: float
+    status: str = "monitoring"
+    total_trades: int = 0
+    total_notional: float = 0.0
+    total_pnl: float = 0.0
+    exposure: float = 0.0
+    last_trade: Optional[datetime] = None
+    open_positions: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    equity_curve: Deque[Tuple[datetime, float]] = field(default_factory=lambda: deque(maxlen=96))
 
 
 class TradingService:
@@ -59,6 +121,36 @@ class TradingService:
         if self._settings.orchestrator_url:
             self._orchestrator = RiskOrchestratorClient(self._settings.orchestrator_url)
 
+        # Initialize Telegram service for notifications
+        self._telegram: Optional[TelegramService] = None
+
+        # Agent tracking for live-only dashboards
+        self._agent_states: Dict[str, AgentState] = {}
+        self._symbol_to_agent: Dict[str, str] = {}
+        for agent_def in AGENT_DEFINITIONS:
+            agent_id = agent_def["id"]
+            state = AgentState(
+                id=agent_id,
+                name=agent_def["name"],
+                model=agent_def["model"],
+                emoji=agent_def["emoji"],
+                symbols=[symbol.upper() for symbol in agent_def["symbols"]],
+                description=agent_def["description"],
+                baseline_win_rate=agent_def["baseline_win_rate"],
+            )
+            self._agent_states[agent_id] = state
+            for symbol in state.symbols:
+                self._symbol_to_agent[symbol] = agent_id
+
+        self._recent_trades: Deque[Dict[str, Any]] = deque(maxlen=200)
+        self._latest_portfolio_raw: Dict[str, Any] = {}
+        self._latest_portfolio_frontend: Dict[str, Any] = {}
+        self._price_cache: Dict[str, float] = {}
+
+    async def _init_telegram(self) -> None:
+        """Initialize Telegram notification service."""
+        self._telegram = await create_telegram_service(self._settings)
+
     async def dashboard_snapshot(self) -> Dict[str, Any]:
         """Aggregate a lightweight view for the dashboard endpoint."""
 
@@ -66,16 +158,25 @@ class TradingService:
 
         # Transform portfolio data for frontend
         portfolio = self._transform_portfolio_for_frontend(raw_portfolio)
+        self._latest_portfolio_frontend = portfolio
 
-        positions = [
-            {
-                "symbol": symbol,
-                "notional": position.notional,
-            }
-            for symbol, position in self._portfolio.positions.items()
-        ]
+        portfolio_positions = portfolio.get("positions", {}) if isinstance(portfolio, dict) else {}
+        positions: List[Dict[str, Any]] = []
+        if isinstance(portfolio_positions, dict):
+            for payload in portfolio_positions.values():
+                if isinstance(payload, dict):
+                    enriched = dict(payload)
+                    symbol_key = str(enriched.get("symbol", "")).upper()
+                    enriched.setdefault("agent_id", self._symbol_to_agent.get(symbol_key, ""))
+                    positions.append(enriched)
 
-        recent_trades = await self._safe_read_stream(self._settings.decisions_stream, count=20)
+        # Update agent snapshots using live portfolio data
+        self._update_agent_snapshots(portfolio)
+        agents = self._serialize_agents()
+
+        recent_trades = list(self._recent_trades)
+        if not recent_trades:
+            recent_trades = await self._safe_read_stream(self._settings.decisions_stream, count=20)
         model_reasoning = await self._safe_read_stream(self._settings.reasoning_stream, count=10)
 
         system_status = {
@@ -88,6 +189,7 @@ class TradingService:
                 "qwen": "unknown",
                 "fingpt": "unknown",
                 "phi3": "unknown",
+                "mistral": "unknown",
             },
             "redis_connected": self._streams.is_connected(),
             "timestamp": datetime.utcnow().isoformat(),
@@ -104,11 +206,17 @@ class TradingService:
         if raw_portfolio.get("alerts"):
             targets["alerts"].extend(raw_portfolio["alerts"])
 
+        if agents:
+            system_status["models"] = {
+                agent["model"].lower(): agent["status"] for agent in agents
+            }
+
         return {
             "portfolio": portfolio,
             "positions": positions,
             "recent_trades": recent_trades,
             "model_performance": [],
+            "agents": agents,
             "model_reasoning": model_reasoning,
             "system_status": system_status,
             "targets": targets,
@@ -133,6 +241,7 @@ class TradingService:
             self._client = AsterClient(self._settings, self._creds.api_key, self._creds.api_secret)
 
         await self._streams.connect()
+        await self._init_telegram()
         if self._orchestrator:
             await self._sync_portfolio()
         self._task = asyncio.create_task(self._run_loop())
@@ -270,6 +379,12 @@ class TradingService:
         trail_step: float,
     ) -> None:
         quantity = notional / max(price, 1e-8)
+        agent_id = self._symbol_to_agent.get(symbol.upper())
+        agent_model = None
+        if agent_id and agent_id in self._agent_states:
+            agent_model = self._agent_states[agent_id].model
+        else:
+            agent_model = "momentum_strategy"
         if self._orchestrator:
             intent_payload = {
                 "symbol": symbol,
@@ -285,6 +400,8 @@ class TradingService:
                 "client_metadata": {
                     "entry_price": round(price, 4),
                     "trail_step": self._settings.trailing_step,
+                    "agent_id": agent_id,
+                    "model_used": agent_model,
                 },
             }
             try:
@@ -293,6 +410,32 @@ class TradingService:
                     reason = response.get("reason", "unknown_error")
                     raise RuntimeError(f"orchestrator rejected order: {reason}")
                 await self._sync_portfolio()
+
+                self._register_trade_event(
+                    symbol=symbol,
+                    side=side,
+                    price=price,
+                    notional=notional,
+                    quantity=quantity,
+                    metadata={"status": response.get("status")},
+                )
+
+                # Send Telegram notification for successful trade
+                if self._telegram:
+                    await self._telegram.send_trade_notification(
+                        symbol=symbol,
+                        side=side,
+                        price=price,
+                        quantity=quantity,
+                        notional=notional,
+                        decision_reason=f"AI momentum strategy decision via orchestrator",
+                        model_used=agent_model,
+                        confidence=self._settings.expected_win_rate,
+                        take_profit=take_profit,
+                        stop_loss=stop_loss,
+                        portfolio_balance=self._portfolio.balance,
+                        risk_percentage=(notional / self._portfolio.balance) * 100,
+                    )
             except Exception as exc:
                 logger.error("Orchestrator route failed for %s: %s", symbol, exc)
                 self._health.last_error = str(exc)
@@ -321,6 +464,13 @@ class TradingService:
             logger.info("Placed %s order for %s (notional %.2f)", side, symbol, notional)
             self._portfolio = self._risk.register_fill(self._portfolio, symbol, notional)
             await self._publish_portfolio_state()
+            self._register_trade_event(
+                symbol=symbol,
+                side=side,
+                price=price,
+                notional=notional,
+                quantity=quantity,
+            )
         except Exception as exc:
             logger.error("Order failed for %s: %s", symbol, exc)
             self._health.last_error = str(exc)
@@ -375,12 +525,109 @@ class TradingService:
             try:
                 portfolio = await self._orchestrator.portfolio()
                 portfolio.setdefault("source", "orchestrator")
+                await self._refresh_asset_prices(portfolio)
                 return portfolio, "healthy"
             except Exception as exc:
                 logger.warning("Failed to fetch orchestrator portfolio: %s", exc)
                 self._health.last_error = self._health.last_error or str(exc)
                 return self._serialize_portfolio_state(alert="Orchestrator service unavailable - using local portfolio data"), "unreachable"
         return self._serialize_portfolio_state(), "not_configured"
+
+    async def _refresh_asset_prices(self, portfolio: Dict[str, Any]) -> None:
+        """Ensure we have USD conversion prices for any collateral assets."""
+
+        assets = portfolio.get("assets", [])
+        if not isinstance(assets, list) or not assets:
+            return
+
+        desired_symbols: List[str] = []
+        for asset in assets:
+            if not isinstance(asset, dict):
+                continue
+            try:
+                wallet_balance = float(asset.get("walletBalance", 0.0) or 0.0)
+                margin_balance = float(asset.get("marginBalance", 0.0) or 0.0)
+            except (TypeError, ValueError):
+                continue
+
+            if wallet_balance <= 0.0 and margin_balance <= 0.0:
+                continue
+
+            asset_code = str(asset.get("asset", "")).upper()
+            symbol = self._asset_to_symbol(asset_code)
+            if symbol and symbol not in self._price_cache:
+                desired_symbols.append(symbol)
+
+        if not desired_symbols:
+            return
+
+        client = self._client
+        temp_client: Optional[AsterClient] = None
+
+        if client is None:
+            try:
+                temp_client = AsterClient(self._settings, self._creds.api_key, self._creds.api_secret)
+                await temp_client.ensure_session()
+                client = temp_client
+            except Exception as exc:
+                logger.debug("Unable to instantiate temporary Aster client for pricing: %s", exc)
+                return
+
+        assert client is not None
+
+        try:
+            for symbol in desired_symbols:
+                try:
+                    ticker = await client.ticker(symbol)
+                    price = float(ticker.get("lastPrice", 0.0) or 0.0)
+                    if price > 0:
+                        self._price_cache[symbol] = price
+                except Exception as exc:
+                    logger.debug("Failed to refresh price for %s: %s", symbol, exc)
+        finally:
+            if temp_client is not None:
+                await temp_client.close()
+
+    @staticmethod
+    def _asset_to_symbol(asset_code: str) -> Optional[str]:
+        if not asset_code:
+            return None
+
+        stable_assets = {"USDT", "USDC", "BUSD", "USD", "USD1"}
+        if asset_code in stable_assets:
+            return "USDTUSDT"  # dummy sentinel to indicate 1:1 conversion
+
+        if asset_code.startswith("AS") and len(asset_code) > 2:
+            base = asset_code[2:]
+        else:
+            base = asset_code
+
+        if base.endswith("USDT"):
+            return base
+
+        return f"{base}USDT"
+
+    def _convert_asset_to_usd(self, asset_code: str, amount: float) -> float:
+        if amount == 0.0:
+            return 0.0
+
+        asset_code = asset_code.upper()
+        stable_assets = {"USDT", "USDC", "BUSD", "USD", "USD1"}
+        if asset_code in stable_assets:
+            return amount
+
+        symbol = self._asset_to_symbol(asset_code)
+        if symbol is None:
+            return 0.0
+
+        if symbol == "USDTUSDT":
+            return amount
+
+        price = self._price_cache.get(symbol, 0.0)
+        if price <= 0:
+            return 0.0
+
+        return amount * price
 
     def _transform_portfolio_for_frontend(self, raw_portfolio: Dict[str, Any]) -> Dict[str, Any]:
         """Transform raw portfolio data into frontend-expected format."""
@@ -390,50 +637,124 @@ class TradingService:
 
         # Transform Binance futures account data
         try:
-            # Extract total wallet balance (USDT)
             total_wallet_balance = 0.0
             total_margin_balance = 0.0
             total_unrealized_pnl = 0.0
+            available_balance = 0.0
 
-            # Sum up balances from assets
-            if "assets" in raw_portfolio and isinstance(raw_portfolio["assets"], list):
-                for asset in raw_portfolio["assets"]:
-                    if asset.get("asset") == "USDT":
-                        total_wallet_balance = float(asset.get("walletBalance", 0))
-                        total_margin_balance = float(asset.get("marginBalance", 0))
-                        total_unrealized_pnl = float(asset.get("unrealizedProfit", 0))
-                        break
+            assets = raw_portfolio.get("assets", [])
+            if isinstance(assets, list):
+                for asset in assets:
+                    if not isinstance(asset, dict):
+                        continue
+                    try:
+                        wallet_balance = float(asset.get("walletBalance", 0.0) or 0.0)
+                        margin_balance = float(asset.get("marginBalance", wallet_balance) or 0.0)
+                        unrealized_profit = float(asset.get("unrealizedProfit", 0.0) or 0.0)
+                    except (TypeError, ValueError):
+                        logger.debug("Skipping asset with invalid numeric values: %s", asset)
+                        continue
 
-            # Calculate total exposure from positions
+                    # Only count assets with actual balances (not margin limits)
+                    if wallet_balance > 0 or margin_balance > 0:
+                        # Convert crypto assets to USD equivalent
+                        usd_value = self._convert_asset_to_usd(asset.get("asset", ""), margin_balance)
+                        total_wallet_balance += usd_value if usd_value > 0 else margin_balance
+                        total_margin_balance += usd_value if usd_value > 0 else margin_balance
+                        total_unrealized_pnl += unrealized_profit
+
+            # For futures accounts, available balance is the margin available for trading
+            # Use the account-level availableBalance from the raw portfolio
+            account_available = raw_portfolio.get("availableBalance", 0.0)
+            try:
+                available_balance = float(account_available)
+            except (TypeError, ValueError):
+                available_balance = total_wallet_balance
+
+            if total_margin_balance <= 0.0 and total_wallet_balance > 0.0:
+                total_margin_balance = total_wallet_balance + total_unrealized_pnl
+
             total_exposure = 0.0
-            positions_dict = {}
+            positions_dict: Dict[str, Any] = {}
 
-            if "positions" in raw_portfolio and isinstance(raw_portfolio["positions"], list):
-                for position in raw_portfolio["positions"]:
-                    if position and isinstance(position, dict):
-                        position_amt = position.get("positionAmt")
-                        if position_amt is not None:
-                            try:
-                                amt = float(position_amt)
-                                if amt != 0:
-                                    symbol = str(position.get("symbol", "")).replace("USDT", "")
-                                    notional_value = position.get("notional", 0)
-                                    notional = abs(float(notional_value)) if notional_value is not None else 0
-                                    total_exposure += notional
-                                    positions_dict[symbol] = {
-                                        "symbol": symbol,
-                                        "notional": notional
-                                    }
-                            except (ValueError, TypeError):
-                                logger.warning("Invalid position data: %s", position)
-                                continue
+            positions = raw_portfolio.get("positions", [])
+            if isinstance(positions, list):
+                for position in positions:
+                    if not isinstance(position, dict):
+                        continue
+
+                    raw_amt = position.get("positionAmt") or position.get("position_amount")
+                    try:
+                        position_amount = float(raw_amt)
+                    except (TypeError, ValueError):
+                        logger.debug("Skipping position with invalid amount: %s", position)
+                        continue
+
+                    if abs(position_amount) < 1e-6:
+                        continue
+
+                    symbol = str(position.get("symbol", "UNKNOWN")).upper()
+
+                    raw_notional = position.get("notional")
+                    notional = 0.0
+                    if raw_notional is not None:
+                        try:
+                            notional = abs(float(raw_notional))
+                        except (TypeError, ValueError):
+                            notional = 0.0
+
+                    mark_price = 0.0
+                    if notional == 0.0:
+                        try:
+                            mark_price = float(position.get("markPrice") or position.get("entryPrice") or 0.0)
+                            notional = abs(position_amount) * mark_price
+                        except (TypeError, ValueError):
+                            mark_price = 0.0
+                            notional = 0.0
+                    else:
+                        try:
+                            mark_price = float(position.get("markPrice") or position.get("entryPrice") or 0.0)
+                        except (TypeError, ValueError):
+                            mark_price = 0.0
+
+                    total_exposure += notional
+
+                    try:
+                        entry_price = float(position.get("entryPrice", 0.0))
+                    except (TypeError, ValueError):
+                        entry_price = 0.0
+
+                    try:
+                        unrealized = float(position.get("unrealizedProfit", 0.0))
+                    except (TypeError, ValueError):
+                        unrealized = 0.0
+
+                    pnl_percent = (unrealized / notional * 100.0) if notional else 0.0
+                    side = "LONG" if position_amount >= 0 else "SHORT"
+                    agent_id = self._symbol_to_agent.get(symbol, "")
+
+                    positions_dict[symbol] = {
+                        "symbol": symbol,
+                        "size": round(position_amount, 6),
+                        "notional": round(notional, 2),
+                        "entry_price": round(entry_price, 4),
+                        "current_price": round(mark_price, 4),
+                        "pnl": round(unrealized, 2),
+                        "pnl_percent": round(pnl_percent, 2),
+                        "side": side,
+                        "agent_id": agent_id,
+                        "leverage": position.get("leverage"),
+                    }
+
+            balance = max(total_margin_balance, total_wallet_balance)
 
             return {
-                "balance": total_margin_balance,  # Use margin balance as the main balance
-                "total_exposure": total_exposure,
+                "balance": round(balance, 2),
+                "available_balance": round(available_balance, 2),
+                "total_exposure": round(total_exposure, 2),
                 "positions": positions_dict,
                 "source": raw_portfolio.get("source", "orchestrator"),
-                "alerts": raw_portfolio.get("alerts", [])
+                "alerts": raw_portfolio.get("alerts", []),
             }
 
         except Exception as exc:
@@ -444,8 +765,143 @@ class TradingService:
                 "total_exposure": 0.0,
                 "positions": {},
                 "source": "fallback",
-                "alerts": [f"Portfolio data parsing error: {str(exc)}"]
+                "alerts": [f"Portfolio data parsing error: {str(exc)}"],
             }
+
+    def _update_agent_snapshots(self, portfolio: Dict[str, Any]) -> None:
+        if not isinstance(portfolio, dict):
+            return
+
+        timestamp = datetime.utcnow()
+        positions_payload = portfolio.get("positions", {})
+        total_balance = float(portfolio.get("balance", self._portfolio.balance))
+        total_exposure = float(portfolio.get("total_exposure", self._portfolio.total_exposure))
+
+        for state in self._agent_states.values():
+            state.open_positions = {}
+            state.total_pnl = 0.0
+            state.exposure = 0.0
+
+        if isinstance(positions_payload, dict):
+            for symbol, position in positions_payload.items():
+                if not isinstance(position, dict):
+                    continue
+                agent_id = self._symbol_to_agent.get(str(symbol).upper())
+                if not agent_id:
+                    continue
+                state = self._agent_states[agent_id]
+                cloned = dict(position)
+                pnl = float(cloned.get("pnl", 0.0) or 0.0)
+                notional = float(cloned.get("notional", 0.0) or 0.0)
+                state.open_positions[str(symbol).upper()] = cloned
+                state.total_pnl += pnl
+                state.exposure += max(notional, 0.0)
+
+        agent_count = max(len(self._agent_states), 1)
+        for state in self._agent_states.values():
+            if state.exposure > 0:
+                state.status = "active"
+            elif state.total_trades > 0:
+                state.status = "monitoring"
+            else:
+                state.status = "idle"
+
+            if total_exposure > 0 and state.exposure > 0:
+                allocation_ratio = state.exposure / max(total_exposure, 1e-6)
+                allocated_balance = total_balance * allocation_ratio
+            else:
+                allocated_balance = total_balance / agent_count if total_balance else 0.0
+
+            state.equity_curve.append((timestamp, allocated_balance + state.total_pnl))
+
+    def _serialize_agents(self) -> List[Dict[str, Any]]:
+        agents: List[Dict[str, Any]] = []
+        for state in self._agent_states.values():
+            open_positions: List[Dict[str, Any]] = []
+            positive = 0
+            negative = 0
+            for symbol, payload in state.open_positions.items():
+                pnl = float(payload.get("pnl", 0.0) or 0.0)
+                if pnl > 0:
+                    positive += 1
+                elif pnl < 0:
+                    negative += 1
+                entry = {
+                    "symbol": symbol,
+                    "size": payload.get("size"),
+                    "notional": payload.get("notional"),
+                    "entry_price": payload.get("entry_price"),
+                    "current_price": payload.get("current_price"),
+                    "pnl": pnl,
+                    "pnl_percent": payload.get("pnl_percent"),
+                    "side": payload.get("side"),
+                }
+                open_positions.append(entry)
+
+            if positive + negative > 0:
+                win_rate = (positive / (positive + negative)) * 100.0
+            elif state.total_trades > 0:
+                win_rate = state.baseline_win_rate * 100.0
+            else:
+                win_rate = state.baseline_win_rate * 100.0
+
+            agents.append(
+                {
+                    "id": state.id,
+                    "name": state.name,
+                    "model": state.model,
+                    "emoji": state.emoji,
+                    "status": state.status,
+                    "symbols": state.symbols,
+                    "description": state.description,
+                    "total_pnl": round(state.total_pnl, 2),
+                    "exposure": round(state.exposure, 2),
+                    "total_trades": state.total_trades,
+                    "win_rate": round(win_rate, 2),
+                    "last_trade": state.last_trade.isoformat() if state.last_trade else None,
+                    "positions": open_positions,
+                    "performance": [
+                        {"timestamp": ts.isoformat(), "equity": round(value, 2)}
+                        for ts, value in list(state.equity_curve)
+                    ],
+                }
+            )
+
+        return agents
+
+    def _register_trade_event(
+        self,
+        symbol: str,
+        side: str,
+        price: float,
+        notional: float,
+        quantity: float,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        timestamp_value = datetime.utcnow()
+        agent_id = self._symbol_to_agent.get(symbol.upper())
+        agent_model = None
+        if agent_id and agent_id in self._agent_states:
+            state = self._agent_states[agent_id]
+            state.total_trades += 1
+            state.total_notional += notional
+            state.last_trade = timestamp_value
+            state.status = "active"
+            agent_model = state.model
+
+        event = {
+            "symbol": symbol.upper(),
+            "side": side,
+            "price": round(price, 4),
+            "quantity": round(quantity, 6),
+            "notional": round(notional, 2),
+            "agent_id": agent_id,
+            "model": agent_model,
+            "timestamp": timestamp_value.isoformat(),
+        }
+        if metadata:
+            event.update(metadata)
+        self._recent_trades.appendleft(event)
 
     def _serialize_portfolio_state(self, alert: str | None = None) -> Dict[str, Any]:
         portfolio = {
@@ -478,22 +934,25 @@ class TradingService:
             decision = request.decision
             confidence = request.confidence or 0.5
             symbol = request.context.symbol
+            decision_side = (decision.side or "").upper()
+            decision.side = decision_side
 
             # Only execute high-confidence decisions
             min_confidence = getattr(self._settings, 'min_llm_confidence', 0.7)
             if confidence < min_confidence:
                 logger.info(f"🤖 LLM decision confidence {confidence:.2f} below threshold {min_confidence}, skipping")
-                decision.action = "HOLD"  # Override to hold
+                decision_side = "HOLD"
+                decision.side = decision_side
 
             # Convert LLM decision to executable order
-            if decision.action in ["BUY", "SELL"] and confidence >= min_confidence:
+            if decision_side in ["BUY", "SELL"] and confidence >= min_confidence:
                 # Calculate position size based on Kelly criterion and risk limits
                 position_size = self._calculate_position_size(decision, request.context, confidence)
 
                 if position_size > 0:
                     order_intent = OrderIntent(
                         symbol=symbol,
-                        side=decision.action,
+                        side=decision_side,
                         notional=position_size,
                         order_type="MARKET",
                     )
@@ -501,19 +960,29 @@ class TradingService:
                     # Execute through orchestrator
                     if self._orchestrator:
                         await self._orchestrator.submit_order(request.bot_id, order_intent)
-                        logger.info(f"✅ LLM trade executed: {decision.action} {position_size} {symbol} (confidence: {confidence:.2f})")
+                        context_price = getattr(request.context, "price", None) or getattr(request.context, "current_price", 0.0)
+                        quantity = position_size / max(context_price, 1e-8) if context_price else 0.0
+                        self._register_trade_event(
+                            symbol=symbol,
+                            side=decision_side,
+                            price=float(context_price or 0.0),
+                            notional=position_size,
+                            quantity=quantity,
+                            metadata={"source": "llm"},
+                        )
+                        logger.info(f"✅ LLM trade executed: {decision_side} {position_size} {symbol} (confidence: {confidence:.2f})")
                     else:
                         logger.warning("No orchestrator configured, cannot execute LLM order")
                 else:
-                    logger.info(f"LLM decision {decision.action} blocked by risk management (size: {position_size})")
+                    logger.info(f"LLM decision {decision_side} blocked by risk management (size: {position_size})")
 
-            elif decision.action == "CLOSE" and request.context.current_position:
+            elif decision_side == "CLOSE" and getattr(request.context, "current_position", None):
                 # Close existing position
                 await self._close_position(request.bot_id, symbol)
                 logger.info(f"✅ Position closed via LLM decision for {symbol}")
 
             else:
-                logger.info(f"🤖 LLM decision: {decision.action} {symbol} (confidence: {confidence:.2f})")
+                logger.info(f"🤖 LLM decision: {decision_side} {symbol} (confidence: {confidence:.2f})")
 
         except Exception as exc:
             logger.error(f"Failed to process LLM inference decision: {exc}")
@@ -525,12 +994,12 @@ class TradingService:
         TRADING_DECISIONS.labels(
             bot_id=request.bot_id,
             symbol=request.context.symbol,
-            action=request.decision.action
+            action=request.decision.side
         ).inc()
 
         # Log which model was used
         model_used = getattr(request, 'model_used', 'unknown')
-        logger.info(f"🤖 LLM Decision from {model_used}: {request.decision.action} {request.context.symbol} (confidence: {request.confidence:.2f})")
+        logger.info(f"🤖 LLM Decision from {model_used}: {request.decision.side} {request.context.symbol} (confidence: {request.confidence:.2f})")
 
         # Always publish decision for telemetry
         decision_payload = {
@@ -616,6 +1085,14 @@ class TradingService:
             # Execute through orchestrator
             if self._orchestrator:
                 await self._orchestrator.submit_order(bot_id, order_intent)
+                self._register_trade_event(
+                    symbol=symbol,
+                    side=close_side,
+                    price=0.0,
+                    notional=abs(position.notional),
+                    quantity=close_quantity,
+                    metadata={"source": "llm_close"},
+                )
                 logger.info(f"Position closed: {close_side} {close_quantity} {symbol}")
             else:
                 logger.warning("No orchestrator configured, cannot close position")
@@ -679,16 +1156,81 @@ class TradingService:
             logger.debug("Unable to sync orchestrator portfolio: %s", exc)
             return
 
+        self._latest_portfolio_raw = payload
         positions_payload = payload.get("positions") or []
-        positions = {
-            position["symbol"]: Position(symbol=position["symbol"], notional=float(position["notional"]))
-            for position in positions_payload
-        }
-        balance = float(payload.get("totalWalletBalance", self._portfolio.balance))
-        total_exposure = float(
-            payload.get("totalPositionInitialMargin", sum(position.notional for position in positions.values()))
-        )
+        positions: Dict[str, Position] = {}
+        for raw_position in positions_payload:
+            if not isinstance(raw_position, dict):
+                continue
+            symbol = raw_position.get("symbol")
+            if not symbol:
+                continue
+            try:
+                notional = float(raw_position.get("notional", 0.0))
+            except (TypeError, ValueError):
+                notional = 0.0
+
+            raw_size = raw_position.get("positionAmt") or raw_position.get("position_amount")
+            try:
+                size = float(raw_size) if raw_size is not None else 0.0
+            except (TypeError, ValueError):
+                size = 0.0
+
+            if abs(size) < 1e-6 and abs(notional) < 1e-4:
+                continue
+
+            if notional == 0.0:
+                try:
+                    mark_price = float(raw_position.get("markPrice") or raw_position.get("entryPrice") or 0.0)
+                    notional = abs(size) * mark_price
+                except (TypeError, ValueError):
+                    notional = 0.0
+
+            if notional == 0.0:
+                continue
+
+            positions[symbol] = Position(symbol=symbol, notional=abs(notional))
+
+        balance = 0.0
+        for key in ("availableBalance", "totalWalletBalance", "total_wallet_balance", "totalMarginBalance"):
+            value = payload.get(key)
+            if value is not None:
+                try:
+                    balance = float(value)
+                except (TypeError, ValueError):
+                    balance = 0.0
+            if balance > 0:
+                break
+
+        if balance <= 0:
+            assets = payload.get("assets", [])
+            if isinstance(assets, list):
+                running = 0.0
+                for asset in assets:
+                    if isinstance(asset, dict):
+                        try:
+                            running += float(asset.get("walletBalance", 0.0))
+                        except (TypeError, ValueError):
+                            continue
+                balance = running
+
+        if balance <= 0:
+            balance = self._portfolio.balance
+
+        total_exposure_payload = payload.get("totalPositionInitialMargin") or payload.get("total_initial_margin")
+        if total_exposure_payload is not None:
+            try:
+                total_exposure = float(total_exposure_payload)
+            except (TypeError, ValueError):
+                total_exposure = sum(position.notional for position in positions.values())
+        else:
+            total_exposure = sum(position.notional for position in positions.values())
+
         self._portfolio = PortfolioState(balance=balance, total_exposure=total_exposure, positions=positions)
+
+        derived_portfolio = self._transform_portfolio_for_frontend(payload)
+        self._latest_portfolio_frontend = derived_portfolio
+        self._update_agent_snapshots(derived_portfolio)
 
         # Update Prometheus metrics
         from .api import PORTFOLIO_BALANCE, PORTFOLIO_LEVERAGE, POSITION_SIZE
