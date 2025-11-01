@@ -1,4 +1,4 @@
-const API_URL = import.meta.env.VITE_API_URL || 'https://cloud-trader-880429861698.us-central1.run.app';
+const API_URL = import.meta.env.VITE_API_URL || 'https://cloud-trader-cfxefrvooa-uc.a.run.app';
 const DASHBOARD_URL = import.meta.env.VITE_DASHBOARD_URL || API_URL;
 
 export interface HealthResponse {
