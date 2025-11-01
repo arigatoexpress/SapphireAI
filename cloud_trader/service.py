@@ -62,7 +62,11 @@ class TradingService:
     async def dashboard_snapshot(self) -> Dict[str, Any]:
         """Aggregate a lightweight view for the dashboard endpoint."""
 
-        portfolio, orchestrator_status = await self._resolve_portfolio()
+        raw_portfolio, orchestrator_status = await self._resolve_portfolio()
+
+        # Transform portfolio data for frontend
+        portfolio = self._transform_portfolio_for_frontend(raw_portfolio)
+
         positions = [
             {
                 "symbol": symbol,
@@ -97,8 +101,8 @@ class TradingService:
             "alerts": [],
         }
 
-        if portfolio.get("alerts"):
-            targets["alerts"].extend(portfolio["alerts"])
+        if raw_portfolio.get("alerts"):
+            targets["alerts"].extend(raw_portfolio["alerts"])
 
         return {
             "portfolio": portfolio,
@@ -377,6 +381,62 @@ class TradingService:
                 self._health.last_error = self._health.last_error or str(exc)
                 return self._serialize_portfolio_state(alert=str(exc)), "unreachable"
         return self._serialize_portfolio_state(), "not_configured"
+
+    def _transform_portfolio_for_frontend(self, raw_portfolio: Dict[str, Any]) -> Dict[str, Any]:
+        """Transform raw portfolio data into frontend-expected format."""
+        # If it's already in the right format (from local state), return as-is
+        if "balance" in raw_portfolio:
+            return raw_portfolio
+
+        # Transform Binance futures account data
+        try:
+            # Extract total wallet balance (USDT)
+            total_wallet_balance = 0.0
+            total_margin_balance = 0.0
+            total_unrealized_pnl = 0.0
+
+            # Sum up balances from assets
+            if "assets" in raw_portfolio and isinstance(raw_portfolio["assets"], list):
+                for asset in raw_portfolio["assets"]:
+                    if asset.get("asset") == "USDT":
+                        total_wallet_balance = float(asset.get("walletBalance", 0))
+                        total_margin_balance = float(asset.get("marginBalance", 0))
+                        total_unrealized_pnl = float(asset.get("unrealizedProfit", 0))
+                        break
+
+            # Calculate total exposure from positions
+            total_exposure = 0.0
+            positions_dict = {}
+
+            if "positions" in raw_portfolio and isinstance(raw_portfolio["positions"], list):
+                for position in raw_portfolio["positions"]:
+                    if position.get("positionAmt") and float(position.get("positionAmt", 0)) != 0:
+                        symbol = position.get("symbol", "").replace("USDT", "")
+                        notional = abs(float(position.get("notional", 0)))
+                        total_exposure += notional
+                        positions_dict[symbol] = {
+                            "symbol": symbol,
+                            "notional": notional
+                        }
+
+            return {
+                "balance": total_margin_balance,  # Use margin balance as the main balance
+                "total_exposure": total_exposure,
+                "positions": positions_dict,
+                "source": raw_portfolio.get("source", "orchestrator"),
+                "alerts": raw_portfolio.get("alerts", [])
+            }
+
+        except Exception as exc:
+            logger.warning("Failed to transform portfolio data: %s", exc)
+            # Return a safe fallback
+            return {
+                "balance": 1000.0,
+                "total_exposure": 0.0,
+                "positions": {},
+                "source": "fallback",
+                "alerts": [f"Portfolio data parsing error: {str(exc)}"]
+            }
 
     def _serialize_portfolio_state(self, alert: str | None = None) -> Dict[str, Any]:
         portfolio = {
