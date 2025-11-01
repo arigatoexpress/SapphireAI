@@ -410,14 +410,23 @@ class TradingService:
 
             if "positions" in raw_portfolio and isinstance(raw_portfolio["positions"], list):
                 for position in raw_portfolio["positions"]:
-                    if position.get("positionAmt") and float(position.get("positionAmt", 0)) != 0:
-                        symbol = position.get("symbol", "").replace("USDT", "")
-                        notional = abs(float(position.get("notional", 0)))
-                        total_exposure += notional
-                        positions_dict[symbol] = {
-                            "symbol": symbol,
-                            "notional": notional
-                        }
+                    if position and isinstance(position, dict):
+                        position_amt = position.get("positionAmt")
+                        if position_amt is not None:
+                            try:
+                                amt = float(position_amt)
+                                if amt != 0:
+                                    symbol = str(position.get("symbol", "")).replace("USDT", "")
+                                    notional_value = position.get("notional", 0)
+                                    notional = abs(float(notional_value)) if notional_value is not None else 0
+                                    total_exposure += notional
+                                    positions_dict[symbol] = {
+                                        "symbol": symbol,
+                                        "notional": notional
+                                    }
+                            except (ValueError, TypeError):
+                                logger.warning("Invalid position data: %s", position)
+                                continue
 
             return {
                 "balance": total_margin_balance,  # Use margin balance as the main balance

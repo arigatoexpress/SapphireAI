@@ -63,9 +63,10 @@ async def test_system():
                 print(f"⚠️ Orchestrator responded with status {response.status_code}")
             await client.close()
         else:
-            print("⚠️ No orchestrator URL configured")
+            print("⚠️ No orchestrator URL configured (expected for basic deployment)")
     except Exception as e:
         print(f"❌ Orchestrator connectivity error: {e}")
+        # Don't fail the test for missing orchestrator - it's expected
 
     # Test 5: Redis connectivity (if available)
     print("\n💾 Testing Redis Connectivity...")
@@ -80,6 +81,7 @@ async def test_system():
             print("⚠️ No Redis URL configured")
     except Exception as e:
         print(f"❌ Redis connectivity error: {e}")
+        # Don't fail the test for missing Redis - it's expected in Cloud Run
 
     print("\n🎯 System validation completed!")
     return True

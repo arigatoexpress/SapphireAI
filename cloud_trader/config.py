@@ -2,8 +2,9 @@
 
 from functools import lru_cache
 from typing import List
+from urllib.parse import urlparse
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -19,6 +20,19 @@ class Settings(BaseSettings):
     # API endpoints
     rest_base_url: str = Field(default="https://fapi.asterdex.com", validation_alias="ASTER_REST_URL")
     ws_base_url: str = Field(default="wss://fstream.asterdex.com", validation_alias="ASTER_WS_URL")
+
+    @field_validator('rest_base_url', 'ws_base_url', 'model_endpoint', 'llm_endpoint')
+    @classmethod
+    def validate_url(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        try:
+            parsed = urlparse(v)
+            if not parsed.scheme or not parsed.netloc:
+                raise ValueError(f"Invalid URL format: {v}")
+            return v
+        except Exception:
+            raise ValueError(f"Invalid URL: {v}")
 
     # Trading configuration
     symbols: List[str] = Field(default_factory=lambda: ["BTCUSDT", "ETHUSDT", "SOLUSDT", "SUIUSDT"])
