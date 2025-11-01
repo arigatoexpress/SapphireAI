@@ -69,12 +69,20 @@ def build_app(service: TradingService | None = None) -> FastAPI:
 
     @app.get("/healthz")
     async def healthz() -> Dict[str, object]:
-        status = trading_service.health()
-        return {
-            "running": status.running,
-            "paper_trading": status.paper_trading,
-            "last_error": status.last_error,
-        }
+        try:
+            status = trading_service.health()
+            return {
+                "running": status.running,
+                "paper_trading": status.paper_trading,
+                "last_error": status.last_error,
+            }
+        except Exception as e:
+            # Return a basic response if health check fails
+            return {
+                "running": False,
+                "paper_trading": True,
+                "last_error": str(e),
+            }
 
     @app.post("/start")
     async def start() -> Dict[str, str]:

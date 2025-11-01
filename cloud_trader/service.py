@@ -379,7 +379,7 @@ class TradingService:
             except Exception as exc:
                 logger.warning("Failed to fetch orchestrator portfolio: %s", exc)
                 self._health.last_error = self._health.last_error or str(exc)
-                return self._serialize_portfolio_state(alert=str(exc)), "unreachable"
+                return self._serialize_portfolio_state(alert="Orchestrator service unavailable - using local portfolio data"), "unreachable"
         return self._serialize_portfolio_state(), "not_configured"
 
     def _transform_portfolio_for_frontend(self, raw_portfolio: Dict[str, Any]) -> Dict[str, Any]:
