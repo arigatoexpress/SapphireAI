@@ -30,6 +30,9 @@ class RedisStreamsClient:
             await self._client.close()
             self._client = None
 
+    def is_connected(self) -> bool:
+        return self._client is not None
+
     async def publish_decision(self, payload: Dict[str, str]) -> None:
         client = await self._ensure()
         await client.xadd(self._decisions_stream, payload, maxlen=self._maxlen, approximate=True)

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-interface Position {
+interface PositionRow {
   symbol: string;
   side: string;
   size: number;
@@ -14,12 +14,34 @@ interface Position {
 }
 
 interface LivePositionsProps {
-  positions: Position[];
+  positions: any[];
 }
 
 const LivePositions: React.FC<LivePositionsProps> = ({ positions }) => {
   const [sortBy, setSortBy] = useState<'pnl' | 'symbol' | 'size'>('pnl');
   const [filterModel, setFilterModel] = useState<string>('all');
+  const normalizedPositions: PositionRow[] = positions.map((pos) => {
+    const notional = typeof pos.notional === 'number' ? pos.notional : 0;
+    const size = typeof pos.size === 'number' ? pos.size : Math.abs(notional);
+    const side = pos.side
+      ? String(pos.side).toUpperCase()
+      : notional >= 0
+        ? 'LONG'
+        : 'SHORT';
+
+    return {
+      symbol: pos.symbol ?? 'Unknown',
+      side,
+      size,
+      entry_price: typeof pos.entry_price === 'number' ? pos.entry_price : 0,
+      current_price: typeof pos.current_price === 'number' ? pos.current_price : 0,
+      pnl: typeof pos.pnl === 'number' ? pos.pnl : 0,
+      pnl_percent: typeof pos.pnl_percent === 'number' ? pos.pnl_percent : 0,
+      leverage: typeof pos.leverage === 'number' ? pos.leverage : 1,
+      model_used: pos.model_used ?? 'N/A',
+      timestamp: pos.timestamp ?? new Date().toISOString(),
+    };
+  });
   const getModelIcon = (modelName: string) => {
     const icons: { [key: string]: string } = {
       'DeepSeek-Coder-V2': '🧠',
@@ -43,7 +65,7 @@ const LivePositions: React.FC<LivePositionsProps> = ({ positions }) => {
   };
 
   // Filter and sort positions
-  const filteredPositions = positions.filter(pos =>
+  const filteredPositions = normalizedPositions.filter(pos =>
     filterModel === 'all' || pos.model_used === filterModel
   );
 
@@ -60,58 +82,40 @@ const LivePositions: React.FC<LivePositionsProps> = ({ positions }) => {
     }
   });
 
-  const totalPnL = positions.reduce((sum, pos) => sum + pos.pnl, 0);
-  const totalExposure = positions.reduce((sum, pos) => sum + (pos.size * pos.entry_price), 0);
+  const totalPnL = normalizedPositions.reduce((sum, pos) => sum + pos.pnl, 0);
+  const totalExposure = normalizedPositions.reduce((sum, pos) => sum + (pos.size * pos.entry_price), 0);
 
-  const uniqueModels = Array.from(new Set(positions.map(p => p.model_used)));
+  const uniqueModels = Array.from(new Set(normalizedPositions.map(p => p.model_used)));
 
   return (
     <div className="space-y-6">
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-slate-600">Total Positions</p>
-              <p className="text-2xl font-bold text-slate-900">{positions.length}</p>
-            </div>
-            <span className="text-2xl">📊</span>
-          </div>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="rounded-2xl border border-surface-200/40 bg-surface-100/80 p-5 shadow-glass">
+          <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Positions</p>
+          <p className="mt-2 text-3xl font-semibold text-white">{normalizedPositions.length}</p>
+          <p className="mt-1 text-xs text-slate-500">Active exposures across all models</p>
         </div>
-
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-slate-600">Total P&L</p>
-              <p className={`text-2xl font-bold ${getPnLColor(totalPnL)}`}>
-                ${totalPnL.toFixed(2)}
-              </p>
-            </div>
-            <span className={`text-2xl ${totalPnL >= 0 ? 'filter hue-rotate-120' : ''}`}>💰</span>
-          </div>
+        <div className="rounded-2xl border border-surface-200/40 bg-surface-100/80 p-5 shadow-glass">
+          <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Total P&L</p>
+          <p className={`mt-2 text-3xl font-semibold ${getPnLColor(totalPnL)}`}>${totalPnL.toFixed(2)}</p>
+          <p className="mt-1 text-xs text-slate-500">Session-to-date realised + unrealised</p>
         </div>
-
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-slate-600">Total Exposure</p>
-              <p className="text-2xl font-bold text-slate-900">${totalExposure.toFixed(2)}</p>
-            </div>
-            <span className="text-2xl">📈</span>
-          </div>
+        <div className="rounded-2xl border border-surface-200/40 bg-surface-100/80 p-5 shadow-glass">
+          <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Gross Exposure</p>
+          <p className="mt-2 text-3xl font-semibold text-white">${totalExposure.toFixed(2)}</p>
+          <p className="mt-1 text-xs text-slate-500">Calculated at entry notional</p>
         </div>
       </div>
 
-      {/* Filters and Controls */}
-      <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
-        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-          <div className="flex items-center space-x-4">
+      <div className="rounded-2xl border border-surface-200/40 bg-surface-100/80 p-5 shadow-glass">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Sort by:</label>
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Sort Order</p>
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as 'pnl' | 'symbol' | 'size')}
-                className="px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="mt-2 rounded-xl border border-surface-200/40 bg-surface-50/40 px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary-500/60"
               >
                 <option value="pnl">P&L</option>
                 <option value="symbol">Symbol</option>
@@ -119,106 +123,79 @@ const LivePositions: React.FC<LivePositionsProps> = ({ positions }) => {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Filter Model:</label>
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Model Filter</p>
               <select
                 value={filterModel}
                 onChange={(e) => setFilterModel(e.target.value)}
-                className="px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="mt-2 rounded-xl border border-surface-200/40 bg-surface-50/40 px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary-500/60"
               >
                 <option value="all">All Models</option>
-                {uniqueModels.map(model => (
-                  <option key={model} value={model}>{model}</option>
+                {uniqueModels.map((model) => (
+                  <option key={model} value={model}>
+                    {model}
+                  </option>
                 ))}
               </select>
             </div>
           </div>
-          <div className="text-sm text-slate-600">
-            Showing {sortedPositions.length} of {positions.length} positions
-          </div>
+          <p className="text-sm text-slate-400">
+            Showing <span className="font-semibold text-slate-200">{sortedPositions.length}</span> of {normalizedPositions.length}
+          </p>
         </div>
       </div>
 
-      {/* Positions Table */}
-      <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-200">
-          <h2 className="text-xl font-semibold text-slate-900">Live Positions</h2>
+      <div className="overflow-hidden rounded-2xl border border-surface-200/40 bg-surface-100/80 shadow-glass">
+        <div className="border-b border-surface-200/40 px-6 py-4">
+          <h2 className="text-xl font-semibold text-white">Live Positions</h2>
         </div>
 
         {sortedPositions.length === 0 ? (
-          <div className="text-center py-12 text-slate-500">
-            <span className="text-4xl mb-2 block">📊</span>
-            <p>No active positions</p>
-            <p className="text-sm">Positions will appear here when trades are executed</p>
+          <div className="py-16 text-center text-slate-500">
+            <p className="text-sm">No active positions · awaiting signal fulfilment</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200">
-              <thead className="bg-slate-50">
+            <table className="min-w-full divide-y divide-surface-200/40 text-sm">
+              <thead className="bg-surface-50/40 text-xs uppercase tracking-[0.2em] text-slate-400">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                    Symbol & Model
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                    Side
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                    Size
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                    Entry Price
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                    Current Price
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                    P&L
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                    Leverage
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                    Last Update
-                  </th>
+                  <th className="px-6 py-3 text-left">Symbol & Model</th>
+                  <th className="px-6 py-3 text-left">Side</th>
+                  <th className="px-6 py-3 text-left">Size</th>
+                  <th className="px-6 py-3 text-left">Entry</th>
+                  <th className="px-6 py-3 text-left">Last</th>
+                  <th className="px-6 py-3 text-left">P&L</th>
+                  <th className="px-6 py-3 text-left">Lev</th>
+                  <th className="px-6 py-3 text-left">Updated</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-slate-200">
+              <tbody className="divide-y divide-surface-200/30 text-slate-200">
                 {sortedPositions.map((position, index) => (
-                  <tr key={index} className={`${getPnLBgColor(position.pnl)} hover:bg-slate-50`}>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <span className="text-lg mr-2">{getModelIcon(position.model_used)}</span>
+                  <tr key={index} className="hover:bg-surface-50/30">
+                    <td className="px-6 py-3">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl">{getModelIcon(position.model_used)}</span>
                         <div>
-                          <div className="text-sm font-medium text-slate-900">{position.symbol}</div>
-                          <div className="text-xs text-slate-500">{position.model_used}</div>
+                          <p className="text-sm font-medium text-white">{position.symbol}</p>
+                          <p className="text-xs text-slate-500">{position.model_used}</p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getPositionColor(position.side)} bg-current bg-opacity-10`}>
+                    <td className="px-6 py-3">
+                      <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${getPositionColor(position.side)} bg-white/10`}>
                         {position.side.toUpperCase()}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">
-                      {position.size.toFixed(4)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">
-                      ${position.entry_price.toFixed(2)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">
-                      ${position.current_price.toFixed(2)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className={`text-sm font-medium ${getPnLColor(position.pnl)}`}>
-                        ${position.pnl.toFixed(2)}
-                      </div>
+                    <td className="px-6 py-3 text-slate-200">{position.size.toFixed(4)}</td>
+                    <td className="px-6 py-3 text-slate-200">${position.entry_price.toFixed(2)}</td>
+                    <td className="px-6 py-3 text-slate-200">${position.current_price.toFixed(2)}</td>
+                    <td className="px-6 py-3">
+                      <div className={`font-semibold ${getPnLColor(position.pnl)}`}>${position.pnl.toFixed(2)}</div>
                       <div className={`text-xs ${getPnLColor(position.pnl_percent)}`}>
                         ({position.pnl_percent >= 0 ? '+' : ''}{position.pnl_percent.toFixed(2)}%)
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">
-                      {position.leverage}x
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                    <td className="px-6 py-3 text-slate-200">{position.leverage}x</td>
+                    <td className="px-6 py-3 text-slate-500">
                       {new Date(position.timestamp).toLocaleTimeString()}
                     </td>
                   </tr>

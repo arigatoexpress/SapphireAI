@@ -1,0 +1,25 @@
+# This file controls which files are uploaded to Cloud Build.
+# Keep it intentionally lean so required build artifacts are available.
+
+# Exclude VCS and local-only directories
+.git/
+.gitignore
+.gcloudignore
+.vscode/
+.idea/
+
+# Python virtual environments and caches
+.venv/
+__pycache__/
+
+# Node dependency directories
+node_modules/
+cloud-trader-dashboard/node_modules/
+
+# OS junk
+.DS_Store
+
+# Include the compiled frontend bundle explicitly so Cloud Build ships it
+!cloud-trader-dashboard/dist/
+!cloud-trader-dashboard/dist/**
+

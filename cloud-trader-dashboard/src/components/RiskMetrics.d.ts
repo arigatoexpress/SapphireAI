@@ -1,6 +1,7 @@
 import React from 'react';
+import { DashboardPortfolio } from '../api/client';
 interface RiskMetricsProps {
-    positions?: any[];
+    portfolio?: DashboardPortfolio;
 }
 declare const RiskMetrics: React.FC<RiskMetricsProps>;
 export default RiskMetrics;

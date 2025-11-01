@@ -7,7 +7,7 @@ import json
 import logging
 from datetime import datetime
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from .client import AsterClient
 from .config import Settings, get_settings
@@ -58,6 +58,57 @@ class TradingService:
         self._orchestrator: Optional[RiskOrchestratorClient] = None
         if self._settings.orchestrator_url:
             self._orchestrator = RiskOrchestratorClient(self._settings.orchestrator_url)
+
+    async def dashboard_snapshot(self) -> Dict[str, Any]:
+        """Aggregate a lightweight view for the dashboard endpoint."""
+
+        portfolio, orchestrator_status = await self._resolve_portfolio()
+        positions = [
+            {
+                "symbol": symbol,
+                "notional": position.notional,
+            }
+            for symbol, position in self._portfolio.positions.items()
+        ]
+
+        recent_trades = await self._safe_read_stream(self._settings.decisions_stream, count=20)
+        model_reasoning = await self._safe_read_stream(self._settings.reasoning_stream, count=10)
+
+        system_status = {
+            "services": {
+                "cloud_trader": "running" if self._health.running else "stopped",
+                "orchestrator": orchestrator_status,
+            },
+            "models": {
+                "deepseek": "unknown",
+                "qwen": "unknown",
+                "fingpt": "unknown",
+                "phi3": "unknown",
+            },
+            "redis_connected": self._streams.is_connected(),
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+
+        targets = {
+            "daily_pnl_target": 0.0,
+            "max_drawdown_limit": -self._settings.max_drawdown * 100,
+            "min_confidence_threshold": self._settings.min_llm_confidence,
+            "target_win_rate": self._settings.expected_win_rate,
+            "alerts": [],
+        }
+
+        if portfolio.get("alerts"):
+            targets["alerts"].extend(portfolio["alerts"])
+
+        return {
+            "portfolio": portfolio,
+            "positions": positions,
+            "recent_trades": recent_trades,
+            "model_performance": [],
+            "model_reasoning": model_reasoning,
+            "system_status": system_status,
+            "targets": targets,
+        }
 
     @property
     def paper_trading(self) -> bool:
@@ -314,6 +365,43 @@ class TradingService:
 
     def health(self) -> HealthStatus:
         return self._health
+
+    async def _resolve_portfolio(self) -> Tuple[Dict[str, Any], str]:
+        if self._orchestrator:
+            try:
+                portfolio = await self._orchestrator.portfolio()
+                portfolio.setdefault("source", "orchestrator")
+                return portfolio, "healthy"
+            except Exception as exc:
+                logger.warning("Failed to fetch orchestrator portfolio: %s", exc)
+                self._health.last_error = self._health.last_error or str(exc)
+                return self._serialize_portfolio_state(alert=str(exc)), "unreachable"
+        return self._serialize_portfolio_state(), "not_configured"
+
+    def _serialize_portfolio_state(self, alert: str | None = None) -> Dict[str, Any]:
+        portfolio = {
+            "balance": round(self._portfolio.balance, 2),
+            "total_exposure": round(self._portfolio.total_exposure, 2),
+            "positions": {
+                symbol: {
+                    "symbol": position.symbol,
+                    "notional": position.notional,
+                }
+                for symbol, position in self._portfolio.positions.items()
+            },
+            "source": "local",
+        }
+        if alert:
+            portfolio["alerts"] = [f"⚠️ {alert}"]
+        return portfolio
+
+    async def _safe_read_stream(self, stream: str, count: int) -> List[Dict[str, Any]]:
+        try:
+            entries = await self._streams.read_latest(stream, count=count)
+            return entries
+        except Exception as exc:
+            logger.debug("Failed to read stream %s: %s", stream, exc)
+            return []
 
     async def accept_inference_decision(self, request: InferenceRequest) -> None:
         """Process LLM-generated trading decisions and execute orders"""

@@ -1,5 +1,5 @@
 const API_URL = import.meta.env.VITE_API_URL || 'https://cloud-trader-880429861698.us-central1.run.app';
-const DASHBOARD_URL = import.meta.env.VITE_DASHBOARD_URL || 'https://trading-dashboard-880429861698.us-central1.run.app';
+const DASHBOARD_URL = import.meta.env.VITE_DASHBOARD_URL || API_URL;
 const fetchWithTimeout = async (url, options = {}, timeout = 10_000) => {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeout);
@@ -22,18 +22,7 @@ const fetchWithTimeout = async (url, options = {}, timeout = 10_000) => {
     }
 };
 export const fetchHealth = async () => {
-    try {
-        // Try the root endpoint first, fallback to healthz
-        return (await fetchWithTimeout(`${API_URL}/`));
-    }
-    catch {
-        // Fallback to healthz if root doesn't work
-        return (await fetchWithTimeout(`${API_URL}/healthz`));
-    }
-};
-export const fetchPortfolio = async () => {
-    const ORCHESTRATOR_URL = 'https://wallet-orchestrator-880429861698.us-central1.run.app';
-    return (await fetchWithTimeout(`${ORCHESTRATOR_URL}/portfolio`));
+    return (await fetchWithTimeout(`${API_URL}/healthz`));
 };
 export const postStart = async () => {
     return (await fetchWithTimeout(`${API_URL}/start`, { method: 'POST' }));

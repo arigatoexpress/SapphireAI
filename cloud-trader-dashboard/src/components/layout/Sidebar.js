@@ -1,0 +1,10 @@
+import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+const Sidebar = ({ tabs, activeTab, onSelect }) => {
+    return (_jsxs("aside", { className: "hidden lg:flex lg:w-64 xl:w-72 flex-col gap-6 bg-surface-100/60 border-r border-surface-200/60 backdrop-blur-sm p-6", children: [_jsxs("div", { className: "flex items-center gap-3", children: [_jsx("div", { className: "h-10 w-10 rounded-xl bg-gradient-to-br from-primary-500 via-primary-400 to-accent-teal flex items-center justify-center shadow-glass", children: _jsx("span", { className: "text-lg font-semibold text-white", children: "CT" }) }), _jsxs("div", { children: [_jsx("p", { className: "text-sm uppercase tracking-widest text-slate-400", children: "Aster Labs" }), _jsx("h1", { className: "text-xl font-semibold text-white", children: "Cloud Trader" })] })] }), _jsx("nav", { className: "flex-1", children: _jsx("ul", { className: "space-y-2", children: tabs.map((tab) => {
+                        const isActive = tab.id === activeTab;
+                        return (_jsx("li", { children: _jsxs("button", { type: "button", onClick: () => onSelect(tab.id), className: `group flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left transition-all duration-200 ${isActive
+                                    ? 'bg-primary-500/20 text-white shadow-glass'
+                                    : 'text-slate-400 hover:text-white hover:bg-surface-200/60'}`, children: [_jsx("span", { className: "text-lg", children: tab.icon }), _jsx("span", { className: "font-medium", children: tab.label }), isActive && (_jsx("span", { className: "ml-auto h-2 w-2 rounded-full bg-accent-emerald shadow-glass" }))] }) }, tab.id));
+                    }) }) }), _jsxs("div", { className: "rounded-xl border border-surface-200/60 bg-surface-100/80 p-4 text-sm text-slate-300", children: [_jsx("p", { className: "font-semibold text-white", children: "Operator Status" }), _jsx("p", { className: "mt-1 text-xs text-slate-400", children: "Live telemetry streaming every 5s \u00B7 WebSocket upgrade coming soon" })] })] }));
+};
+export default Sidebar;

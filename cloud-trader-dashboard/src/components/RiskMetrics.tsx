@@ -1,33 +1,33 @@
-import React, { useState, useEffect } from 'react';
-import { fetchPortfolio, PortfolioResponse, emergencyStop } from '../api/client';
+import React, { useState, useMemo } from 'react';
+import { DashboardPortfolio, emergencyStop } from '../api/client';
 
 interface RiskMetricsProps {
-  positions?: any[];
+  portfolio?: DashboardPortfolio;
 }
 
-const RiskMetrics: React.FC<RiskMetricsProps> = ({ positions: initialPositions }) => {
-  const [portfolio, setPortfolio] = useState<PortfolioResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+const RiskMetrics: React.FC<RiskMetricsProps> = ({ portfolio }) => {
   const [emergencyLoading, setEmergencyLoading] = useState(false);
 
-  const loadPortfolio = async () => {
-    try {
-      setLoading(true);
-      const data = await fetchPortfolio();
-      setPortfolio(data);
-    } catch (err) {
-      console.error('Failed to load portfolio for risk metrics:', err);
-    } finally {
-      setLoading(false);
+  const derived = useMemo(() => {
+    if (!portfolio) {
+      return {
+        balance: 0,
+        exposure: 0,
+        positions: [] as Array<{ symbol: string; notional: number }>,
+      };
     }
-  };
 
-  useEffect(() => {
-    loadPortfolio();
-    // Refresh risk metrics every 30 seconds
-    const interval = setInterval(loadPortfolio, 30000);
-    return () => clearInterval(interval);
-  }, []);
+    const balance = portfolio.balance ?? 0;
+    const exposure = portfolio.total_exposure ?? 0;
+    const positions = portfolio.positions
+      ? Object.values(portfolio.positions).map((position) => ({
+        symbol: position.symbol ?? 'Unknown',
+        notional: position.notional ?? 0,
+      }))
+      : [];
+
+    return { balance, exposure, positions };
+  }, [portfolio]);
 
   const handleEmergencyStop = async () => {
     if (!confirm('Are you sure you want to trigger an emergency stop? This will cancel all open orders and close positions.')) {
@@ -38,7 +38,6 @@ const RiskMetrics: React.FC<RiskMetricsProps> = ({ positions: initialPositions }
       setEmergencyLoading(true);
       await emergencyStop();
       alert('Emergency stop triggered successfully');
-      loadPortfolio(); // Refresh data
     } catch (err) {
       alert(`Emergency stop failed: ${(err as Error).message}`);
     } finally {
@@ -47,19 +46,18 @@ const RiskMetrics: React.FC<RiskMetricsProps> = ({ positions: initialPositions }
   };
 
   const calculateRiskMetrics = () => {
-    if (!portfolio) return null;
+    const { balance, exposure, positions } = derived;
+    if (balance === 0 && exposure === 0) return null;
 
-    const totalBalance = parseFloat(portfolio.totalWalletBalance);
-    const marginUsed = parseFloat(portfolio.totalPositionInitialMargin);
-    const availableBalance = totalBalance - marginUsed;
+    const availableBalance = Math.max(balance - exposure, 0);
 
     // Calculate leverage ratio
-    const leverageRatio = marginUsed > 0 ? (marginUsed / availableBalance) * 100 : 0;
+    const leverageRatio = balance > 0 ? (exposure / balance) * 100 : 0;
 
     // Calculate position concentration (largest position as % of total exposure)
-    const positionSizes = portfolio.positions.map(p => Math.abs(parseFloat(p.positionAmt)));
+    const positionSizes = positions.map(p => Math.abs(p.notional));
     const maxPositionSize = Math.max(...positionSizes, 0);
-    const concentrationRisk = marginUsed > 0 ? (maxPositionSize / marginUsed) * 100 : 0;
+    const concentrationRisk = exposure > 0 ? (maxPositionSize / exposure) * 100 : 0;
 
     // Risk levels
     const getRiskLevel = (value: number, thresholds: { low: number; medium: number; high: number }) => {
@@ -69,8 +67,8 @@ const RiskMetrics: React.FC<RiskMetricsProps> = ({ positions: initialPositions }
     };
 
     return {
-      totalBalance,
-      marginUsed,
+      totalBalance: balance,
+      marginUsed: exposure,
       availableBalance,
       leverageRatio,
       concentrationRisk,
@@ -93,15 +91,14 @@ const RiskMetrics: React.FC<RiskMetricsProps> = ({ positions: initialPositions }
     return `${value.toFixed(1)}%`;
   };
 
-  if (loading) {
+  if (!portfolio) {
     return (
-      <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
-        <div className="animate-pulse">
-          <div className="h-6 bg-slate-200 rounded w-1/2 mb-4"></div>
-          <div className="space-y-3">
-            <div className="h-4 bg-slate-200 rounded w-full"></div>
-            <div className="h-4 bg-slate-200 rounded w-3/4"></div>
-            <div className="h-4 bg-slate-200 rounded w-1/2"></div>
+      <div className="rounded-2xl border border-surface-200/40 bg-surface-100/60 p-6 shadow-glass">
+        <div className="animate-pulse space-y-3">
+          <div className="h-6 w-56 rounded bg-slate-600/30" />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="h-20 rounded-xl bg-slate-600/10" />
+            <div className="h-20 rounded-xl bg-slate-600/10" />
           </div>
         </div>
       </div>
@@ -110,89 +107,90 @@ const RiskMetrics: React.FC<RiskMetricsProps> = ({ positions: initialPositions }
 
   return (
     <div className="space-y-6">
-      {/* Risk Metrics */}
-      <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
-        <h3 className="text-lg font-semibold text-slate-900 mb-4">Risk Metrics</h3>
+      <div className="rounded-2xl border border-surface-200/40 bg-surface-100/80 p-6 text-slate-200 shadow-glass">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Risk Envelope</p>
+            <h3 className="mt-2 text-2xl font-semibold text-white">Exposure Diagnostics</h3>
+          </div>
+          <div className="rounded-full border border-surface-200/60 bg-surface-50/60 px-3 py-1 text-xs text-slate-400">
+            Margin budget {formatPercent(riskMetrics?.leverageRatio ?? 0)}
+          </div>
+        </div>
 
         {riskMetrics && (
-          <div className="space-y-4">
-            {/* Leverage Ratio */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <span className="text-sm font-medium text-slate-700">Leverage Ratio</span>
-                <span className={`px-2 py-1 text-xs font-medium rounded-full ${riskMetrics.leverageRisk.bg} ${riskMetrics.leverageRisk.color}`}>
+          <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="rounded-xl border border-surface-200/40 bg-surface-50/40 p-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-slate-300">Leverage Ratio</p>
+                <span className={`rounded-full px-2 py-1 text-xs font-semibold ${riskMetrics.leverageRisk.bg} ${riskMetrics.leverageRisk.color}`}>
                   {riskMetrics.leverageRisk.level.toUpperCase()}
                 </span>
               </div>
-              <span className="text-sm font-semibold text-slate-900">
-                {formatPercent(riskMetrics.leverageRatio)}
-              </span>
+              <p className="mt-3 text-2xl font-semibold text-white">{formatPercent(riskMetrics.leverageRatio)}</p>
+              <p className="mt-1 text-xs text-slate-500">Total exposure vs equity</p>
             </div>
 
-            {/* Position Concentration */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <span className="text-sm font-medium text-slate-700">Concentration Risk</span>
-                <span className={`px-2 py-1 text-xs font-medium rounded-full ${riskMetrics.concentrationRiskLevel.bg} ${riskMetrics.concentrationRiskLevel.color}`}>
+            <div className="rounded-xl border border-surface-200/40 bg-surface-50/40 p-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-slate-300">Concentration Risk</p>
+                <span className={`rounded-full px-2 py-1 text-xs font-semibold ${riskMetrics.concentrationRiskLevel.bg} ${riskMetrics.concentrationRiskLevel.color}`}>
                   {riskMetrics.concentrationRiskLevel.level.toUpperCase()}
                 </span>
               </div>
-              <span className="text-sm font-semibold text-slate-900">
-                {formatPercent(riskMetrics.concentrationRisk)}
-              </span>
+              <p className="mt-3 text-2xl font-semibold text-white">{formatPercent(riskMetrics.concentrationRisk)}</p>
+              <p className="mt-1 text-xs text-slate-500">Largest position share of gross exposure</p>
             </div>
 
-            {/* Margin Usage */}
-            <div className="pt-2 border-t border-slate-200">
-              <div className="flex justify-between text-sm mb-2">
-                <span className="text-slate-600">Margin Used</span>
-                <span className="font-medium text-slate-900">
-                  {formatCurrency(riskMetrics.marginUsed)} / {formatCurrency(riskMetrics.totalBalance)}
-                </span>
-              </div>
-              <div className="w-full bg-slate-200 rounded-full h-2">
-                <div
-                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${Math.min((riskMetrics.marginUsed / riskMetrics.totalBalance) * 100, 100)}%` }}
-                ></div>
+            <div className="md:col-span-2">
+              <div className="rounded-xl border border-surface-200/40 bg-surface-50/30 p-4">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-400">Margin Utilisation</span>
+                  <span className="font-medium text-white">
+                    {formatCurrency(riskMetrics.marginUsed)} / {formatCurrency(riskMetrics.totalBalance)}
+                  </span>
+                </div>
+                <div className="mt-3 h-2 rounded-full bg-slate-700/60">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-primary-500 via-accent-teal to-accent-emerald"
+                    style={{ width: `${Math.min((riskMetrics.marginUsed / riskMetrics.totalBalance) * 100, 100)}%` }}
+                  />
+                </div>
               </div>
             </div>
           </div>
         )}
       </div>
 
-      {/* Emergency Controls */}
-      <div className="bg-white rounded-lg shadow-sm border border-red-200 p-6">
-        <h3 className="text-lg font-semibold text-slate-900 mb-4">Emergency Controls</h3>
-        <p className="text-sm text-slate-600 mb-4">
-          Use these controls only in emergency situations to protect your capital.
+      <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-6 text-red-100 shadow-glass">
+        <h3 className="text-lg font-semibold text-red-100">Emergency Controls</h3>
+        <p className="mt-1 text-sm text-red-200/80">
+          Use only to halt trading and flatten exposure. Accessibility restricted to operators with elevated permissions.
         </p>
 
         <button
           onClick={handleEmergencyStop}
           disabled={emergencyLoading}
-          className="w-full flex items-center justify-center px-4 py-3 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white font-medium rounded-lg transition-colors disabled:cursor-not-allowed"
+          className="mt-4 flex w-full items-center justify-center gap-2 rounded-full bg-red-500/80 px-5 py-3 text-sm font-semibold text-white transition hover:bg-red-500 disabled:cursor-not-allowed disabled:bg-red-500/40"
         >
           {emergencyLoading ? (
             <>
-              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
               </svg>
-              Triggering Emergency Stop...
+              Triggering Emergency Stop…
             </>
           ) : (
             <>
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-              </svg>
+              <span>🛑</span>
               Emergency Stop
             </>
           )}
         </button>
 
-        <p className="text-xs text-slate-500 mt-3">
-          This will cancel all open orders and close positions at market price.
+        <p className="mt-3 text-xs text-red-200/70">
+          Action will cancel open orders and send liquidation-intent to orchestrator routing layer.
         </p>
       </div>
     </div>
