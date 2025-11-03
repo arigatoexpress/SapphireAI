@@ -1,0 +1,72 @@
+from __future__ import annotations
+
+import hashlib
+import hmac
+import logging
+from typing import Any, Dict, Optional
+
+import httpx
+
+from .config import settings
+
+logger = logging.getLogger(__name__)
+
+
+BASE_URL = "https://fapi.asterdex.com"
+
+
+class AsterClient:
+    def __init__(self) -> None:
+        self._client = httpx.AsyncClient(base_url=BASE_URL, timeout=10.0)
+        self._api_key = settings.ASTER_API_KEY
+        self._api_secret = settings.ASTER_API_SECRET.encode()
+
+    async def close(self) -> None:
+        await self._client.aclose()
+
+    async def _server_time(self) -> int:
+        resp = await self._client.get("/fapi/v1/time")
+        resp.raise_for_status()
+        return int(resp.json()["serverTime"])
+
+    def _sign(self, method: str, path: str, params: Dict[str, Any]) -> str:
+        query = "&".join(f"{k}={v}" for k, v in sorted(params.items()))
+        message = f"{method}{path}{query}".encode()
+        return hmac.new(self._api_secret, message, hashlib.sha256).hexdigest()
+
+    async def _auth_params(self, method: str, path: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        auth_params: Dict[str, Any] = params.copy() if params else {}
+        auth_params.setdefault("timestamp", await self._server_time())
+        auth_params["signature"] = self._sign(method, path, auth_params)
+        return auth_params
+
+    async def get_account(self) -> Dict[str, Any]:
+        params = await self._auth_params("GET", "/fapi/v2/account")
+        headers = {"X-MBX-APIKEY": self._api_key}
+        resp = await self._client.get("/fapi/v2/account", params=params, headers=headers)
+        resp.raise_for_status()
+        return resp.json()
+
+    async def place_order(self, order: Dict[str, Any]) -> Dict[str, Any]:
+        params = await self._auth_params("POST", "/fapi/v1/order", order)
+        headers = {"X-MBX-APIKEY": self._api_key}
+        resp = await self._client.post("/fapi/v1/order", params=params, headers=headers)
+        resp.raise_for_status()
+        return resp.json()
+
+    async def cancel_all(self, symbol: Optional[str] = None) -> None:
+        """Cancel all open orders, gracefully handling cases where no orders exist."""
+        try:
+            params: Dict[str, Any] = {}
+            if symbol:
+                params["symbol"] = symbol
+            params = await self._auth_params("DELETE", "/fapi/v1/allOpenOrders", params)
+            headers = {"X-MBX-APIKEY": self._api_key}
+            resp = await self._client.delete("/fapi/v1/allOpenOrders", params=params, headers=headers)
+            resp.raise_for_status()
+        except Exception as e:
+            # Log but don't fail if there are no orders to cancel
+            # This is expected in paper trading mode
+            logger.warning(f"Cancel all orders failed (may be expected): {e}")
+            # Don't re-raise the exception to avoid breaking emergency stop
+

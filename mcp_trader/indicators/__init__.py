@@ -1,2 +1,0 @@
-# Proprietary trading indicators
-

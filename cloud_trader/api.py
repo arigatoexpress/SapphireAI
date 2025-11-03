@@ -1,0 +1,199 @@
+"""FastAPI surface for controlling the trading service."""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+import os
+from typing import Dict
+
+import asyncio
+import time
+from collections import defaultdict
+import httpx
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
+from prometheus_fastapi_instrumentator import Instrumentator
+
+from .service import TradingService
+from .schemas import ChatCompletionRequest, InferenceRequest
+
+# Prometheus metrics
+from .metrics import (
+    ASTER_API_LATENCY,
+    ASTER_API_REQUESTS,
+    LLM_CONFIDENCE,
+    LLM_INFERENCE_TIME,
+    PORTFOLIO_BALANCE,
+    PORTFOLIO_LEVERAGE,
+    POSITION_SIZE,
+    RATE_LIMIT_EVENTS,
+    RISK_LIMITS_BREACHED,
+    TRADING_DECISIONS,
+)
+
+logger = logging.getLogger(__name__)
+
+# Rate limiting
+class RateLimiter:
+    """Simple in-memory rate limiter."""
+
+    def __init__(self, requests_per_minute: int = 60):
+        self.requests_per_minute = requests_per_minute
+        self.requests = defaultdict(list)
+
+    def is_allowed(self, key: str) -> bool:
+        now = time.time()
+        # Clean old requests
+        self.requests[key] = [req_time for req_time in self.requests[key] if now - req_time < 60]
+
+        if len(self.requests[key]) >= self.requests_per_minute:
+            return False
+
+        self.requests[key].append(now)
+        return True
+
+rate_limiter = RateLimiter(requests_per_minute=60)  # 60 requests per minute per IP
+
+
+def build_app(service: TradingService | None = None) -> FastAPI:
+    trading_service = service or TradingService()
+    app = FastAPI(title="Cloud Trader", version="1.0")
+
+    # Add CORS middleware with production-safe configuration
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            "https://cloud-trader-880429861698.us-central1.run.app",
+            "https://cloud-trader-cfxefrvooa-uc.a.run.app",
+            "http://localhost:3000",
+            "http://localhost:5173",
+        ],  # Explicitly allow known origins
+        allow_credentials=True,
+        allow_methods=["GET", "POST"],  # Limit to necessary methods
+        allow_headers=["Content-Type", "Authorization"],  # Limit headers
+    )
+
+    # Add Prometheus instrumentation
+    Instrumentator().instrument(app).expose(app, endpoint="/metrics")
+
+    stream_names = {
+        "decisions": trading_service.settings.decisions_stream,
+        "positions": trading_service.settings.positions_stream,
+        "reasoning": trading_service.settings.reasoning_stream,
+    }
+
+    # Serve static files if they exist
+    static_path = "/app/static"
+    if os.path.exists(static_path):
+        app.mount("/static", StaticFiles(directory=static_path), name="static")
+
+    @app.get("/")
+    async def root():
+        # Try to serve the React app's index.html if it exists
+        index_path = "/app/static/index.html"
+        if os.path.exists(index_path):
+            return FileResponse(index_path, media_type="text/html")
+        return {"status": "ok", "service": "cloud-trader"}
+
+    @app.get("/healthz")
+    async def healthz() -> Dict[str, object]:
+        try:
+            status = trading_service.health()
+            return {
+                "running": status.running,
+                "paper_trading": status.paper_trading,
+                "last_error": status.last_error,
+            }
+        except Exception as e:
+            # Return a basic response if health check fails
+            return {
+                "running": False,
+                "paper_trading": True,
+                "last_error": str(e),
+            }
+
+    @app.post("/start")
+    async def start(request: Request) -> Dict[str, str]:
+        client_ip = request.client.host if request.client else "unknown"
+        if not rate_limiter.is_allowed(f"start_{client_ip}"):
+            raise HTTPException(status_code=429, detail="Too many requests")
+
+        asyncio.create_task(trading_service.start())
+        return {"status": "starting"}
+
+    @app.post("/stop")
+    async def stop(request: Request) -> Dict[str, str]:
+        client_ip = request.client.host if request.client else "unknown"
+        if not rate_limiter.is_allowed(f"stop_{client_ip}"):
+            raise HTTPException(status_code=429, detail="Too many requests")
+
+        if not trading_service.health().running:
+            raise HTTPException(status_code=400, detail="Service not running")
+        asyncio.create_task(trading_service.stop())
+        return {"status": "stopping"}
+
+    @app.post("/inference/decisions")
+    async def accept_decision(request: Request, inference_request: InferenceRequest) -> Dict[str, str]:
+        client_ip = request.client.host if request.client else "unknown"
+        if not rate_limiter.is_allowed(f"inference_{client_ip}"):
+            raise HTTPException(status_code=429, detail="Too many requests")
+
+        # Validate input
+        if not inference_request.decision or not hasattr(inference_request.decision, 'side'):
+            raise HTTPException(status_code=400, detail="Invalid decision format")
+        if not inference_request.context or not hasattr(inference_request.context, 'symbol'):
+            raise HTTPException(status_code=400, detail="Invalid context format")
+
+        await trading_service.accept_inference_decision(inference_request)
+        return {"status": "queued"}
+
+    @app.post("/inference/chat")
+    async def proxy_chat(request: Request, chat_request: ChatCompletionRequest) -> Dict[str, object]:
+        client_ip = request.client.host if request.client else "unknown"
+        if not rate_limiter.is_allowed(f"chat_{client_ip}"):
+            raise HTTPException(status_code=429, detail="Too many requests")
+
+        # Validate input
+        if not chat_request.messages or len(chat_request.messages) == 0:
+            raise HTTPException(status_code=400, detail="Messages cannot be empty")
+        if chat_request.max_tokens and (chat_request.max_tokens < 1 or chat_request.max_tokens > 4096):
+            raise HTTPException(status_code=400, detail="max_tokens must be between 1 and 4096")
+        if chat_request.temperature and (chat_request.temperature < 0 or chat_request.temperature > 2):
+            raise HTTPException(status_code=400, detail="temperature must be between 0 and 2")
+
+        endpoint = chat_request.endpoint or f"{trading_service.settings.model_endpoint}/v1/chat/completions"
+        payload = {
+            "model": chat_request.model,
+            "messages": [message.model_dump() for message in chat_request.messages],
+            "max_tokens": chat_request.max_tokens,
+            "temperature": chat_request.temperature,
+        }
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.post(endpoint, json=payload)
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:  # pragma: no cover - network defensive
+            raise HTTPException(status_code=exc.response.status_code, detail=exc.response.text)
+        return {"endpoint": endpoint, "response": response.json()}
+
+    @app.get("/streams/{stream_name}")
+    async def stream_snapshot(stream_name: str, limit: int = Query(default=50, ge=1, le=200)) -> Dict[str, object]:
+        target = stream_names.get(stream_name)
+        if not target:
+            raise HTTPException(status_code=404, detail="Unknown stream")
+        entries = await trading_service.stream_events(target, limit)
+        return {"stream": stream_name, "entries": entries}
+
+    @app.get("/dashboard")
+    async def dashboard() -> Dict[str, object]:
+        """Get comprehensive dashboard data"""
+        try:
+            return await trading_service.dashboard_snapshot()
+        except Exception as exc:  # pragma: no cover - defensive logging
+            logger.exception("Failed to build dashboard snapshot: %s", exc)
+            raise HTTPException(status_code=500, detail="Failed to build dashboard snapshot")
+
+    return app

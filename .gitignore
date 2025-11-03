@@ -8,6 +8,9 @@ __pycache__/
 
 # Distribution / packaging
 .Python
+node_modules/
+cloud-trader-dashboard/node_modules/
+cloud-trader-dashboard/dist/
 build/
 develop-eggs/
 dist/
@@ -110,6 +113,8 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+asterai_env/
+asterai_env_fresh/
 
 # Spyder project settings
 .spyderproject

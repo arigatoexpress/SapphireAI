@@ -1,405 +1,388 @@
-# AsterAI - Professional AI Trading Platform
+# 🚀 Cloud Trader
 
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-red.svg)](https://pytorch.org/)
-[![CUDA](https://img.shields.io/badge/CUDA-12.0+-green.svg)](https://developer.nvidia.com/cuda-toolkit)
-[![GCP](https://img.shields.io/badge/GCP-Ready-green.svg)](https://cloud.google.com/)
-[![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](https://www.docker.com/)
-[![Kubernetes](https://img.shields.io/badge/Kubernetes-Ready-orange.svg)](https://kubernetes.io/)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+**Enterprise-grade autonomous trading platform** for executing momentum strategies on the Aster DEX. Built with security-first architecture, comprehensive monitoring, and a beautiful professional dashboard.
 
-**Professional algorithmic trading platform powered by AI models, GPU acceleration, and enterprise-grade cloud infrastructure. Built for capital efficiency with institutional-grade risk management.**
+## ✨ Features
 
----
+- 🔒 **Enterprise Security**: Rate limiting, input validation, CORS protection, secure secrets management
+- 📊 **Real-time Dashboard**: Beautiful glassmorphism UI with live portfolio tracking and AI model performance
+- 📱 **Mobile Responsive**: Professional interface that works perfectly on all devices
+- ⚡ **High Performance**: Optimized FastAPI backend with async operations and efficient caching
+- 🛡️ **Risk Management**: Multi-layer guardrails with emergency stop and position limits
+- 🤖 **AI Integration**: LLM-powered trading decisions with confidence scoring
+- 📈 **Advanced Analytics**: Portfolio performance charts, risk metrics, and trading telemetry
+- 🔄 **Live Updates**: Real-time data streaming with 5-second refresh cycles
 
-## Core Capabilities
+## 🏗️ Architecture
 
-### AI Ensemble System
-- **Specialized AI Models**: PPO (Reinforcement Learning), Trend Following, Mean Reversion, Volatility, Order Flow, ML Classifier, and VPIN working in coordinated ensemble
-- **GPU-Accelerated Training**: Optimized with JAX and TensorRT for enhanced performance
-- **Real-Time Adaptation**: Continuous model retraining with systematic A/B testing and hyperparameter optimization
-- **Meta-Learning Engine**: Dynamically learns optimal model weight combinations based on market conditions
-- **Performance-Based Selection**: Automatic switching between models based on real-time performance metrics
+```
+cloud_trader/              # Core trading engine
+├── api.py                 # FastAPI endpoints with security middleware
+├── service.py             # Trading service orchestration
+├── risk.py                # Risk management and position limits
+├── strategy.py            # Momentum trading strategy
+├── client.py              # Aster DEX API client
+├── config.py              # Pydantic configuration with validation
+├── secrets.py             # Secure credential management
+└── orchestrator/          # Wallet-level risk gateway
 
-### Enterprise-Grade Infrastructure
-- **Self-Healing Data Pipeline**: Automated gap filling, data corruption repair, and quality assurance monitoring
-- **Fault-Tolerant Architecture**: Circuit breakers, automatic failover, and intelligent load balancing
-- **High-Availability Design**: Built for 99.9% uptime with comprehensive monitoring and alerting
-- **Real-Time Observability**: Complete system visibility through advanced dashboards and automated notifications
+cloud-trader-dashboard/    # React + TypeScript frontend
+├── Professional UI with micro-interactions
+├── Mobile-responsive design
+├── Real-time chart visualization
+└── Toast notifications and loading states
 
-### Capital Management System
-- **Conservative Starting Position**: Begins with conservative risk parameters
-- **Performance-Driven Growth**: Progressive scaling based on proven track record and risk-adjusted returns
-- **Multi-Tier Capital Structure**: Automatic risk adjustment across capital growth stages
-- **Automated Compounding**: Systematic reinvestment of profits with optimized position sizing
-
-### Advanced Risk Management Framework
-- **Mathematical Position Sizing**: Kelly Criterion optimization for theoretically optimal position sizing
-- **Dynamic Risk Adjustment**: Volatility-based sizing that adapts to market conditions
-- **Multi-Layer Safety Controls**: Redundant kill switches, circuit breakers, and emergency protocols
-- **Real-Time Risk Monitoring**: Continuous Value at Risk (VaR) calculation and position monitoring
-
----
-
-## Key Features
-
-### AI Trading System
-- Multiple trading models operating in coordinated ensemble formation
-- Dynamic meta-learning optimizes model weight allocation in real-time
-- Correlation-aware diversification prevents model overfitting
-- Consensus-based signal generation improves prediction accuracy
-
-### Real-Time Market Data
-- Direct WebSocket streaming from DEX protocols
-- Complete order book reconstruction and analysis
-- Real-time trade flow and volume analysis
-- Funding rate monitoring and arbitrage opportunities
-
-### Advanced Backtesting Framework
-- Walk-forward analysis with out-of-sample validation
-- Monte Carlo simulation with 10,000+ market scenarios
-- Realistic slippage and transaction cost modeling
-- Systematic prevention of look-ahead bias and overfitting
-
-### Production-Ready Deployment
-- Cloud-native infrastructure on Google Cloud Platform
-- Comprehensive paper trading validation protocols
-- Automated capital scaling capabilities
-- GPU-accelerated training and inference
-
----
-
-## Performance Specifications
-
-| Risk-Adjusted Metric | Target Range | Validation Status |
-|---------------------|--------------|-------------------|
-| Win Rate | 60%+ | ✅ Ensemble Model Advantage |
-| Sharpe Ratio | 1.5+ | ✅ Risk-Adjusted Returns |
-| Maximum Drawdown | <10% | ✅ Capital Protection |
-| Monthly Target Return | 15-25% | ✅ Conservative Growth |
-| Daily Loss Limit | <3% | ✅ Risk Control |
-
----
-
-## Getting Started
-
-### Prerequisites
-```bash
-# Python 3.11 or higher
-python --version
-
-# GPU support (recommended for model training)
-nvidia-smi
-
-# Google Cloud Platform account (for production deployment)
-gcloud --version
+infra/                     # Infrastructure and deployment
+├── model_serving/         # Dockerized LLM sandboxes
+├── dashboard/            # Dashboard service configuration
+└── llm_serving/          # Model deployment pipelines
 ```
 
-### Installation
+## Quick Start
+
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/rari-trade.git
-cd rari-trade
-
-# Create Python virtual environment
-python -m venv rari_trade_env
-source rari_trade_env/bin/activate  # Windows: rari_trade_env\Scripts\activate
-
-# Install core dependencies
+python -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
 pip install -r requirements.txt
 
-# Install GPU acceleration (if CUDA-compatible GPU available)
-pip install -r requirements-gpu.txt
+# Optional: export credentials locally instead of using Secret Manager
+export ASTER_API_KEY="your-key"
+export ASTER_SECRET_KEY="your-secret"
+
+python run_live_trader.py --host 0.0.0.0 --port 8080
+
+# Optional: start wallet orchestrator on :8082
+python run_orchestrator.py --host 0.0.0.0 --port 8082
 ```
 
-### Configuration
-```bash
-# Configure API credentials
-cp config/api_keys_template.json config/api_keys.json
-# Edit config/api_keys.json with your exchange API credentials
+## 🔌 API Endpoints
 
-# Configure trading parameters
-cp config/trading_config_template.json config/trading_config.json
-# Review and adjust risk management parameters as needed
+### Core Trading API
+- `GET /healthz` – Service health status with error reporting
+- `POST /start` – Start autonomous trading loop (rate limited)
+- `POST /stop` – Stop trading and cancel operations (rate limited)
+- `GET /dashboard` – Comprehensive dashboard data (portfolio, positions, metrics)
+- `GET /streams/{decisions|positions|reasoning}?limit=N` – Redis stream telemetry
+
+### AI Integration API
+- `POST /inference/decisions` – Accept LLM trading decisions (validated, rate limited)
+- `POST /inference/chat` – Proxy chat completions to LLM endpoints (validated, rate limited)
+
+### Monitoring & Metrics
+- `GET /metrics` – Prometheus metrics for monitoring
+- `GET /` – Serves the professional dashboard UI
+
+### Security Features
+- 🔒 **Rate Limiting**: 60 requests/minute per IP on sensitive endpoints
+- ✅ **Input Validation**: Comprehensive parameter validation and sanitization
+- 🌐 **CORS Protection**: Restricted to known origins only
+- 🚫 **Error Sanitization**: Secure error responses without data leakage
+
+### Orchestrator API (Optional Risk Gateway)
+- `POST /order/{bot_id}` – Route validated orders through centralized wallet
+- `POST /emergency_stop` – Immediate position flattening and order cancellation
+- `POST /register_decision` – Log AI decisions without execution
+- `GET /portfolio` – Current portfolio state with risk metrics
+
+## 🎯 Trading Modes
+
+### Live Trading
+When `ASTER_API_KEY` and `ASTER_SECRET_KEY` are configured:
+- Executes real orders on Aster DEX
+- Full risk management and position tracking
+- Real-time portfolio synchronization
+
+### Paper Trading (Default)
+When credentials are missing or `ENABLE_PAPER_TRADING=true`:
+- Deterministic simulation with synthetic data
+- Safe for testing and CI/CD pipelines
+- Maintains full telemetry and dashboard functionality
+
+## Configuration & Secrets
+
+Configuration lives in `cloud_trader.config.Settings`. Values come from environment variables (or `.env`) and include:
+
+- `ASTER_API_KEY`, `ASTER_SECRET_KEY`
+- `ASTER_REST_URL`, `ASTER_WS_URL`
+- Trading inputs such as `symbols`, `decision_interval_seconds`, risk limits
+- Messaging & inference:
+  - `REDIS_URL` (Redis Streams telemetry, defaults to `redis://localhost:6379`)
+  - `MODEL_ENDPOINT` (OpenAI-compatible base URL for llama.cpp/vLLM)
+  - `BOT_ID` (tag embedded in client order IDs/telemetry)
+- Optimisation knobs:
+  - `MOMENTUM_THRESHOLD`, `NOTIONAL_FRACTION`
+  - `BANDIT_EPSILON`, `TRAILING_STOP_BUFFER`, `TRAILING_STEP`
+  - `EXPECTED_WIN_RATE`, `REWARD_TO_RISK`
+  - `VOLATILITY_DELEVER_THRESHOLD`, `AUTO_DELEVER_FACTOR`
+
+`cloud_trader.secrets.load_credentials()` loads credentials from env variables first, and falls back to Google Secret Manager when the `GCP_PROJECT`/`GOOGLE_CLOUD_PROJECT` env var is defined.
+
+## 🚀 Deployment
+
+### One-Command Deploy (Recommended)
+
+```bash
+# Set your GCP project
+export PROJECT_ID="your-project-id"
+
+# Deploy with automated testing and security
+./deploy_cloud_run.sh
 ```
 
----
+The deployment script includes:
+- ✅ Frontend build and bundle optimization
+- ✅ Comprehensive smoke tests
+- ✅ Security validation
+- ✅ Automated Cloud Build and Cloud Run deployment
+- ✅ Secret Manager integration
 
-## Usage Guide
+### Manual Deployment Steps
 
-### Phase 1: Paper Trading Validation (Required)
+#### 1. Build Container Image
 ```bash
-# Execute comprehensive paper trading validation
-python scripts/setup_paper_trading.py
-
-# Validation criteria:
-# - Sharpe Ratio: > 1.5 (risk-adjusted returns)
-# - Win Rate: > 55% (trade success rate)
-# - Maximum Drawdown: < 10% (capital preservation)
-# - Minimum Trades: 50+ (statistical significance)
+docker build -t cloud-trader:latest .
+docker run -p 8080:8080 cloud-trader:latest
 ```
 
-### Phase 2: Live Trading Deployment
+#### 2. Google Cloud Run Deployment
 ```bash
-# Initiate live trading with conservative $100 starting capital
-python scripts/deploy_live_trading.py
-
-# Access monitoring dashboard
-# http://localhost:8080/status
-
-# Review performance analytics
-# http://localhost:8080/performance
-```
-
-### Phase 3: Cloud Production Deployment
-```bash
-# Configure Google Cloud Platform infrastructure
-export PROJECT_ID="your-gcp-project-id"
-python scripts/setup_gcp_deployment.py --project-id $PROJECT_ID
-
-# Deploy to production environment
-gcloud run deploy rari-trade-api \
-  --image gcr.io/$PROJECT_ID/rari-trade-system \
+gcloud builds submit --tag gcr.io/$PROJECT_ID/cloud-trader
+gcloud run deploy cloud-trader \
+  --image gcr.io/$PROJECT_ID/cloud-trader \
   --platform managed \
-  --region us-central1
+  --region us-central1 \
+  --allow-unauthenticated \
+  --set-secrets ASTER_API_KEY=ASTER_API_KEY:latest \
+  --set-secrets ASTER_SECRET_KEY=ASTER_SECRET_KEY:latest
 ```
 
----
-
-## System Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                 RARI TRADE AI TRADING PLATFORM               │
-├─────────────────────────────────────────────────────────────┤
-│                                                               │
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐  │
-│  │ Self-Healing │───▶│   DEX Market  │───▶│  Ensemble AI │  │
-│  │ Data Pipeline│    │  Real-Time    │    │  7 Models    │  │
-│  └──────────────┘    └──────────────┘    └──────────────┘  │
-│         │                    │                    │          │
-│         └────────────────────┼────────────────────┘          │
-│                              │                               │
-│                     ┌────────▼────────┐                      │
-│                     │  Dynamic Risk   │                      │
-│                     │  Management     │                      │
-│                     └────────┬────────┘                      │
-│                              │                               │
-│                     ┌────────▼────────┐                      │
-│                     │  Live Trading   │                      │
-│                     │  $100 → $10K+   │                      │
-│                     └─────────────────┘                      │
-│                                                               │
-└─────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Project Structure
-
-```
-AsterAI/
-├── mcp_trader/                    # Core trading engine (88 files)
-│   ├── ai/                        # Machine learning models & ensemble system
-│   ├── backtesting/               # Advanced backtesting & validation
-│   ├── data/                      # Self-healing data pipeline
-│   └── risk/                      # Dynamic risk management
-├── cloud_deployment/              # Production cloud deployment (GCP/K8s)
-│   ├── k8s/                       # Kubernetes manifests
-│   ├── docker/                    # Docker configurations
-│   └── deploy_to_gcp.sh           # Automated deployment script
-├── dashboard/                     # Web monitoring dashboard
-├── data_pipeline/                 # Data collection & processing
-├── docs/                          # Comprehensive documentation
-├── scripts/                       # Utility scripts (87 files)
-├── config/                        # Configuration management
-├── data/                          # Historical & real-time data
-├── models/                        # Trained model artifacts
-├── requirements.txt               # Python dependencies
-└── README.md                      # This documentation
-```
-
----
-
-## Configuration Management
-
-### Trading Parameters
-```json
-{
-  "initial_capital": 100.0,
-  "max_risk_per_trade": 0.02,
-  "max_portfolio_risk": 0.05,
-  "stop_loss_percentage": 0.02,
-  "take_profit_percentage": 0.05,
-  "emergency_stop_loss": 0.10
-}
-```
-
-### Capital Scaling Framework
-```
-Tier 1: $0-$500    (Risk: 0.5%, Position Size: 10%)
-Tier 2: $500-$2K   (Risk: 1.0%, Position Size: 15%)
-Tier 3: $2K-$5K    (Risk: 1.5%, Position Size: 20%)
-Tier 4: $5K-$10K+  (Risk: 2.0%, Position Size: 25%)
-```
-
----
-
-## Quality Assurance
-
-### Automated Testing Suite
+#### 3. Secrets Management
 ```bash
-# Execute complete test suite
-pytest tests/
+# Automated script (recommended)
+scripts/update_aster_credentials.sh "$ASTER_API_KEY" "$ASTER_SECRET_KEY" $PROJECT_ID
 
-# Run specific component tests
-pytest tests/test_ensemble_system.py
-
-# Generate coverage reports
-pytest --cov=mcp_trader tests/
+# Manual alternative
+echo -n "$ASTER_API_KEY" | gcloud secrets versions add ASTER_API_KEY --data-file=- --project $PROJECT_ID
+echo -n "$ASTER_SECRET_KEY" | gcloud secrets versions add ASTER_SECRET_KEY --data-file=- --project $PROJECT_ID
 ```
 
-### Backtesting Validation
+### Production Environment Variables
+
 ```bash
-# Perform walk-forward analysis
-python scripts/walk_forward_analysis.py
+# Required for live trading
+ASTER_API_KEY="your-aster-api-key"
+ASTER_SECRET_KEY="your-aster-secret-key"
 
-# Execute Monte Carlo risk simulation
-python scripts/monte_carlo_simulation.py
+# Optional enhancements
+REDIS_URL="redis://your-redis-instance"
+ORCHESTRATOR_URL="https://your-orchestrator-url"
+ENABLE_LLM_TRADING=true
+LLM_ENDPOINT="https://your-llm-service"
 ```
 
----
+### Current Production Status
 
-## Monitoring & Alerting
+🟢 **System Status**: **LIVE AND OPERATIONAL**
 
-### Real-Time Dashboard
-- Portfolio valuation and profit/loss tracking
-- Active position and order management
-- Risk metrics (Value at Risk, drawdown analysis)
-- Trading performance statistics
-- System health and infrastructure monitoring
+- **Dashboard**: https://cloud-trader-cfxefrvooa-uc.a.run.app
+- **API Health**: All endpoints responding correctly
+- **Security**: Enterprise-grade protections active
+- **Performance**: Optimized for production workloads
+- **Monitoring**: Prometheus metrics and health checks enabled
 
-### Automated Alerting System
-- Trade execution confirmations
-- Stop-loss and take-profit triggers
-- Emergency protocol activations
-- Performance milestone achievements
-- System error and anomaly detection
+## Service Internals
 
----
+- **client:** thin async wrapper for the REST `fapi` routes (ping, ticker, market orders, cancel-all)
+- **strategy:** momentum signal with configurable threshold/notional fraction
+- **risk:** guards to cap total exposure, per-position risk, and concurrency
+- **service:** orchestrates the loop, wiring together secrets, strategy, Redis Streams telemetry, and order execution
+- **api:** FastAPI façade exposing lifecycle, inference proxy, and stream inspection endpoints
+- **orchestrator:** wallet-level gateway enforcing centralized guardrails, idempotent order routing, and kill switch endpoints
+- **optimization:** utilities (Optuna tuner, epsilon-greedy bandit) for auto-tuning trailing stops, capital allocation, and auto-delever logic (see `cloud_trader/optimization/optuna_runner.py`)
 
-## Risk Management Framework
+The code intentionally avoids complex frameworks, background schedulers, or deep inheritance trees to keep behaviour transparent and debuggable.
 
-### Emergency Protection Systems
-- Capital preservation kill switch (10% drawdown threshold)
-- Volatility-based circuit breaker
-- Daily loss limit controls (3% maximum)
-- Position size restrictions
-- Automatic risk reduction protocols
+See [ARCHITECTURE.md](ARCHITECTURE.md) for a diagrammed overview of the components and deployment flow.
 
-### Advanced Risk Controls
-- Kelly Criterion position sizing optimization
-- Market volatility adaptive adjustments
-- Cross-asset correlation monitoring
-- Real-time Value at Risk calculations
-- Multi-layer emergency stop mechanisms
+## 🔒 Security & Reliability
 
----
+### Enterprise Security Features
+- 🔐 **Secrets Management**: Runtime credential fetching with Google Secret Manager fallback
+- 🚦 **Rate Limiting**: 60 requests/minute per IP with automatic cleanup
+- ✅ **Input Validation**: Comprehensive parameter validation and sanitization
+- 🌐 **CORS Protection**: Restricted origins with explicit allowlist
+- 🚫 **Error Sanitization**: Secure error responses without sensitive data leakage
 
-## Documentation
+### Risk Management Architecture
+- 🛡️ **Multi-layer Guardrails**: Position limits, exposure caps, and emergency stops
+- 🎯 **Single-wallet Enforcement**: Centralized orchestrator with deterministic order IDs
+- 📊 **Real-time Monitoring**: Portfolio tracking with automated risk alerts
+- 🛑 **Emergency Controls**: One-click position flattening and order cancellation
 
-- [**Getting Started Guide**](docs/getting-started/) - Complete setup and installation instructions
-- [**Technical Documentation**](docs/technical/) - Detailed system architecture and API reference
-- [**Deployment Guide**](docs/deployment/) - Cloud and local deployment procedures
-- [**Troubleshooting**](docs/troubleshooting/) - Common issues and solutions
+### Observability & Telemetry
+- 📈 **Prometheus Metrics**: Comprehensive monitoring with custom business metrics
+- 🔄 **Redis Streams**: Auditable decision/position trails with persistence
+- 📊 **Health Checks**: Automated service monitoring with graceful degradation
+- 📋 **Structured Logging**: Comprehensive error tracking and debugging
 
----
+### Testing & Validation
+- 🧪 **Paper Trading Mode**: Safe deterministic simulation for CI/CD
+- ✅ **Smoke Tests**: Automated component validation before deployment
+- 🔍 **Input Fuzzing**: Edge case testing for robustness
+- 📊 **Performance Profiling**: Optimized for production workloads
 
-## Security & Compliance
+## 🏁 Live Trading Deployment Guide
 
-- API credentials secured in GCP Secret Manager
-- End-to-end encrypted data transmission
-- Service account-based authentication
-- Zero hardcoded sensitive information
-- Secure webhook endpoint validation
+### Prerequisites
+- ✅ Google Cloud Platform account with billing enabled
+- ✅ Aster DEX API credentials (for live trading)
+- ✅ Basic understanding of Docker and Kubernetes
+- ✅ Familiarity with trading risks and capital allocation
 
----
+### Step-by-Step Deployment
 
-## Contributing
+#### 1. **Environment Setup**
+```bash
+# Clone and enter the repository
+git clone https://github.com/arigatoexpress/AsterAI.git
+cd AsterAI
 
-We welcome contributions from the community. Please review our [Contributing Guidelines](CONTRIBUTING.md) before submitting changes.
+# Set your GCP project
+export PROJECT_ID="your-quant-trading-project"
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/enhancement-name`)
-3. Commit your changes (`git commit -m 'Add enhancement description'`)
-4. Push to the branch (`git push origin feature/enhancement-name`)
-5. Open a Pull Request
+# Authenticate with Google Cloud
+gcloud auth login
+gcloud config set project $PROJECT_ID
+```
 
----
+#### 2. **Configure Secrets** (Critical for Live Trading)
+```bash
+# Use the automated script
+./scripts/update_aster_credentials.sh "YOUR_ASTER_API_KEY" "YOUR_ASTER_SECRET_KEY" $PROJECT_ID
+
+# Verify secrets are configured
+gcloud secrets versions list ASTER_API_KEY --project $PROJECT_ID
+gcloud secrets versions list ASTER_SECRET_KEY --project $PROJECT_ID
+```
+
+#### 3. **Deploy to Production**
+```bash
+# One-command deployment with full testing
+./deploy_cloud_run.sh
+
+# Monitor deployment logs
+gcloud builds log --stream $(gcloud builds list --limit=1 --format="value(ID)")
+```
+
+#### 4. **Verify Production Deployment**
+```bash
+# Get the service URL
+SERVICE_URL=$(gcloud run services describe cloud-trader --region=us-central1 --format="value(status.url)")
+
+# Test endpoints
+curl -s "${SERVICE_URL}/healthz"
+curl -s "${SERVICE_URL}/dashboard" | jq '.portfolio.balance'
+
+# Open dashboard in browser
+open "${SERVICE_URL}"
+```
+
+#### 5. **Start Trading** (Live Mode)
+```bash
+# Enable live trading in environment
+gcloud run services update cloud-trader \
+  --region=us-central1 \
+  --set-env-vars ENABLE_PAPER_TRADING=false \
+  --set-env-vars ASTER_API_KEY=ASTER_API_KEY:latest \
+  --set-env-vars ASTER_SECRET_KEY=ASTER_SECRET_KEY:latest
+
+# Start the trading engine via dashboard or API
+curl -X POST "${SERVICE_URL}/start"
+```
+
+### ⚠️ Critical Safety Measures
+
+#### Before Going Live:
+- 🧪 **Paper Trade First**: Test for 24-48 hours in paper trading mode
+- 💰 **Start Small**: Begin with minimal capital allocation
+- 📊 **Monitor Closely**: Watch dashboard metrics and risk indicators
+- 🛑 **Emergency Stop**: Keep emergency stop endpoint accessible
+
+#### Risk Management:
+- 🎯 **Position Limits**: System enforces 10% max per position
+- 🛡️ **Exposure Caps**: Total exposure limited to portfolio balance
+- 🚨 **Auto-delever**: Automatic position reduction on high volatility
+- 📞 **Manual Override**: Emergency stop always available
+
+### 🔍 Monitoring & Maintenance
+
+#### Daily Checks:
+```bash
+# Health status
+curl -s "${SERVICE_URL}/healthz"
+
+# Portfolio status
+curl -s "${SERVICE_URL}/dashboard" | jq '.portfolio'
+
+# System metrics
+curl -s "${SERVICE_URL}/metrics" | grep trading
+```
+
+#### Weekly Maintenance:
+- 📊 Review performance metrics
+- 🔄 Update trading parameters if needed
+- 🛠️ Monitor system resource usage
+- 📋 Check error logs in Cloud Logging
+
+### 🚨 Emergency Procedures
+
+#### If Something Goes Wrong:
+```bash
+# Immediate stop
+curl -X POST "${SERVICE_URL}/stop"
+
+# Emergency flatten all positions
+curl -X POST "https://your-orchestrator-url/emergency_stop"
+
+# Check system status
+gcloud run logs read --service=cloud-trader --region=us-central1 --limit=50
+```
+
+#### Recovery Steps:
+1. Stop all trading operations
+2. Assess portfolio state manually
+3. Verify API credentials are valid
+4. Restart in paper trading mode first
+5. Gradually re-enable live trading
+
+## 🤝 Contributing
+
+We welcome contributions that enhance security, performance, and reliability.
+
+### Development Workflow:
+1. Fork the repo & create a feature branch from `feature/lean-cloud-trader`
+2. Keep changes tightly scoped to the lean architecture
+3. Run comprehensive tests: `python test_system.py`
+4. Test deployment: `./deploy_cloud_run.sh --dry-run`
+5. Open a PR with detailed description and testing results
+
+### Code Standards:
+- 🔒 **Security First**: All changes reviewed for security implications
+- ✅ **Test Coverage**: New features include comprehensive tests
+- 📚 **Documentation**: Update README and inline documentation
+- 🚀 **Performance**: Optimize for production workloads
 
 ## License
 
-This project is licensed under the MIT License - see [LICENSE](LICENSE) file for complete terms.
+MIT — see [LICENSE](LICENSE).
 
----
+## Optimisation Toolkit
 
-## Risk Disclosure
+The `cloud_trader.optimization` package exposes helpers for tuning the live trader:
 
-**Algorithmic trading involves significant financial risk. This platform is provided for educational and research purposes only. Historical performance does not guarantee future results. Never risk more capital than you can afford to lose. Always perform comprehensive backtesting and paper trading validation before live deployment.**
+- `optimisation.bandit.EpsilonGreedyBandit` keeps track of per-symbol returns with reward clipping.
+- `optimisation.trailing.optimise_trailing_stop` wraps Optuna to discover optimal trailing buffers.
+- `python -m cloud_trader.optimization.optuna_runner --csv backtests/pnl.csv` tunes trailing stops against historical backtests.
 
----
-
-## Support
-
-- **Bug Reports**: [GitHub Issues](https://github.com/yourusername/rari-trade/issues)
-- **Community Discussions**: [GitHub Discussions](https://github.com/yourusername/rari-trade/discussions)
-- **Documentation**: [docs/](docs/) directory
-
----
-
-## Development Roadmap
-
-- [x] Self-healing data pipeline implementation
-- [x] Seven-model ensemble trading system
-- [x] Adaptive model retraining framework
-- [x] Dynamic risk management system
-- [x] Google Cloud Platform deployment
-- [x] Paper trading validation protocols
-- [x] Live trading automation ($100 → $10K+)
-- [ ] Multi-exchange connectivity
-- [ ] Advanced sentiment analysis integration
-- [ ] Transformer-based deep learning models
-- [ ] Mobile monitoring application
-
----
-
-## System Capabilities
-
-- **Most Advanced**: Seven specialized AI models in coordinated ensemble
-- **Most Robust**: Self-healing infrastructure with automatic fault recovery
-- **Most Scalable**: Automated capital growth from $100 to $10K+
-- **Most Secure**: Multi-layer security and risk management protocols
-- **Most Complete**: Production-ready enterprise trading platform
-
----
-
-## Technology Stack
-
-- **Programming Language**: Python 3.11+
-- **Machine Learning**: PyTorch, JAX, scikit-learn, TensorRT
-- **Data Processing**: pandas, numpy, polars, dask
-- **Infrastructure**: Google Cloud Platform (GCP)
-- **Hardware Acceleration**: NVIDIA CUDA (RTX 5070 Ti optimized)
-- **Containerization**: Docker
-- **Orchestration**: Kubernetes (GKE)
-- **Monitoring**: Prometheus, Grafana
-- **Database**: PostgreSQL (optional)
-- **Message Queue**: Google Pub/Sub
-- **Storage**: Google Cloud Storage
-- **CI/CD**: Cloud Build
-
----
-
-**Developed by the Rari Trade Engineering Team**
-
-*Enterprise-grade algorithmic trading powered by advanced AI and rigorous risk management.*
+Results can be written back to `.env` (`TRAILING_STOP_BUFFER`, `TRAILING_STEP`, `NOTIONAL_FRACTION`) before redeploying the trading service.

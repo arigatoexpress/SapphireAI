@@ -1,4 +1,4 @@
-# Contributing to AsterAI Trading Platform
+# Contributing to Cloud Trader
 
 Thank you for your interest in contributing to the AsterAI Trading Platform! This document provides guidelines for contributing to the project.
 
@@ -12,8 +12,8 @@ This project adheres to a code of conduct. By participating, you are expected to
 
 - Python 3.11+
 - Git
-- Docker (for testing)
-- Google Cloud SDK (for deployment testing)
+- Docker (optional, for running the container image)
+- Google Cloud SDK (optional, for Cloud Run testing)
 
 ### Development Setup
 
@@ -35,10 +35,8 @@ This project adheres to a code of conduct. By participating, you are expected to
    pip install -r requirements.txt
    ```
 
-5. Install development dependencies:
-   ```bash
-   pip install -r requirements-dev.txt
-   ```
+
+The dependency set is intentionally small; please avoid adding heavy libraries unless they are required for the live trading loop.
 
 ## Development Guidelines
 
@@ -52,12 +50,8 @@ This project adheres to a code of conduct. By participating, you are expected to
 
 ### Testing
 
-- Write unit tests for all new functionality
-- Maintain test coverage above 80%
-- Run tests before submitting a pull request:
-  ```bash
-  pytest tests/
-  ```
+- Add lightweight unit tests for new functionality (place them under `tests/`)
+- Run `pytest` before submitting a pull request when tests are present
 
 ### Documentation
 
