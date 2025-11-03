@@ -10,6 +10,8 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Any, Deque, Dict, List, Optional, Tuple
 
+import structlog
+
 from .client import AsterClient
 from .config import Settings, get_settings
 from .messaging import RedisStreamsClient, timestamp
@@ -22,9 +24,22 @@ from .secrets import load_credentials
 from .schemas import InferenceRequest
 from .strategy import MarketSnapshot, MomentumStrategy, parse_market_payload
 from .telegram import TelegramService, create_telegram_service
+from .mcp import MCPClient, MCPMessageType, MCPProposalPayload, MCPResponsePayload
+from .metrics import (
+    ASTER_API_REQUESTS,
+    LLM_CONFIDENCE,
+    LLM_INFERENCE_TIME,
+    PORTFOLIO_BALANCE,
+    PORTFOLIO_LEVERAGE,
+    POSITION_SIZE,
+    RATE_LIMIT_EVENTS,
+    RISK_LIMITS_BREACHED,
+    TRADING_DECISIONS,
+    REDIS_STREAM_FAILURES,
+)
 
 
-logger = logging.getLogger("cloud_trader")
+logger = structlog.get_logger("cloud_trader.service")
 
 
 def _reward_for(side: str, change: float) -> float:
@@ -120,6 +135,9 @@ class TradingService:
         self._orchestrator: Optional[RiskOrchestratorClient] = None
         if self._settings.orchestrator_url:
             self._orchestrator = RiskOrchestratorClient(self._settings.orchestrator_url)
+        self._mcp: Optional[MCPClient] = None
+        if self._settings.mcp_url:
+            self._mcp = MCPClient(self._settings.mcp_url, self._settings.mcp_session_id)
 
         # Initialize Telegram service for notifications
         self._telegram: Optional[TelegramService] = None
@@ -255,6 +273,8 @@ class TradingService:
         await self._streams.close()
         if self._orchestrator:
             await self._orchestrator.close()
+        if self._mcp:
+            await self._mcp.close()
         self._health = HealthStatus(running=False, paper_trading=self.paper_trading, last_error=self._health.last_error)
 
     async def _run_loop(self) -> None:
@@ -274,8 +294,43 @@ class TradingService:
 
         for symbol, snapshot in market.items():
             decision = self._strategy.should_enter(symbol, snapshot)
+            if decision == "HOLD":
+                await self._streams.publish_reasoning(
+                    {
+                        "bot_id": self._settings.bot_id,
+                        "symbol": symbol,
+                        "strategy": "momentum",
+                        "message": "hold_position",
+                        "context": json.dumps(
+                            {
+                                "change_24h": round(snapshot.change_24h, 4),
+                                "volume": round(snapshot.volume, 2),
+                            }
+                        ),
+                        "timestamp": timestamp(),
+                    }
+                )
+                continue
             if not decision:
                 continue
+
+            if self._mcp:
+                proposal = MCPProposalPayload(
+                    symbol=symbol,
+                    side=decision,
+                    notional=self._strategy.allocate_notional(self._portfolio.balance),
+                    confidence=0.5,
+                    rationale="momentum_threshold_crossed",
+                )
+                await self._mcp.publish(
+                    {
+                        "session_id": self._settings.mcp_session_id or "",
+                        "sender_id": self._settings.bot_id,
+                        "sender_role": "agent",
+                        "message_type": MCPMessageType.PROPOSAL.value,
+                        "payload": proposal.model_dump(),
+                    }
+                )
 
             if not self._bandit.allow(symbol):
                 await self._streams.publish_reasoning(
@@ -295,6 +350,7 @@ class TradingService:
                 continue
             if not self._risk.can_open_position(self._portfolio, notional):
                 logger.info("Risk limits prevent new %s position", symbol)
+                RISK_LIMITS_BREACHED.labels(limit_type="position_size").inc()
                 await self._streams.publish_reasoning(
                     {
                         "bot_id": self._settings.bot_id,
@@ -305,6 +361,12 @@ class TradingService:
                     }
                 )
                 continue
+
+            TRADING_DECISIONS.labels(
+                bot_id=self._settings.bot_id,
+                symbol=symbol,
+                action=decision,
+            ).inc()
 
             order_tag = generate_order_tag(self._settings.bot_id, symbol)
             buffer = self._settings.trailing_stop_buffer
@@ -471,6 +533,26 @@ class TradingService:
                 notional=notional,
                 quantity=quantity,
             )
+            if self._mcp:
+                response_payload = MCPResponsePayload(
+                    reference_id=order_tag,
+                    answer=f"Executed {side} {symbol}",
+                    confidence=1.0,
+                    supplementary={
+                        "price": price,
+                        "notional": notional,
+                        "quantity": quantity,
+                    },
+                )
+                await self._mcp.publish(
+                    {
+                        "session_id": self._settings.mcp_session_id or "",
+                        "sender_id": self._settings.bot_id,
+                        "sender_role": "agent",
+                        "message_type": MCPMessageType.RESPONSE.value,
+                        "payload": response_payload.model_dump(),
+                    }
+                )
         except Exception as exc:
             logger.error("Order failed for %s: %s", symbol, exc)
             self._health.last_error = str(exc)

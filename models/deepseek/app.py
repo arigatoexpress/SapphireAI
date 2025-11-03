@@ -13,8 +13,19 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import httpx
+from typing import Optional, Any, Dict
+
+from models.common.mcp_adapter import MCPAdapter
 
 app = FastAPI(title="AI Model Service", version="1.0.0")
+
+# MCP configuration
+MCP_URL = os.getenv("MCP_URL")
+MCP_SESSION_ID = os.getenv("MCP_SESSION_ID")
+SERVICE_MODEL_KEY = os.getenv("MODEL_KEY", "deepseek")
+DEFAULT_AGENT_ID = os.getenv("AGENT_ID", MODEL_CONFIGS.get(SERVICE_MODEL_KEY, MODEL_CONFIGS["deepseek"])["name"])
+
+mcp_adapter: Optional[MCPAdapter] = None
 
 # Add CORS
 app.add_middleware(
@@ -139,6 +150,41 @@ def generate_trading_decision(model: str, prompt: str, context: dict) -> Inferen
         model_used=config["name"]
     )
 
+async def handle_mcp_query(payload: Dict[str, Any]) -> Dict[str, Any]:
+    model_key = payload.get("model", SERVICE_MODEL_KEY)
+    prompt = payload.get("question", "")
+    context = payload.get("context", {})
+    inference_response = generate_trading_decision(model_key, prompt, context)
+    answer = inference_response.reasoning
+    supplementary = {
+        "decision": inference_response.text,
+        "model": inference_response.model_used,
+    }
+    return {
+        "answer": answer,
+        "confidence": inference_response.confidence,
+        "supplementary": supplementary,
+    }
+
+
+@app.on_event("startup")
+async def startup_event() -> None:
+    global mcp_adapter
+    if MCP_URL:
+        mcp_adapter = MCPAdapter(
+            MCP_URL,
+            DEFAULT_AGENT_ID,
+            session_id=MCP_SESSION_ID,
+            handle_query=handle_mcp_query,
+        )
+        await mcp_adapter.start()
+
+
+@app.on_event("shutdown")
+async def shutdown_event() -> None:
+    if mcp_adapter:
+        await mcp_adapter.stop()
+
 @app.get("/")
 async def root():
     model = get_model_from_path(app.url_path_for("root"))
@@ -165,6 +211,22 @@ async def inference(request: InferenceRequest):
     """Generate trading inference"""
     model = get_model_from_path(app.url_path_for("inference"))
     response = generate_trading_decision(model, request.prompt, request.context)
+    if mcp_adapter:
+        decision = response.text.split(":")[-1].strip().upper()
+        symbol = request.context.get("symbol", "UNKNOWN")
+        notional = float(request.context.get("notional", 0.0))
+        constraints = request.context.get("constraints")
+        try:
+            await mcp_adapter.publish_proposal(
+                symbol=symbol,
+                side=decision,
+                notional=notional,
+                confidence=response.confidence,
+                rationale=response.reasoning,
+                constraints=constraints if isinstance(constraints, list) else None,
+            )
+        except Exception:
+            pass
     return response
 
 @app.post("/chat/completions")

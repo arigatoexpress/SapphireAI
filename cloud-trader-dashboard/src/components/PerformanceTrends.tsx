@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
 
 interface TradeRecord {
-  id: string;
+  id?: string;
   symbol: string;
   side: string;
   quantity: number;
   price: number;
   timestamp: string;
-  model_used: string;
-  confidence: number;
-  status: string;
+  model?: string | null;
+  agent_id?: string | null;
+  status?: string;
+  notional?: number;
+  source?: string;
   pnl?: number;
 }
 
@@ -22,7 +24,7 @@ const PerformanceTrends: React.FC<PerformanceTrendsProps> = ({ trades }) => {
   const [timeRange, setTimeRange] = useState<'1h' | '24h' | '7d'>('24h');
 
   // Get unique models
-  const models = Array.from(new Set(trades.map(t => t.model_used)));
+  const models = Array.from(new Set(trades.map(t => (t.model ?? 'Unknown Model'))));
 
   // Filter trades by time range
   const now = new Date();
@@ -39,7 +41,7 @@ const PerformanceTrends: React.FC<PerformanceTrendsProps> = ({ trades }) => {
 
   // Calculate cumulative P&L for each model
   const calculateModelPnL = (model: string) => {
-    const modelTrades = filteredTrades.filter(t => t.model_used === model && t.pnl !== undefined);
+    const modelTrades = filteredTrades.filter(t => (t.model ?? 'Unknown Model') === model && t.pnl !== undefined);
     let cumulative = 0;
     return modelTrades.map(trade => {
       cumulative += trade.pnl!;
@@ -53,10 +55,11 @@ const PerformanceTrends: React.FC<PerformanceTrendsProps> = ({ trades }) => {
 
   const getModelColor = (modelName: string) => {
     const colors = {
-      'DeepSeek-Coder-V2': '#10B981', // green
-      'Qwen2.5-Coder': '#3B82F6', // blue
-      'FinGPT': '#F59E0B', // yellow
-      'Phi-3': '#EF4444', // red
+      'DeepSeek-V3': '#10B981', // green
+      'Qwen2.5-7B': '#3B82F6', // blue
+      'Phi-3 Medium': '#F59E0B', // amber
+      'Mistral-7B': '#EF4444', // red
+      Unknown: '#6B7280',
     };
     return colors[modelName as keyof typeof colors] || '#6B7280';
   };
@@ -104,11 +107,10 @@ const PerformanceTrends: React.FC<PerformanceTrendsProps> = ({ trades }) => {
       <div className="flex flex-wrap gap-2 mb-4">
         <button
           onClick={() => toggleModel('all')}
-          className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-            selectedModels.includes('all')
-              ? 'bg-slate-900 text-white'
-              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-          }`}
+          className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${selectedModels.includes('all')
+            ? 'bg-slate-900 text-white'
+            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            }`}
         >
           All Models
         </button>
@@ -116,11 +118,10 @@ const PerformanceTrends: React.FC<PerformanceTrendsProps> = ({ trades }) => {
           <button
             key={model}
             onClick={() => toggleModel(model)}
-            className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-              selectedModels.includes(model) || selectedModels.includes('all')
-                ? 'text-white'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-            }`}
+            className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${selectedModels.includes(model) || selectedModels.includes('all')
+              ? 'text-white'
+              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
             style={{
               backgroundColor: selectedModels.includes(model) || selectedModels.includes('all')
                 ? getModelColor(model)
@@ -138,7 +139,7 @@ const PerformanceTrends: React.FC<PerformanceTrendsProps> = ({ trades }) => {
           {/* Grid lines */}
           <defs>
             <pattern id="grid" width="50" height="20" patternUnits="userSpaceOnUse">
-              <path d="M 50 0 L 0 0 0 20" fill="none" stroke="#E2E8F0" strokeWidth="1"/>
+              <path d="M 50 0 L 0 0 0 20" fill="none" stroke="#E2E8F0" strokeWidth="1" />
             </pattern>
           </defs>
           <rect width="100%" height="100%" fill="url(#grid)" />
@@ -218,7 +219,7 @@ const PerformanceTrends: React.FC<PerformanceTrendsProps> = ({ trades }) => {
       {/* Summary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
         {models.map(model => {
-          const modelTrades = filteredTrades.filter(t => t.model_used === model);
+          const modelTrades = filteredTrades.filter(t => (t.model ?? 'Unknown Model') === model);
           const totalPnL = modelTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
           const winRate = modelTrades.length > 0
             ? modelTrades.filter(t => (t.pnl || 0) > 0).length / modelTrades.length

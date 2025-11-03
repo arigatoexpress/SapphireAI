@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { DashboardPortfolio } from '../api/client';
+import { resolveTokenMeta } from '../utils/tokenMeta';
 
 interface PortfolioCardProps {
   portfolio?: DashboardPortfolio;
@@ -41,13 +42,13 @@ const PortfolioCard: React.FC<PortfolioCardProps> = ({ portfolio }) => {
   const exposure = portfolio.total_exposure ?? 0;
   const available = Math.max(balance - exposure, 0);
 
-    return (
+  return (
     <div className="relative overflow-hidden rounded-2xl border border-surface-200/40 bg-surface-100/80 p-6 shadow-glass">
       <div className="absolute inset-0 bg-gradient-to-br from-primary-500/5 via-transparent to-transparent" />
       <div className="relative flex items-center justify-between">
         <div>
           <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Portfolio Overview</p>
-          <h3 className="mt-2 text-2xl font-semibold text-white">${formatCurrency(balance).replace('$', '')}</h3>
+          <h3 className="mt-2 text-2xl font-semibold text-white">{formatCurrency(balance)}</h3>
           <p className="mt-1 text-xs uppercase tracking-[0.2em] text-slate-500">
             Source · {portfolio.source ?? 'local cache'}
           </p>
@@ -78,18 +79,24 @@ const PortfolioCard: React.FC<PortfolioCardProps> = ({ portfolio }) => {
         <h4 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">Open Exposure</h4>
         {positions.length > 0 ? (
           <div className="mt-3 space-y-2">
-            {positions.map((position) => (
-              <div
-                key={position.symbol}
-                className="flex items-center justify-between rounded-xl border border-surface-200/40 bg-surface-50/30 px-4 py-3 text-sm text-slate-200"
-              >
-                  <div>
-                  <p className="font-medium text-white">{position.symbol}</p>
-                  <p className="text-xs text-slate-400">Gross notional</p>
+            {positions.map((position) => {
+              const meta = resolveTokenMeta(position.symbol);
+              return (
+                <div
+                  key={position.symbol}
+                  className="flex items-center justify-between rounded-xl border border-surface-200/40 bg-surface-50/30 px-4 py-3 text-sm text-slate-200"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`h-9 w-9 rounded-full bg-gradient-to-br ${meta.gradient} flex items-center justify-center text-xs font-bold text-white shadow-glass`}>{meta.short}</div>
+                    <div>
+                      <p className="font-medium text-white">{position.symbol}</p>
+                      <p className="text-[0.65rem] uppercase tracking-[0.2em] text-slate-500">{meta.name}</p>
+                    </div>
+                  </div>
+                  <p className="text-base font-semibold text-white">{formatCurrency(Math.abs(position.notional || 0))}</p>
                 </div>
-                <p className="text-base font-semibold text-white">{formatCurrency(Math.abs(position.notional || 0))}</p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="mt-4 rounded-xl border border-dashed border-surface-200/40 bg-surface-50/20 px-6 py-10 text-center text-slate-500">

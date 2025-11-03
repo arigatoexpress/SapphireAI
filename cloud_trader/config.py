@@ -59,6 +59,8 @@ class Settings(BaseSettings):
     bot_id: str = Field(default="cloud_trader", validation_alias="BOT_ID")
     redis_url: str | None = Field(default=None, validation_alias="REDIS_URL")
     orchestrator_url: str | None = Field(default=None, validation_alias="ORCHESTRATOR_URL")
+    mcp_url: str | None = Field(default=None, validation_alias="MCP_URL")
+    mcp_session_id: str | None = Field(default=None, validation_alias="MCP_SESSION_ID")
     decisions_stream: str = Field(default="trader:decisions")
     positions_stream: str = Field(default="trader:positions")
     reasoning_stream: str = Field(default="trader:reasoning")

@@ -4,7 +4,7 @@ const PerformanceTrends = ({ trades }) => {
     const [selectedModels, setSelectedModels] = useState(['all']);
     const [timeRange, setTimeRange] = useState('24h');
     // Get unique models
-    const models = Array.from(new Set(trades.map(t => t.model_used)));
+    const models = Array.from(new Set(trades.map(t => (t.model ?? 'Unknown Model'))));
     // Filter trades by time range
     const now = new Date();
     const timeRanges = {
@@ -18,7 +18,7 @@ const PerformanceTrends = ({ trades }) => {
     });
     // Calculate cumulative P&L for each model
     const calculateModelPnL = (model) => {
-        const modelTrades = filteredTrades.filter(t => t.model_used === model && t.pnl !== undefined);
+        const modelTrades = filteredTrades.filter(t => (t.model ?? 'Unknown Model') === model && t.pnl !== undefined);
         let cumulative = 0;
         return modelTrades.map(trade => {
             cumulative += trade.pnl;
@@ -31,10 +31,11 @@ const PerformanceTrends = ({ trades }) => {
     };
     const getModelColor = (modelName) => {
         const colors = {
-            'DeepSeek-Coder-V2': '#10B981', // green
-            'Qwen2.5-Coder': '#3B82F6', // blue
-            'FinGPT': '#F59E0B', // yellow
-            'Phi-3': '#EF4444', // red
+            'DeepSeek-V3': '#10B981', // green
+            'Qwen2.5-7B': '#3B82F6', // blue
+            'Phi-3 Medium': '#F59E0B', // amber
+            'Mistral-7B': '#EF4444', // red
+            Unknown: '#6B7280',
         };
         return colors[modelName] || '#6B7280';
     };
@@ -83,7 +84,7 @@ const PerformanceTrends = ({ trades }) => {
                                             return (_jsx("circle", { cx: x, cy: y, r: "3", fill: getModelColor(model), className: "hover:r-4 transition-all cursor-pointer" }, index));
                                         })] }, model));
                             })] }), filteredTrades.length === 0 && (_jsx("div", { className: "absolute inset-0 flex items-center justify-center", children: _jsxs("div", { className: "text-center text-slate-500", children: [_jsx("span", { className: "text-4xl mb-2 block", children: "\uD83D\uDCC8" }), _jsx("p", { children: "No trading data available for the selected time range" })] }) }))] }), _jsx("div", { className: "grid grid-cols-1 md:grid-cols-4 gap-4 mt-6", children: models.map(model => {
-                    const modelTrades = filteredTrades.filter(t => t.model_used === model);
+                    const modelTrades = filteredTrades.filter(t => (t.model ?? 'Unknown Model') === model);
                     const totalPnL = modelTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
                     const winRate = modelTrades.length > 0
                         ? modelTrades.filter(t => (t.pnl || 0) > 0).length / modelTrades.length

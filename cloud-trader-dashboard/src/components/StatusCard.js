@@ -1,7 +1,7 @@
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 const StatusCard = ({ health, loading }) => {
     if (loading || !health) {
-        return (_jsx("div", { className: "rounded-2xl border border-surface-200/40 bg-surface-100/60 p-6 text-center text-slate-300 shadow-glass", children: _jsxs("div", { className: "animate-pulse space-y-3", children: [_jsx("div", { className: "mx-auto h-10 w-10 rounded-full bg-slate-600/40" }), _jsx("p", { className: "text-sm", children: "Calibrating systems\u2026" })] }) }));
+        return (_jsxs("div", { className: "rounded-2xl border border-surface-200/40 bg-surface-100/60 p-6 text-center text-slate-300 shadow-glass", role: "status", "aria-live": "polite", "aria-busy": "true", children: [_jsx("span", { className: "sr-only", children: "Loading status..." }), _jsxs("div", { className: "animate-pulse space-y-3", children: [_jsx("div", { className: "mx-auto h-10 w-10 rounded-full bg-slate-600/40" }), _jsx("p", { className: "text-sm", children: "Calibrating systems\u2026" })] })] }));
     }
     const statusBadge = health.running ? 'bg-emerald-400/80 text-slate-900' : 'bg-amber-400/80 text-slate-900';
     return (_jsxs("div", { className: "rounded-2xl border border-surface-200/40 bg-surface-100/80 p-6 text-slate-200 shadow-glass", children: [_jsxs("div", { className: "flex items-start justify-between", children: [_jsxs("div", { children: [_jsx("p", { className: "text-xs uppercase tracking-[0.3em] text-slate-400", children: "System Status" }), _jsx("h3", { className: "mt-2 text-2xl font-semibold text-white", children: health.running ? 'Operational' : 'Standby' }), _jsx("p", { className: "mt-2 text-sm text-slate-400", children: health.running

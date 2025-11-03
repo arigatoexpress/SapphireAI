@@ -8,7 +8,13 @@ interface StatusCardProps {
 const StatusCard: React.FC<StatusCardProps> = ({ health, loading }) => {
   if (loading || !health) {
     return (
-      <div className="rounded-2xl border border-surface-200/40 bg-surface-100/60 p-6 text-center text-slate-300 shadow-glass">
+      <div
+        className="rounded-2xl border border-surface-200/40 bg-surface-100/60 p-6 text-center text-slate-300 shadow-glass"
+        role="status"
+        aria-live="polite"
+        aria-busy="true"
+      >
+        <span className="sr-only">Loading status...</span>
         <div className="animate-pulse space-y-3">
           <div className="mx-auto h-10 w-10 rounded-full bg-slate-600/40" />
           <p className="text-sm">Calibrating systems…</p>

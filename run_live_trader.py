@@ -2,11 +2,10 @@
 """Executable entrypoint for the lean cloud trader FastAPI service."""
 
 import argparse
-import logging
-
 import uvicorn
 
 from cloud_trader.api import build_app
+from cloud_trader.logging_config import configure_logging
 
 
 def main() -> None:
@@ -16,9 +15,9 @@ def main() -> None:
     parser.add_argument("--log-level", default="info")
     args = parser.parse_args()
 
-    logging.basicConfig(level=args.log_level.upper(), format="%(asctime)s %(levelname)s %(message)s")
+    configure_logging(args.log_level)
     app = build_app()
-    uvicorn.run(app, host=args.host, port=args.port, log_level=args.log_level)
+    uvicorn.run(app, host=args.host, port=args.port, log_level=args.log_level, log_config=None)
 
 
 if __name__ == "__main__":

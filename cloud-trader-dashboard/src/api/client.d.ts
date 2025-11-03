@@ -18,16 +18,14 @@ export interface DashboardPosition {
     pnl?: number;
     pnl_percent?: number;
     leverage?: number;
-    model_used?: string;
+    agent_id?: string;
     timestamp?: string;
 }
 export interface DashboardPortfolio {
     balance?: number;
     total_exposure?: number;
-    positions?: Record<string, {
-        symbol?: string;
-        notional?: number;
-    }>;
+    available_balance?: number;
+    positions?: Record<string, DashboardPosition>;
     source?: string;
     alerts?: string[];
 }
@@ -44,11 +42,43 @@ export interface DashboardSystemStatus {
     redis_connected: boolean;
     timestamp: string;
 }
+export interface DashboardTrade {
+    symbol: string;
+    side: string;
+    price: number;
+    quantity: number;
+    notional: number;
+    agent_id?: string | null;
+    model?: string | null;
+    timestamp: string;
+    status?: string;
+    source?: string;
+}
+export interface DashboardAgent {
+    id: string;
+    name: string;
+    model: string;
+    emoji: string;
+    status: string;
+    symbols: string[];
+    description: string;
+    total_pnl: number;
+    exposure: number;
+    total_trades: number;
+    win_rate: number;
+    last_trade?: string | null;
+    positions: DashboardPosition[];
+    performance: Array<{
+        timestamp: string;
+        equity: number;
+    }>;
+}
 export interface DashboardResponse {
     portfolio: DashboardPortfolio;
     positions: DashboardPosition[];
-    recent_trades: any[];
+    recent_trades: DashboardTrade[];
     model_performance: any[];
+    agents: DashboardAgent[];
     model_reasoning: any[];
     system_status: DashboardSystemStatus;
     targets: DashboardTargets;

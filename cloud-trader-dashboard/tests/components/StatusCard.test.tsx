@@ -4,6 +4,7 @@ import StatusCard from '../../src/components/StatusCard';
 describe('StatusCard', () => {
   it('renders loading state', () => {
     render(<StatusCard health={null} loading />);
+    expect(screen.getByRole('status')).toHaveAttribute('aria-busy', 'true');
     expect(screen.getByText('Loading status...')).toBeInTheDocument();
   });
 
@@ -14,7 +15,7 @@ describe('StatusCard', () => {
         loading={false}
       />,
     );
-    expect(screen.getByText('Running')).toBeInTheDocument();
+    expect(screen.getByText('Operational')).toBeInTheDocument();
     expect(screen.getByText('Paper Trading')).toBeInTheDocument();
   });
 
@@ -25,7 +26,7 @@ describe('StatusCard', () => {
         loading={false}
       />,
     );
-    expect(screen.getByText('Stopped')).toBeInTheDocument();
+    expect(screen.getByText('Standby')).toBeInTheDocument();
     expect(screen.getByText(/Test error/)).toBeInTheDocument();
   });
 });

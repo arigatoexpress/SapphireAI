@@ -23,7 +23,13 @@ class RedisStreamsClient:
 
     async def connect(self) -> None:
         if self._client is None and self._url:
-            self._client = redis.from_url(self._url, decode_responses=True)
+            try:
+                client = redis.from_url(self._url, decode_responses=True)
+                await client.ping()
+            except Exception:
+                self._client = None
+            else:
+                self._client = client
 
     async def close(self) -> None:
         if self._client:
@@ -35,18 +41,23 @@ class RedisStreamsClient:
 
     async def publish_decision(self, payload: Dict[str, str]) -> None:
         client = await self._ensure()
-        await client.xadd(self._decisions_stream, payload, maxlen=self._maxlen, approximate=True)
+        if client:
+            await client.xadd(self._decisions_stream, payload, maxlen=self._maxlen, approximate=True)
 
     async def publish_reasoning(self, payload: Dict[str, str]) -> None:
         client = await self._ensure()
-        await client.xadd(self._reasoning_stream, payload, maxlen=self._maxlen, approximate=True)
+        if client:
+            await client.xadd(self._reasoning_stream, payload, maxlen=self._maxlen, approximate=True)
 
     async def publish_position(self, payload: Dict[str, str]) -> None:
         client = await self._ensure()
-        await client.xadd(self._positions_stream, payload, maxlen=self._maxlen, approximate=True)
+        if client:
+            await client.xadd(self._positions_stream, payload, maxlen=self._maxlen, approximate=True)
 
     async def read_latest(self, stream: str, count: int = 50) -> List[Dict[str, str]]:
         client = await self._ensure()
+        if not client:
+            return []
         entries = await client.xrevrange(stream, count=count)
         parsed: List[Dict[str, str]] = []
         for entry_id, payload in entries:
@@ -55,11 +66,11 @@ class RedisStreamsClient:
             parsed.append(data)
         return list(reversed(parsed))
 
-    async def _ensure(self) -> redis.Redis:
+    async def _ensure(self) -> Optional[redis.Redis]:
+        if not self._url:
+            return None
         if self._client is None:
             await self.connect()
-        if self._client is None:
-            raise RuntimeError("Redis client not configured (REDIS_URL missing)")
         return self._client
 
 

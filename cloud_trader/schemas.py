@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
+from pydantic import ConfigDict
 
 
 class MarketContext(BaseModel):
@@ -13,11 +14,15 @@ class MarketContext(BaseModel):
     price: float = Field(ge=0)
     change_24h: float
     volume: float = Field(ge=0)
+    current_price: Optional[float] = None
+    current_position: Optional[Dict[str, Any]] = None
 
 
 class DecisionEnvelope(BaseModel):
-    side: Literal["BUY", "SELL", "HOLD"]
-    size: float = Field(gt=0)
+    model_config = ConfigDict(populate_by_name=True)
+
+    side: Literal["BUY", "SELL", "HOLD", "CLOSE"] = Field(alias="action")
+    size: Optional[float] = Field(default=None, ge=0)
     take_profit: Optional[float] = Field(default=None, gt=0)
     stop_loss: Optional[float] = Field(default=None, gt=0)
 

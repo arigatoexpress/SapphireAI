@@ -1,3 +1,4 @@
+import React from 'react';
 export interface LogEntry {
     timestamp: string;
     message: string;

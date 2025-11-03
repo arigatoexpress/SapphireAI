@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { resolveTokenMeta } from '../utils/tokenMeta';
 
 interface PositionRow {
   symbol: string;
@@ -169,37 +170,40 @@ const LivePositions: React.FC<LivePositionsProps> = ({ positions }) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-200/30 text-slate-200">
-                {sortedPositions.map((position, index) => (
-                  <tr key={index} className="hover:bg-surface-50/30">
-                    <td className="px-6 py-3">
-                      <div className="flex items-center gap-3">
-                        <span className="text-xl">{getModelIcon(position.model_used)}</span>
-                        <div>
-                          <p className="text-sm font-medium text-white">{position.symbol}</p>
-                          <p className="text-xs text-slate-500">{position.model_used}</p>
+                {sortedPositions.map((position, index) => {
+                  const meta = resolveTokenMeta(position.symbol);
+                  return (
+                    <tr key={index} className="hover:bg-surface-50/30">
+                      <td className="px-6 py-3">
+                        <div className="flex items-center gap-3">
+                          <div className={`h-9 w-9 rounded-full bg-gradient-to-br ${meta.gradient} flex items-center justify-center text-xs font-bold text-white shadow-glass`}>{meta.short}</div>
+                          <div>
+                            <p className="text-sm font-medium text-white">{position.symbol}</p>
+                            <p className="text-xs text-slate-500">{meta.name} · {position.model_used}</p>
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-3">
-                      <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${getPositionColor(position.side)} bg-white/10`}>
-                        {position.side.toUpperCase()}
-                      </span>
-                    </td>
-                    <td className="px-6 py-3 text-slate-200">{position.size.toFixed(4)}</td>
-                    <td className="px-6 py-3 text-slate-200">${position.entry_price.toFixed(2)}</td>
-                    <td className="px-6 py-3 text-slate-200">${position.current_price.toFixed(2)}</td>
-                    <td className="px-6 py-3">
-                      <div className={`font-semibold ${getPnLColor(position.pnl)}`}>${position.pnl.toFixed(2)}</div>
-                      <div className={`text-xs ${getPnLColor(position.pnl_percent)}`}>
-                        ({position.pnl_percent >= 0 ? '+' : ''}{position.pnl_percent.toFixed(2)}%)
-                      </div>
-                    </td>
-                    <td className="px-6 py-3 text-slate-200">{position.leverage}x</td>
-                    <td className="px-6 py-3 text-slate-500">
-                      {new Date(position.timestamp).toLocaleTimeString()}
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="px-6 py-3">
+                        <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${getPositionColor(position.side)} bg-white/10`}>
+                          {position.side.toUpperCase()}
+                        </span>
+                      </td>
+                      <td className="px-6 py-3 text-slate-200">{position.size.toFixed(4)}</td>
+                      <td className="px-6 py-3 text-slate-200">${position.entry_price.toFixed(2)}</td>
+                      <td className="px-6 py-3 text-slate-200">${position.current_price.toFixed(2)}</td>
+                      <td className="px-6 py-3">
+                        <div className={`font-semibold ${getPnLColor(position.pnl)}`}>${position.pnl.toFixed(2)}</div>
+                        <div className={`text-xs ${getPnLColor(position.pnl_percent)}`}>
+                          ({position.pnl_percent >= 0 ? '+' : ''}{position.pnl_percent.toFixed(2)}%)
+                        </div>
+                      </td>
+                      <td className="px-6 py-3 text-slate-200">{position.leverage}x</td>
+                      <td className="px-6 py-3 text-slate-500">
+                        {new Date(position.timestamp).toLocaleTimeString()}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

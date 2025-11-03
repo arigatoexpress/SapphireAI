@@ -16,9 +16,9 @@ const TopBar: React.FC<TopBarProps> = ({ onRefresh, lastUpdated, healthRunning, 
         <header className="sticky top-0 z-40 border-b border-surface-200/60 bg-surface-100/80 backdrop-blur-xs">
             <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-10">
                 <div>
-                    <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Autonomous Trading Control Center</p>
-                    <h2 className="mt-1 text-2xl font-semibold text-white">Mission Control</h2>
-                    <p className="mt-0.5 text-sm text-slate-400">Monitor risk, performance, and AI decision quality in real time.</p>
+                    <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Sapphire AI Trading Platform</p>
+                    <h2 className="mt-1 text-2xl font-semibold text-white">Command Center</h2>
+                    <p className="mt-0.5 text-sm text-slate-400">Intelligent multi-agent trading with real-time performance analytics.</p>
                 </div>
 
                 <div className="flex items-center gap-4">

@@ -21,18 +21,20 @@ from .service import TradingService
 from .schemas import ChatCompletionRequest, InferenceRequest
 
 # Prometheus metrics
-from prometheus_client import Counter, Gauge, Histogram
+from .metrics import (
+    ASTER_API_LATENCY,
+    ASTER_API_REQUESTS,
+    LLM_CONFIDENCE,
+    LLM_INFERENCE_TIME,
+    PORTFOLIO_BALANCE,
+    PORTFOLIO_LEVERAGE,
+    POSITION_SIZE,
+    RATE_LIMIT_EVENTS,
+    RISK_LIMITS_BREACHED,
+    TRADING_DECISIONS,
+)
 
 logger = logging.getLogger(__name__)
-
-# Trading metrics
-TRADING_DECISIONS = Counter('trading_decisions_total', 'Total trading decisions made', ['bot_id', 'symbol', 'action'])
-PORTFOLIO_BALANCE = Gauge('trading_portfolio_balance', 'Current portfolio balance in USDT')
-PORTFOLIO_LEVERAGE = Gauge('trading_portfolio_leverage', 'Current portfolio leverage ratio')
-LLM_CONFIDENCE = Histogram('trading_llm_confidence', 'LLM decision confidence distribution', buckets=[0.1, 0.3, 0.5, 0.7, 0.9])
-LLM_INFERENCE_TIME = Histogram('trading_llm_inference_duration_seconds', 'LLM inference duration', buckets=[0.1, 0.5, 1.0, 2.0, 5.0, 10.0])
-POSITION_SIZE = Gauge('trading_position_size', 'Current position size', ['symbol'])
-RISK_LIMITS_BREACHED = Counter('trading_risk_limits_breached', 'Risk limit breach events', ['limit_type'])
 
 # Rate limiting
 class RateLimiter:
@@ -140,7 +142,7 @@ def build_app(service: TradingService | None = None) -> FastAPI:
             raise HTTPException(status_code=429, detail="Too many requests")
 
         # Validate input
-        if not inference_request.decision or not hasattr(inference_request.decision, 'action'):
+        if not inference_request.decision or not hasattr(inference_request.decision, 'side'):
             raise HTTPException(status_code=400, detail="Invalid decision format")
         if not inference_request.context or not hasattr(inference_request.context, 'symbol'):
             raise HTTPException(status_code=400, detail="Invalid context format")

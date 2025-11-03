@@ -22,12 +22,12 @@ class MomentumStrategy:
 
     def should_enter(self, symbol: str, market: MarketSnapshot) -> Optional[str]:
         if market.volume <= 0 or market.price <= 0:
-            return None
+            return "HOLD"
         if market.change_24h >= self.threshold:
             return "BUY"
         if market.change_24h <= -self.threshold:
             return "SELL"
-        return None
+        return "HOLD"
 
     def allocate_notional(self, portfolio_balance: float) -> float:
         return portfolio_balance * max(min(self.notional_fraction, 0.5), 0.001)

@@ -67,7 +67,49 @@ fi
 
 PROJECT_ID=${PROJECT_ID:-$(gcloud config get-value project 2>/dev/null || true)}
 REGION=${REGION:-us-central1}
+REGIONS=${REGIONS:-${REGION}}
 SERVICE_NAME=${SERVICE_NAME:-cloud-trader}
+
+ENV_FILE=".env"
+if [[ -f "${ENV_FILE}" ]]; then
+  ORCHESTRATOR_FROM_ENV=$(grep -E '^ORCHESTRATOR_URL=' "${ENV_FILE}" | tail -1 | cut -d'=' -f2- || true)
+  ENABLE_PAPER_FROM_ENV=$(grep -E '^ENABLE_PAPER_TRADING=' "${ENV_FILE}" | tail -1 | cut -d'=' -f2- || true)
+  MOMENTUM_FROM_ENV=$(grep -E '^MOMENTUM_THRESHOLD=' "${ENV_FILE}" | tail -1 | cut -d'=' -f2- || true)
+  NOTIONAL_FROM_ENV=$(grep -E '^NOTIONAL_FRACTION=' "${ENV_FILE}" | tail -1 | cut -d'=' -f2- || true)
+  MCP_URL_FROM_ENV=$(grep -E '^MCP_URL=' "${ENV_FILE}" | tail -1 | cut -d'=' -f2- || true)
+  MCP_SESSION_FROM_ENV=$(grep -E '^MCP_SESSION_ID=' "${ENV_FILE}" | tail -1 | cut -d'=' -f2- || true)
+else
+  ORCHESTRATOR_FROM_ENV=""
+  ENABLE_PAPER_FROM_ENV=""
+  MOMENTUM_FROM_ENV=""
+  NOTIONAL_FROM_ENV=""
+  MCP_URL_FROM_ENV=""
+  MCP_SESSION_FROM_ENV=""
+fi
+
+ORCHESTRATOR_URL=${ORCHESTRATOR_URL:-${ORCHESTRATOR_FROM_ENV}}
+ENABLE_PAPER_TRADING=${ENABLE_PAPER_TRADING:-${ENABLE_PAPER_FROM_ENV:-false}}
+MOMENTUM_THRESHOLD=${MOMENTUM_THRESHOLD:-${MOMENTUM_FROM_ENV}}
+NOTIONAL_FRACTION=${NOTIONAL_FRACTION:-${NOTIONAL_FROM_ENV}}
+MCP_URL=${MCP_URL:-${MCP_URL_FROM_ENV}}
+MCP_SESSION_ID=${MCP_SESSION_ID:-${MCP_SESSION_FROM_ENV}}
+
+ENV_VARS="ENABLE_PAPER_TRADING=${ENABLE_PAPER_TRADING}"
+if [[ -n "${ORCHESTRATOR_URL}" ]]; then
+  ENV_VARS="${ENV_VARS},ORCHESTRATOR_URL=${ORCHESTRATOR_URL}"
+fi
+if [[ -n "${MOMENTUM_THRESHOLD}" ]]; then
+  ENV_VARS="${ENV_VARS},MOMENTUM_THRESHOLD=${MOMENTUM_THRESHOLD}"
+fi
+if [[ -n "${NOTIONAL_FRACTION}" ]]; then
+  ENV_VARS="${ENV_VARS},NOTIONAL_FRACTION=${NOTIONAL_FRACTION}"
+fi
+if [[ -n "${MCP_URL}" ]]; then
+  ENV_VARS="${ENV_VARS},MCP_URL=${MCP_URL}"
+fi
+if [[ -n "${MCP_SESSION_ID}" ]]; then
+  ENV_VARS="${ENV_VARS},MCP_SESSION_ID=${MCP_SESSION_ID}"
+fi
 
 if [[ -z "${PROJECT_ID}" || "${PROJECT_ID}" == "(unset)" ]]; then
   echo "PROJECT_ID is not set and no gcloud default project found." >&2
@@ -115,13 +157,19 @@ fi
 echo "📦 Building container image: ${IMAGE}"
 run_cmd gcloud builds submit --tag "${IMAGE}"
 
-echo "🚀 Deploying to Cloud Run service '${SERVICE_NAME}' in region '${REGION}'"
-run_cmd gcloud run deploy "${SERVICE_NAME}" \
-  --image "${IMAGE}" \
-  --platform managed \
-  --region "${REGION}" \
-  --allow-unauthenticated \
-  --set-secrets ASTER_API_KEY=ASTER_API_KEY:latest,ASTER_SECRET_KEY=ASTER_SECRET_KEY:latest
+REGION_LIST=()
+IFS=',' read -ra REGION_LIST <<< "${REGIONS}"
+
+for REGION in "${REGION_LIST[@]}"; do
+  echo "🚀 Deploying to Cloud Run service '${SERVICE_NAME}' in region '${REGION}'"
+  run_cmd gcloud run deploy "${SERVICE_NAME}" \
+    --image "${IMAGE}" \
+    --platform managed \
+    --region "${REGION}" \
+    --allow-unauthenticated \
+    --set-env-vars "${ENV_VARS}" \
+    --set-secrets ASTER_API_KEY=ASTER_API_KEY:latest,ASTER_SECRET_KEY=ASTER_SECRET_KEY:latest,TELEGRAM_BOT_TOKEN=TELEGRAM_BOT_TOKEN:latest,TELEGRAM_CHAT_ID=TELEGRAM_CHAT_ID:latest
+done
 
 if $DRY_RUN; then
   echo "✅ Dry run complete"
