@@ -38,7 +38,7 @@ class RedisClient:
                     retry_on_timeout=True,
                 )
                 cls._pool_url = url
-            
+
             return redis.Redis(connection_pool=cls._pool)
         except Exception:
             return None

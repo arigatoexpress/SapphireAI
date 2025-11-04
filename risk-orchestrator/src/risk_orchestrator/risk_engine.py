@@ -26,6 +26,7 @@ AGENT_ALLOCATIONS = {
 # Default allocation applied when an agent is not explicitly listed above
 DEFAULT_AGENT_ALLOCATION = 125.0
 
+
 class RiskEngine:
     def __init__(self, portfolio: dict, bot_id: str = None):
         self.portfolio = portfolio

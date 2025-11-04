@@ -1,5 +1,5 @@
-const DEFAULT_API_URL = 'https://api.sapphiretrade.xyz/orchestrator';
-const DEFAULT_DASHBOARD_URL = 'https://trader.sapphiretrade.xyz';
+const DEFAULT_API_URL = 'https://api.sapphiretrade.xyz';
+const DEFAULT_DASHBOARD_URL = 'https://api.sapphiretrade.xyz';
 
 // Get API URL with fallback to current origin for development
 const getApiUrl = () => {
@@ -7,10 +7,13 @@ const getApiUrl = () => {
   if (envUrl) return envUrl;
 
   if (typeof window !== 'undefined') {
-    const origin = window.location.origin;
     const hostname = window.location.hostname;
     if (hostname === '127.0.0.1' || hostname === 'localhost') {
       return DEFAULT_API_URL;
+    }
+    // Use api subdomain for production
+    if (hostname === 'sapphiretrade.xyz' || hostname === 'www.sapphiretrade.xyz') {
+      return 'https://api.sapphiretrade.xyz';
     }
     return origin;
   }
@@ -27,8 +30,12 @@ const DASHBOARD_URL = (() => {
     if (hostname === '127.0.0.1' || hostname === 'localhost') {
       return DEFAULT_DASHBOARD_URL;
     }
+    // Use api subdomain for production dashboard endpoint
+    if (hostname === 'sapphiretrade.xyz' || hostname === 'www.sapphiretrade.xyz') {
+      return 'https://api.sapphiretrade.xyz';
+    }
   }
-  return `${DEFAULT_DASHBOARD_URL}`;
+  return DEFAULT_DASHBOARD_URL;
 })();
 
 export interface HealthResponse {

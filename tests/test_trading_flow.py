@@ -78,9 +78,9 @@ async def test_market_feed_validation(mock_settings):
     """Test market feed validation and caching."""
 
     with patch("cloud_trader.service.load_credentials", return_value=Credentials(api_key=None, api_secret=None)):
-    service = TradingService(settings=mock_settings)
-    
-    service._health = HealthStatus(running=False, paper_trading=True, last_error=None)
+        service = TradingService(settings=mock_settings)
+        
+        service._health = HealthStatus(running=False, paper_trading=True, last_error=None)
     
     market = await service._fetch_market()
     assert len(market) > 0

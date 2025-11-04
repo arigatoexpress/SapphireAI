@@ -6,6 +6,7 @@ import aiohttp
 import json
 import sys
 
+
 async def check_trading_status():
     """Check current trading status"""
     async with aiohttp.ClientSession() as session:
@@ -15,7 +16,7 @@ async def check_trading_status():
             async with session.get("https://trader.sapphiretrade.xyz/healthz") as resp:
                 health = await resp.json()
                 print(f"✅ Service Health: {json.dumps(health, indent=2)}")
-                
+
                 if health.get("running"):
                     print("✅ Trading service is RUNNING")
                     if not health.get("paper_trading"):
@@ -24,11 +25,11 @@ async def check_trading_status():
                         print("📝 Paper trading mode is active")
                 else:
                     print("❌ Trading service is NOT running")
-                    
+
         except Exception as e:
             print(f"❌ Error checking health: {e}")
             return False
-            
+
         # Check root endpoint
         try:
             async with session.get("https://trader.sapphiretrade.xyz/") as resp:
@@ -36,7 +37,7 @@ async def check_trading_status():
                 print(f"\n📡 Service Status: {root}")
         except Exception as e:
             print(f"❌ Error checking root: {e}")
-            
+
     return True
 
 async def main():
@@ -44,7 +45,7 @@ async def main():
     print("🚀 LIVE TRADING DEPLOYMENT CHECK")
     print("=" * 40)
     print("")
-    
+
     # Check status
     if await check_trading_status():
         print("\n✅ LIVE TRADING IS DEPLOYED AND ACTIVE!")
@@ -59,3 +60,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+

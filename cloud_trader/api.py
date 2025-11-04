@@ -69,13 +69,15 @@ def build_app(service: TradingService | None = None) -> FastAPI:
             "https://cloud-trader-880429861698.us-central1.run.app",
             "https://cloud-trader-cfxefrvooa-uc.a.run.app",
             "https://sapphiretrade.xyz",
+            "https://www.sapphiretrade.xyz",
             "https://api.sapphiretrade.xyz",
+            "https://trader.sapphiretrade.xyz",
             "http://localhost:3000",
             "http://localhost:5173",
         ],  # Explicitly allow known origins
         allow_credentials=True,
-        allow_methods=["GET", "POST"],  # Limit to necessary methods
-        allow_headers=["Content-Type", "Authorization"],  # Limit headers
+        allow_methods=["GET", "POST", "OPTIONS"],  # Include OPTIONS for CORS preflight
+        allow_headers=["Content-Type", "Authorization", "Accept", "Origin"],  # Include CORS headers
     )
 
     # Add Prometheus instrumentation
