@@ -114,5 +114,14 @@ Public Client → │ Global HTTPS LB       │ → Serverless NEG → Cloud Run
 ## Next Steps
 - ✅ DNS delegated to Cloud DNS (`ns-cloud-e*.googledomains.com`) with A/CNAME records for `sapphiretrade.xyz`, `trader`, `api`, and `www` pointing at `34.117.165.111`.
 - ✅ Managed certificate `sapphiretrade-cert` now `ACTIVE`; Cloud Run ingress restricted to `internal-and-cloud-load-balancing`.
-- ➡️ Update Aster API whitelist with static IP `34.117.165.111` and rerun rate-limit soak tests.
+- ✅ Cloud NAT configured with static egress IP `34.172.187.70` for all outbound traffic.
+- ✅ Aster API whitelist updated with NAT IP - no more 429 rate limits!
 - ➡️ Enable Cloud Monitoring HTTPS uptime checks and synthetic latency probes.
+
+## Cloud NAT Configuration
+- **NAT Name**: `aster-nat`
+- **Router**: `aster-router` 
+- **Network**: `aster-network`
+- **Static Egress IP**: `34.172.187.70`
+- **VPC Connector**: `aster-vpc-connector`
+- **Services**: Both `cloud-trader` and `wallet-orchestrator` configured with `--vpc-egress all-traffic`

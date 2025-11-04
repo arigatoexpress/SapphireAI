@@ -25,6 +25,7 @@ from .mcp import (
     MCPRole,
     get_mcp_router,
 )
+from .mcp.consensus import get_consensus_engine
 from .models import OrderIntent, RiskCheckResponse
 from .redis_client import RedisClient
 from .risk_engine import RiskEngine
@@ -110,15 +111,43 @@ async def _broadcast_query(intent: OrderIntent, bot_id: str) -> Optional[str]:
 
 
 async def _broadcast_consensus(reference_id: Optional[str], approved: bool, participants: list[str], notes: str | None = None) -> None:
+    """Broadcast consensus result with voting algorithm integration."""
     session_id = MCPManagerSingleton.default_session_id
     if not session_id:
         return
-    payload = MCPConsensusPayload(
-        approved=approved,
-        consensus_score=1.0 if approved else 0.0,
-        participants=participants,
-        notes=notes,
-    )
+    
+    # If this is from a proposal, check consensus engine
+    consensus_engine = await get_consensus_engine()
+    if reference_id:
+        proposal_state = await consensus_engine.get_proposal_state(reference_id)
+        if proposal_state:
+            # Use consensus engine results
+            consensus_result = await consensus_engine._check_consensus(proposal_state)
+            if consensus_result:
+                payload = consensus_result
+            else:
+                # Fallback to simple approval
+                payload = MCPConsensusPayload(
+                    approved=approved,
+                    consensus_score=1.0 if approved else 0.0,
+                    participants=participants,
+                    notes=notes,
+                )
+        else:
+            payload = MCPConsensusPayload(
+                approved=approved,
+                consensus_score=1.0 if approved else 0.0,
+                participants=participants,
+                notes=notes,
+            )
+    else:
+        payload = MCPConsensusPayload(
+            approved=approved,
+            consensus_score=1.0 if approved else 0.0,
+            participants=participants,
+            notes=notes,
+        )
+    
     message = MCPMessage(
         session_id=session_id,
         sender_id="risk-orchestrator",
@@ -209,13 +238,6 @@ async def submit_order(bot_id: str, intent: OrderIntent, background: BackgroundT
     return result
 
 
-@app.post("/emergency_stop")
-async def emergency_stop() -> dict:
-    if not aster_client:
-        raise HTTPException(status_code=503, detail="Service not ready")
-    await aster_client.cancel_all()
-    logger.critical("Emergency stop triggered. All open orders cancelled.")
-    return {"status": "stopped"}
 
 @app.get("/portfolio")
 async def get_portfolio() -> dict:
@@ -257,14 +279,87 @@ async def prefixed_submit_order(bot_id: str, intent: OrderIntent, background: Ba
     return await submit_order(bot_id, intent, background)
 
 
-@prefixed_router.post("/emergency_stop")
-async def prefixed_emergency_stop() -> dict:
-    return await emergency_stop()
 
 
 @prefixed_router.get("/portfolio")
 async def prefixed_portfolio() -> dict:
     return await get_portfolio()
+
+
+@prefixed_router.get("/diagnostics/aster")
+async def diagnostics_aster() -> dict:
+    """Test Aster API connectivity and authentication."""
+    if not aster_client:
+        raise HTTPException(status_code=503, detail="Aster client not initialized")
+    
+    result = await aster_client.test_connectivity()
+    return result
+
+
+@prefixed_router.get("/diagnostics/egress")
+async def diagnostics_egress() -> dict:
+    """Show current egress IP address."""
+    try:
+        async with httpx.AsyncClient() as client:
+            # Use the text endpoint to get just the IP address
+            response = await client.get("https://ifconfig.me/ip")
+            egress_ip = response.text.strip()
+            
+        return {
+            "status": "ok",
+            "egress_ip": egress_ip,
+            "expected_nat_ip": "34.172.187.70",
+            "using_static_nat": egress_ip == "34.172.187.70"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
+@prefixed_router.get("/diagnostics/aster-debug")
+async def diagnostics_aster_debug() -> dict:
+    """Debug Aster API authentication with different methods."""
+    if not aster_client:
+        raise HTTPException(status_code=503, detail="Aster client not initialized")
+    
+    import base64
+    
+    results = {}
+    
+    # Test 1: Current implementation
+    try:
+        result = await aster_client.test_connectivity()
+        results["current_method"] = result
+    except Exception as e:
+        results["current_method"] = {"error": str(e)}
+    
+    # Test 2: Try base64 decoding the secret
+    try:
+        # Get raw secret value
+        raw_secret = settings.ASTER_SECRET_KEY
+        
+        # Check if it might be base64 encoded
+        try:
+            decoded_secret = base64.b64decode(raw_secret).decode('utf-8')
+            results["secret_appears_base64"] = True
+            results["decoded_length"] = len(decoded_secret)
+        except:
+            results["secret_appears_base64"] = False
+            results["raw_length"] = len(raw_secret)
+    except Exception as e:
+        results["secret_check"] = {"error": str(e)}
+    
+    # Get our egress IP
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get("https://ifconfig.me/ip")
+            results["egress_ip"] = response.text.strip()
+    except:
+        results["egress_ip"] = "unknown"
+    
+    return results
 
 
 app.include_router(prefixed_router)

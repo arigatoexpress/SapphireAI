@@ -1,5 +1,5 @@
-const DEFAULT_API_URL = 'https://cloud-trader-cfxefrvooa-uc.a.run.app';
-const DEFAULT_DASHBOARD_URL = DEFAULT_API_URL;
+const DEFAULT_API_URL = 'https://api.sapphiretrade.xyz/orchestrator';
+const DEFAULT_DASHBOARD_URL = 'https://trader.sapphiretrade.xyz';
 
 // Get API URL with fallback to current origin for development
 const getApiUrl = () => {
@@ -122,11 +122,42 @@ export interface DashboardResponse {
   targets: DashboardTargets;
 }
 
+// Rate limiting for API calls
+const rateLimiter = {
+  calls: new Map<string, number[]>(),
+  limits: {
+    dashboard: { max: 30, window: 60000 }, // 30 calls per minute
+    default: { max: 10, window: 60000 },   // 10 calls per minute
+  },
+
+  canMakeCall(endpoint: string): boolean {
+    const now = Date.now();
+    const key = endpoint.split('/').pop() || 'default';
+    const limit = this.limits[key as keyof typeof this.limits] || this.limits.default;
+
+    const calls = this.calls.get(key) || [];
+    const recentCalls = calls.filter(call => now - call < limit.window);
+
+    if (recentCalls.length >= limit.max) {
+      return false;
+    }
+
+    recentCalls.push(now);
+    this.calls.set(key, recentCalls);
+    return true;
+  }
+};
+
 const fetchWithTimeout = async (
   url: string,
   options: RequestInit = {},
   timeout = 15_000,
 ) => {
+  // Rate limiting check
+  if (!rateLimiter.canMakeCall(url)) {
+    throw new Error('Rate limit exceeded. Please wait before making another request.');
+  }
+
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
   try {
@@ -135,6 +166,7 @@ const fetchWithTimeout = async (
       signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest', // CSRF protection
         ...options.headers,
       },
     });
@@ -151,18 +183,7 @@ export const fetchHealth = async (): Promise<HealthResponse> => {
   return (await fetchWithTimeout(`${API_URL}/healthz`)) as HealthResponse;
 };
 
-export const postStart = async (): Promise<ActionResponse> => {
-  return (await fetchWithTimeout(`${API_URL}/start`, { method: 'POST' })) as ActionResponse;
-};
 
-export const postStop = async (): Promise<ActionResponse> => {
-  return (await fetchWithTimeout(`${API_URL}/stop`, { method: 'POST' })) as ActionResponse;
-};
-
-export const emergencyStop = async (): Promise<ActionResponse> => {
-  const ORCHESTRATOR_URL = 'https://api.sapphiretrade.xyz/orchestrator';
-  return (await fetchWithTimeout(`${ORCHESTRATOR_URL}/emergency_stop`, { method: 'POST' })) as ActionResponse;
-};
 
 export const fetchDashboard = async (): Promise<DashboardResponse> => {
   return (await fetchWithTimeout(`${DASHBOARD_URL}/dashboard`)) as DashboardResponse;

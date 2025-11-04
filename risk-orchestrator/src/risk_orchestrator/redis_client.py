@@ -12,6 +12,10 @@ from .config import settings
 
 
 class RedisClient:
+    # Shared connection pool for all instances
+    _pool: Optional[redis.ConnectionPool] = None
+    _pool_url: Optional[str] = None
+
     def __init__(self) -> None:
         self._redis = self._build_redis_client(settings.REDIS_URL)
         self._portfolio_cache: Dict[str, Any] = {}
@@ -19,12 +23,23 @@ class RedisClient:
         self._events: list[Dict[str, Any]] = []
         self._portfolio_timestamp: Optional[float] = None
 
-    @staticmethod
-    def _build_redis_client(url: Optional[str]):
+    @classmethod
+    def _build_redis_client(cls, url: Optional[str]):
+        """Build Redis client with connection pooling."""
         if not url or redis is None:
             return None
         try:
-            return redis.from_url(url, decode_responses=True)
+            # Create or reuse connection pool
+            if cls._pool is None or cls._pool_url != url:
+                cls._pool = redis.ConnectionPool.from_url(
+                    url,
+                    decode_responses=True,
+                    max_connections=100,
+                    retry_on_timeout=True,
+                )
+                cls._pool_url = url
+            
+            return redis.Redis(connection_pool=cls._pool)
         except Exception:
             return None
 
