@@ -195,7 +195,12 @@ def build_app(service: TradingService | None = None) -> FastAPI:
     async def dashboard() -> Dict[str, object]:
         """Get comprehensive dashboard data"""
         try:
-            return await trading_service.dashboard_snapshot()
+            import asyncio
+            # Add timeout to prevent hanging
+            return await asyncio.wait_for(trading_service.dashboard_snapshot(), timeout=10.0)
+        except asyncio.TimeoutError:
+            logger.error("Dashboard snapshot timed out after 10 seconds")
+            raise HTTPException(status_code=504, detail="Dashboard snapshot request timed out")
         except Exception as exc:  # pragma: no cover - defensive logging
             logger.exception("Failed to build dashboard snapshot: %s", exc)
             raise HTTPException(status_code=500, detail="Failed to build dashboard snapshot")
