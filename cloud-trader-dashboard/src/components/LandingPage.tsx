@@ -31,7 +31,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
               </h1>
 
               <p className="mx-auto max-w-3xl text-lg sm:text-xl leading-relaxed text-slate-300/90 mb-12">
-                I engineered every layer—from low-latency execution bots to the GCP control plane—to prove that a focused, one-person team can ship faster, safer, and smarter than much larger shops. This entry delivers an institutional-grade experience that is ready to win the demo day stage right now.
+                I engineered every layer—from low-latency execution bots to the GCP control plane—to prove that a focused, one-person team can ship faster, safer, and smarter than much larger shops. This entry delivers an institutional-grade experience that is ready to win from day 1.
               </p>
 
               <button
@@ -196,7 +196,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
           <div className="mx-auto max-w-7xl">
             <div className="text-center mb-16">
               <h2 className="text-4xl sm:text-5xl font-bold text-white mb-6">
-                2025 <span className="text-accent-ai">Solo Roadmap</span>
+                2025-2026 <span className="text-accent-ai">Roadmap</span>
               </h2>
               <p className="mx-auto max-w-2xl text-lg text-slate-300">
                 From competition launch to multi-chain expansion

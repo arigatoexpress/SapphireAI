@@ -7,11 +7,31 @@ interface TopBarProps {
     mobileMenuOpen?: boolean;
     setMobileMenuOpen?: (open: boolean) => void;
     onBackToHome?: () => void;
+    connectionStatus?: 'connecting' | 'connected' | 'disconnected';
+    error?: string | null;
+    autoRefreshEnabled?: boolean;
+    onToggleAutoRefresh?: () => void;
 }
 
-const TopBar: React.FC<TopBarProps> = ({ onRefresh, lastUpdated, healthRunning, mobileMenuOpen, setMobileMenuOpen, onBackToHome }) => {
+const TopBar: React.FC<TopBarProps> = ({
+    onRefresh,
+    lastUpdated,
+    healthRunning,
+    mobileMenuOpen,
+    setMobileMenuOpen,
+    onBackToHome,
+    connectionStatus = 'connecting',
+    error,
+    autoRefreshEnabled = true,
+    onToggleAutoRefresh
+}) => {
     const statusLabel = healthRunning ? 'Live' : 'Paused';
     const statusColor = healthRunning ? 'bg-emerald-400/80' : 'bg-amber-400/80';
+
+    const connectionColor = connectionStatus === 'connected' ? 'text-emerald-400' :
+                           connectionStatus === 'connecting' ? 'text-amber-400' : 'text-red-400';
+    const connectionIcon = connectionStatus === 'connected' ? '🟢' :
+                          connectionStatus === 'connecting' ? '🟡' : '🔴';
 
     return (
         <header className="sticky top-0 z-40 border-b border-surface-200/60 bg-surface-100/80 backdrop-blur-xs">
@@ -28,6 +48,17 @@ const TopBar: React.FC<TopBarProps> = ({ onRefresh, lastUpdated, healthRunning, 
                         <p className="text-sm font-medium text-slate-200">
                             {lastUpdated ? new Date(lastUpdated).toLocaleTimeString() : '—'}
                         </p>
+                        <div className="flex items-center gap-2 mt-1">
+                            <span className={`text-xs ${connectionColor}`}>{connectionIcon}</span>
+                            <span className="text-xs uppercase tracking-wide text-slate-400">
+                                {connectionStatus}
+                            </span>
+                        </div>
+                        {error && (
+                            <div className="mt-1 text-xs text-red-400 max-w-xs truncate" title={error}>
+                                ⚠️ {error}
+                            </div>
+                        )}
                     </div>
 
                     <span
@@ -49,10 +80,29 @@ const TopBar: React.FC<TopBarProps> = ({ onRefresh, lastUpdated, healthRunning, 
                         </button>
                     )}
 
+                    {onToggleAutoRefresh && (
+                        <button
+                            type="button"
+                            onClick={onToggleAutoRefresh}
+                            className={`group relative overflow-hidden rounded-full px-4 py-2 text-sm font-medium shadow-glass transition-all duration-200 hover:scale-105 active:scale-95 ${
+                                autoRefreshEnabled
+                                    ? 'bg-emerald-500/80 text-white hover:bg-emerald-500'
+                                    : 'border border-white/20 bg-white/5 text-white hover:bg-white/10'
+                            }`}
+                            title={autoRefreshEnabled ? 'Disable auto-refresh' : 'Enable auto-refresh'}
+                        >
+                            <span className="mr-2">{autoRefreshEnabled ? '⏸️' : '▶️'}</span>
+                            Auto
+                            <span className="absolute inset-0 -z-10 bg-gradient-to-r from-accent-teal/40 to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+                            <span className="absolute inset-0 rounded-full bg-white/10 opacity-0 group-active:opacity-100 transition-opacity duration-100" />
+                        </button>
+                    )}
+
                     <button
                         type="button"
                         onClick={onRefresh}
                         className="group relative overflow-hidden rounded-full bg-primary-500/80 px-4 py-2 text-sm font-medium text-white shadow-glass transition-all duration-200 hover:bg-primary-500 hover:scale-105 active:scale-95"
+                        title="Refresh data (Ctrl+R)"
                     >
                         <span className="mr-2 transition-transform duration-200 group-hover:rotate-180">🔄</span>
                         Refresh

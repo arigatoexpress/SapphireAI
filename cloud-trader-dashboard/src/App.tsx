@@ -17,7 +17,6 @@ import CommunityFeedback from './components/CommunityFeedback';
 import useCrowdSentiment from './hooks/useCrowdSentiment';
 import useCommunityComments from './hooks/useCommunityComments';
 import useAuth from './hooks/useAuth';
-import ArchitectureInfo from './components/ArchitectureInfo';
 import LandingPage from './components/LandingPage';
 
 const ActivityLog = lazy(() => import('./components/ActivityLog'));
@@ -86,10 +85,29 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'overview' | 'positions' | 'performance' | 'activity' | 'system'>('overview');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showLandingPage, setShowLandingPage] = useState(true);
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
 
   const handleEnterApp = () => {
     setShowLandingPage(false);
   };
+
+  // Keyboard shortcuts
+  React.useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Ctrl+R or Cmd+R to refresh data
+      if ((event.ctrlKey || event.metaKey) && event.key === 'r') {
+        event.preventDefault();
+        refresh();
+      }
+      // Escape to go back to landing page
+      if (event.key === 'Escape' && !showLandingPage) {
+        setShowLandingPage(true);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [refresh, showLandingPage]);
 
   const derived = useMemo(() => {
     if (!dashboardData) {
@@ -409,9 +427,12 @@ const App: React.FC = () => {
           mobileMenuOpen={mobileMenuOpen}
           setMobileMenuOpen={setMobileMenuOpen}
           onBackToHome={() => setShowLandingPage(true)}
+          connectionStatus={connectionStatus}
+          error={error}
+          autoRefreshEnabled={autoRefreshEnabled}
+          onToggleAutoRefresh={() => setAutoRefreshEnabled(!autoRefreshEnabled)}
         />
         <main className="flex-1 p-4 md:p-6 lg:p-8 overflow-y-auto">
-          <ArchitectureInfo />
           <div className="space-y-8">
             {loading ? (
               <DashboardSkeleton />
