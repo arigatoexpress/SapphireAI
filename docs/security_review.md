@@ -48,4 +48,13 @@ _Run date: 2025-11-03_
 4. Document key rotation cadence (Aster API secret, Firebase keys, Telegram token).
 5. Consider SOC2-style logging retention plan (duration, storage bucket with retention lock).
 
+## Privacy & analytics
+- Web analytics disabled by default; GA4/Plausible scripts only load after explicit user consent captured in localStorage (`sapphire-analytics-consent-v1`).
+- GA4 configuration enforces `anonymize_ip`, disables Google Signals, and uses `beacon` transport only after consent.
+- Users can revisit consent via persistent “Manage analytics” control; declines purge stored tokens immediately.
+
+## Decentralized science hooks
+- `cloud_trader/sui_clients.py` contains Walrus/Seal/Nautilus stubs. No external calls occur until endpoints + credentials are configured.
+- TODOs emphasize encrypting user research before Walrus uploads and keeping community data anonymized when fed into FinGPT/Lag-LLaMA.
+
 

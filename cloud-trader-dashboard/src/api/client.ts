@@ -174,7 +174,7 @@ const fetchWithTimeout = async (
       signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest', // CSRF protection
+        // 'X-Requested-With': 'XMLHttpRequest', // Disabled to avoid CORS preflight issues
         ...options.headers,
       },
     });

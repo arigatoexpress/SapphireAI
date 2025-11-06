@@ -1,7 +1,6 @@
-import React, { Suspense, lazy, useState, useEffect, useMemo } from 'react';
+import React, { Suspense, lazy, useState, useMemo } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import StatusCard from './components/StatusCard';
-import PortfolioCard from './components/PortfolioCard';
 import RiskMetrics from './components/RiskMetrics';
 import Sidebar from './components/layout/Sidebar';
 import TopBar from './components/layout/TopBar';
@@ -13,11 +12,15 @@ import { useTraderService } from './hooks/useTraderService';
 import { DashboardResponse, DashboardPosition } from './api/client';
 import AgentCard from './components/AgentCard';
 import CrowdSentimentWidget from './components/CrowdSentimentWidget';
-import CommunityFeedback from './components/CommunityFeedback';
 import useCrowdSentiment from './hooks/useCrowdSentiment';
-import useCommunityComments from './hooks/useCommunityComments';
-import useAuth from './hooks/useAuth';
 import LandingPage from './components/LandingPage';
+import useAuth from './hooks/useAuth';
+import useCommunityComments from './hooks/useCommunityComments';
+import useCommunityLeaderboard from './hooks/useCommunityLeaderboard';
+import CommunityFeedback from './components/CommunityFeedback';
+import CommunityLeaderboard from './components/CommunityLeaderboard';
+import { recordCheckIn, isRealtimeCommunityEnabled } from './services/community';
+import AnalyticsManager from './components/analytics/AnalyticsManager';
 
 const ActivityLog = lazy(() => import('./components/ActivityLog'));
 const ModelPerformance = lazy(() => import('./components/ModelPerformance'));
@@ -27,7 +30,6 @@ const SystemStatus = lazy(() => import('./components/SystemStatus'));
 const TargetsAndAlerts = lazy(() => import('./components/TargetsAndAlerts'));
 const PerformanceTrends = lazy(() => import('./components/PerformanceTrends'));
 const MCPCouncil = lazy(() => import('./components/MCPCouncil'));
-const NotificationCenter = lazy(() => import('./components/NotificationCenter'));
 
 type RecentTrade = (DashboardResponse['recent_trades'] extends (infer T)[] ? T : never) & { pnl?: number };
 
@@ -39,12 +41,10 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 2,
   }).format(value);
 
-const formatNumber = (value: number) =>
-  new Intl.NumberFormat('en-US', {
-    maximumFractionDigits: 0,
-  }).format(value);
-
-const formatMaskedPortfolioValue = (_value: number) => '%s';
+const formatMaskedPortfolioValue = (value: number) => {
+  void value;
+  return '%s';
+};
 
 const SectionSkeleton: React.FC<{ title?: string; className?: string }> = ({ title, className }) => (
   <div className={`rounded-3xl border border-white/10 bg-white/[0.03] p-6 shadow-glass animate-pulse ${className ?? ''}`}>
@@ -73,41 +73,54 @@ const DashboardSkeleton: React.FC = () => (
   </div>
 );
 
-const CLOUD_RUN_REGION = 'us-central1';
-const LOAD_BALANCER_IP = '34.117.165.111';
-const TPU_FLEET_DESCRIPTION = 'LLM serving pods (DeepSeek, Qwen, Phi-3) TPU-ready via vLLM/llama.cpp stack';
-
-const App: React.FC = () => {
-  const { user, loading: authLoading, signIn, signOut, enabled: authEnabled, error: authError } = useAuth();
+// This is the new, self-contained Dashboard component.
+// All hooks and data logic now live here, ensuring they are always called in the same order.
+const Dashboard: React.FC<{ onBackToHome: () => void }> = ({ onBackToHome }) => {
   const { health, dashboardData, loading, error, logs, connectionStatus, mcpMessages, mcpStatus, refresh } = useTraderService();
-  const [crowdSentiment, castCrowdVote, resetCrowd] = useCrowdSentiment();
-  const [communityComments, addCommunityComment] = useCommunityComments(user);
-  const [activeTab, setActiveTab] = useState<'overview' | 'positions' | 'performance' | 'activity' | 'system'>('overview');
+  const {
+    user,
+    loading: authLoading,
+    signInWithSocial,
+    signOut: authSignOut,
+    signInWithEmail,
+    signUpWithEmail,
+    enabled: authEnabled,
+    error: authError,
+  } = useAuth();
+  const [communityComments, submitCommunityComment, commentsLoading] = useCommunityComments(user);
+  const [leaderboardEntries, leaderboardLoading] = useCommunityLeaderboard(15);
+  const [crowdSentiment, registerCrowdVote, resetCrowd, sentimentLoading] = useCrowdSentiment(user);
+  const [activeTab, setActiveTab] = useState<'overview' | 'positions' | 'performance' | 'community' | 'activity' | 'system' | 'council'>('overview');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [showLandingPage, setShowLandingPage] = useState(true);
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
+  const [commentSubmitting, setCommentSubmitting] = useState(false);
+  const realtimeCommunity = isRealtimeCommunityEnabled();
 
-  const handleEnterApp = () => {
-    setShowLandingPage(false);
-  };
+  React.useEffect(() => {
+    if (user && realtimeCommunity) {
+      recordCheckIn(user).catch((err) => {
+        if (import.meta.env.DEV) {
+          console.warn('[community] failed to record daily check-in', err);
+        }
+      });
+    }
+  }, [user, realtimeCommunity]);
 
   // Keyboard shortcuts
   React.useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Ctrl+R or Cmd+R to refresh data
       if ((event.ctrlKey || event.metaKey) && event.key === 'r') {
         event.preventDefault();
         refresh();
       }
-      // Escape to go back to landing page
-      if (event.key === 'Escape' && !showLandingPage) {
-        setShowLandingPage(true);
+      if (event.key === 'Escape') {
+        onBackToHome();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [refresh, showLandingPage]);
+  }, [refresh, onBackToHome]);
 
   const derived = useMemo(() => {
     if (!dashboardData) {
@@ -300,101 +313,824 @@ const App: React.FC = () => {
     };
   }, [systemStatus]);
 
+  const communityInsights = useMemo(() => {
+    const totalVotes = crowdSentiment.totalVotes;
+    const bullishRatio = totalVotes ? Math.round((crowdSentiment.bullishVotes / totalVotes) * 100) : 0;
+    const bearishRatio = totalVotes ? Math.round((crowdSentiment.bearishVotes / totalVotes) * 100) : 0;
+    const totalComments = communityComments.length;
+    const topContributor = leaderboardEntries.length ? leaderboardEntries[0] : undefined;
+    const totalPoints = leaderboardEntries.reduce((acc, entry) => acc + (entry.points ?? 0), 0);
+
+    return {
+      totalVotes,
+      bullishRatio,
+      bearishRatio,
+      totalComments,
+      topContributor,
+      totalPoints,
+    };
+  }, [crowdSentiment, communityComments, leaderboardEntries]);
+
+  const topContributor = communityInsights.topContributor;
+  const topContributorPoints = topContributor?.points ?? 0;
+
   const configuredAgents = derived.agents.length || 4;
-  const recentTradeCount = dashboardData?.recent_trades?.length ?? 0;
-  const orchestratorStatus = systemStatus?.services?.orchestrator ?? 'unknown';
   const traderStatus = systemStatus?.services?.cloud_trader ?? 'unknown';
   const redisOnline = systemStatus?.redis_connected ?? false;
-  const latestLog = logs.length ? logs[0] : null;
-  const lastHeartbeat = systemStatus?.timestamp
-    ? new Date(systemStatus.timestamp).toLocaleTimeString()
-    : '—';
-
-  const infrastructureMetrics = [
-    {
-      label: 'Cloud Run Region',
-      value: CLOUD_RUN_REGION,
-      detail: 'wallet-orchestrator · cloud-trader',
-    },
-    {
-      label: 'Load Balancer IP',
-      value: LOAD_BALANCER_IP,
-      detail: 'Whitelist for Aster API access',
-    },
-    {
-      label: 'Redis Telemetry Bus',
-      value: redisOnline ? 'Online' : 'Offline',
-      tone: redisOnline ? 'text-emerald-300' : 'text-red-300',
-      detail: 'Portfolio cache · decision streams',
-    },
-    {
-      label: 'Last Heartbeat',
-      value: lastHeartbeat,
-      detail: 'system_status timestamp (UTC)',
-    },
-  ];
-
-  const tradingMetrics = [
-    {
-      label: 'Agents Live',
-      value: `${derived.activeAgents}/${configuredAgents}`,
-      detail: 'DeepSeek Momentum · Qwen Adaptive · Strategist · Guardian',
-    },
-    {
-      label: 'Recent Trades (24h)',
-      value: formatNumber(recentTradeCount),
-      detail: 'Orders reconciled through orchestrator',
-    },
-    {
-      label: 'Total Agent P&L',
-      value: formatCurrency(derived.totalAgentPnL),
-      detail: 'Aggregated across all vibe traders',
-    },
-    {
-      label: 'Trader Runtime',
-      value: traderStatus,
-      detail: 'Cloud Run service health state',
-    },
-  ];
-
-  const modelOpsMetrics = [
-    {
-      label: 'TPU / GPU Fleet',
-      value: 'Hybrid',
-      detail: TPU_FLEET_DESCRIPTION,
-    },
-    {
-      label: 'LLM Stack',
-      value: 'DeepSeek · Qwen · Phi-3',
-      detail: 'Multi-agent reasoning ensemble',
-    },
-    {
-      label: 'Orchestrator',
-      value: orchestratorStatus,
-      detail: 'Risk engine + emergency stop',
-    },
-    {
-      label: 'Latest Event',
-      value: latestLog ? latestLog.message : 'Idle',
-      detail: latestLog ? new Date(latestLog.timestamp).toLocaleString() : 'Awaiting telemetry',
-    },
-  ];
-
   const tabs = [
     { id: 'overview', label: 'Live Trading', icon: '🚀' },
     { id: 'positions', label: 'Positions', icon: '📈' },
     { id: 'performance', label: 'Performance', icon: '💰' },
+    { id: 'community', label: 'Community', icon: '🌐' },
+    { id: 'council', label: 'AI Council', icon: '🤖' },
     { id: 'activity', label: 'Activity Log', icon: '📋' },
     { id: 'system', label: 'System', icon: '⚙️' },
   ] as const;
 
   const sidebarTabs = tabs.map((tab) => ({ id: tab.id, label: tab.label, icon: tab.icon }));
 
-  // Show landing page first
-  if (showLandingPage) {
+  const handleSocialSignIn = async (provider: 'google' | 'facebook' | 'apple') => {
+    if (!authEnabled) {
+      toast.error('Community sign-in is currently disabled in this environment.');
+      return;
+    }
+    try {
+      await signInWithSocial(provider);
+      toast.success('Signed in—welcome to the Sapphire Collective.');
+    } catch (signInError) {
+      const message = signInError instanceof Error ? signInError.message : 'Unable to sign in right now.';
+      toast.error(message);
+      throw signInError;
+    }
+  };
+
+  const handleAuthenticate = () => {
+    void handleSocialSignIn('google');
+  };
+
+  const handleEmailSignIn = async (email: string, password: string) => {
+    try {
+      await signInWithEmail(email, password);
+      toast.success('Signed in—your voice is live.');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unable to sign in right now.';
+      toast.error(message);
+      throw err;
+    }
+  };
+
+  const handleEmailSignUp = async (email: string, password: string, displayName?: string) => {
+    try {
+      await signUpWithEmail(email, password, displayName);
+      toast.success('Account created. Welcome aboard!');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unable to create account right now.';
+      toast.error(message);
+      throw err;
+    }
+  };
+
+  const handleCrowdVote = (vote: 'bullish' | 'bearish') => {
+    if (!user) {
+      toast.error('Authenticate to cast your signal.');
+      return;
+    }
+    void (async () => {
+      try {
+        await registerCrowdVote(vote);
+        toast.success('Signal received. Thanks for steering the desk!');
+      } catch (voteError) {
+        const message = voteError instanceof Error ? voteError.message : 'Failed to record vote';
+        toast.error(message);
+      }
+    })();
+  };
+
+  const handleCommentSubmit = async (message: string) => {
+    if (!user) {
+      toast.error('Sign in to leave feedback for the agents.');
+      return;
+    }
+    setCommentSubmitting(true);
+    try {
+      await submitCommunityComment(message);
+      toast.success('Feedback sent to the council.');
+    } catch (commentError) {
+      const message = commentError instanceof Error ? commentError.message : 'Failed to send feedback';
+      toast.error(message);
+      throw commentError;
+    } finally {
+      setCommentSubmitting(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await authSignOut();
+      toast.success('Signed out. See you on the next session.');
+    } catch (signOutError) {
+      const message = signOutError instanceof Error ? signOutError.message : 'Failed to sign out';
+      toast.error(message);
+    }
+  };
+
+  return (
+    <>
+      <AnalyticsManager />
+      <div className="relative min-h-screen overflow-hidden bg-brand-midnight text-brand-ice">
+        <div className="pointer-events-none absolute inset-0 bg-sapphire-strata" />
+        <div className="pointer-events-none absolute inset-0 bg-sapphire-mesh opacity-80" />
+        <div className="relative flex min-h-screen">
+          <Sidebar
+            tabs={sidebarTabs}
+            activeTab={activeTab}
+            onSelect={(id) => setActiveTab(id as typeof activeTab)}
+            mobileMenuOpen={mobileMenuOpen}
+            setMobileMenuOpen={setMobileMenuOpen}
+          />
+          <div className="flex-1 flex flex-col">
+            <TopBar
+              onRefresh={refresh}
+              lastUpdated={dashboardData?.system_status?.timestamp}
+              healthRunning={health?.running}
+              mobileMenuOpen={mobileMenuOpen}
+              setMobileMenuOpen={setMobileMenuOpen}
+              onBackToHome={onBackToHome}
+              connectionStatus={connectionStatus}
+              error={error}
+              autoRefreshEnabled={autoRefreshEnabled}
+              onToggleAutoRefresh={() => setAutoRefreshEnabled(!autoRefreshEnabled)}
+            />
+            <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
+              <div className="space-y-8">
+                {loading ? (
+                  <DashboardSkeleton />
+                ) : error ? (
+                  <div className="flex items-center justify-center min-h-[400px]">
+                    <div className="text-center space-y-6 max-w-md mx-auto">
+                      <div className="relative">
+                        <div className="w-16 h-16 mx-auto rounded-full bg-error/10 flex items-center justify-center">
+                          <svg className="w-8 h-8 text-error" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                          </svg>
+                        </div>
+                        <div className="absolute -top-2 -right-2 w-6 h-6 bg-error rounded-full flex items-center justify-center">
+                          <span className="text-xs text-white font-bold">!</span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <h3 className="text-xl font-semibold text-brand-ice">Connection Error</h3>
+                        <p className="text-brand-muted/80 text-sm leading-relaxed">
+                          Unable to connect to the trading service. This might be a temporary network issue.
+                        </p>
+                        <div className="bg-error/10 border border-error/30 rounded-lg p-3 mt-4">
+                          <p className="text-error/80 text-xs font-mono break-words">{error}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-3 justify-center">
+                        <button
+                          onClick={refresh}
+                          className="px-4 py-2 bg-accent-sapphire/80 hover:bg-accent-sapphire text-brand-midnight text-sm font-medium rounded-lg transition-colors duration-200 flex items-center gap-2"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                          Retry Connection
+                        </button>
+
+                        <button
+                          onClick={() => window.location.reload()}
+                          className="px-4 py-2 bg-brand-border/60 hover:bg-brand-border/80 text-brand-ice text-sm font-medium rounded-lg transition-colors duration-200"
+                        >
+                          Reload Page
+                        </button>
+                      </div>
+
+                      <div className="text-xs text-brand-muted/70 space-y-1">
+                        <p>• Check your internet connection</p>
+                        <p>• The trading service might be restarting</p>
+                        <p>• Try refreshing the page in a few moments</p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {activeTab === 'overview' && (
+                       <div className="space-y-6">
+                        <section className="sapphire-section flex flex-col gap-6 rounded-4xl p-8 lg:flex-row lg:items-center">
+                          <div className="flex-1 space-y-4">
+                            <span className="inline-flex items-center gap-2 rounded-full bg-brand-abyss/80 px-4 py-2 text-xs font-semibold uppercase tracking-[0.4em] text-accent-sapphire">
+                              ∞ Sapphire Command Loop
+                            </span>
+                            <span className="inline-flex items-center gap-2 rounded-full border border-accent-aurora/40 bg-accent-aurora/15 px-4 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.35em] text-accent-aurora">
+                              Competition Entry · Built pre-announcement and formally submitted to the Aster Vibe Coding Challenge
+                            </span>
+                            <h2 className="text-3xl font-bold text-brand-ice">World-class AI trading, distilled for you</h2>
+                            <p className="text-sm leading-relaxed text-brand-muted">
+                              This dashboard streams live output from our GCP-native multi-agent stack. Sapphire’s traders listen to market structure, coordinate via MCP consensus, and execute with disciplined risk overlays. Every panel here explains what the bots are doing now, how capital is positioned, and how you can interact in real time.
+                            </p>
+                            <div className="grid gap-3 text-sm text-brand-muted md:grid-cols-3">
+                              <div className="rounded-2xl border border-brand-border/60 bg-brand-abyss/80 p-4 shadow-sapphire">
+                                <p className="text-xs uppercase tracking-[0.3em] text-accent-sapphire/80">How to read it</p>
+                                <p className="mt-2 text-brand-ice">Start with the metrics grid below, then scan positions and performance. Every card highlights live agent intent.</p>
+                              </div>
+                              <div className="rounded-2xl border border-brand-border/60 bg-brand-abyss/80 p-4 shadow-sapphire">
+                                <p className="text-xs uppercase tracking-[0.3em] text-accent-emerald/80">Interact</p>
+                                <p className="mt-2 text-brand-ice">Use the Community tab to vote, brief agents, and earn points. Notifications surface in Activity and Council when your signal matters.</p>
+                              </div>
+                              <div className="rounded-2xl border border-brand-border/60 bg-brand-abyss/80 p-4 shadow-sapphire">
+                                <p className="text-xs uppercase tracking-[0.3em] text-accent-aurora/80">Stay in control</p>
+                                <p className="mt-2 text-brand-ice">Toggle auto-refresh, monitor connection status, and review risk envelopes to understand how Sapphire protects capital.</p>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="relative w-full max-w-sm rounded-3xl border border-brand-border/60 bg-brand-abyss/80 p-6 shadow-sapphire overflow-hidden">
+                            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(63,156,255,0.24),_transparent_70%)]" />
+                            <div className="relative space-y-4 text-sm text-brand-ice">
+                              <p className="text-xs uppercase tracking-[0.35em] text-brand-muted/80">Quick playbook</p>
+                              <ol className="space-y-3">
+                                <li className="flex items-start gap-3"><span className="mt-1 text-accent-sapphire">①</span><span>Check the Command Center metrics to confirm bots and markets are synchronized.</span></li>
+                                <li className="flex items-start gap-3"><span className="mt-1 text-accent-emerald">②</span><span>Drill into Positions, Performance, or System tabs for deeper diagnostics.</span></li>
+                                <li className="flex items-start gap-3"><span className="mt-1 text-accent-aurora">③</span><span>Head to Community to influence sentiment — your vote routes to agents but never overrides risk.</span></li>
+                              </ol>
+                              <div className="rounded-2xl border border-brand-border/50 bg-brand-abyss/90 p-3 text-xs text-brand-muted/80">
+                                <p>The ∞ infinity motif represents Sapphire’s continuous feedback loop between execution, telemetry, and community input.</p>
+                              </div>
+                            </div>
+                          </div>
+                        </section>
+
+                        <section className="sapphire-section rounded-4xl border border-brand-border/60 bg-brand-abyss/80 p-6 shadow-sapphire">
+                          <header className="flex flex-col gap-3 text-brand-ice/80 md:flex-row md:items-center md:justify-between">
+                            <div>
+                              <p className="text-xs uppercase tracking-[0.35em] text-brand-ice/70">Open-source intelligence core</p>
+                              <h3 className="text-2xl font-semibold text-brand-ice">FinGPT + Lag-LLaMA, tuned for Sapphire</h3>
+                            </div>
+                            <p className="text-sm md:max-w-xl">
+                              We blend two open-source research agents to keep Sapphire transparent, privacy-respecting, and community-auditable. Signals never leave our secure Vertex/GCP boundary, and every prompt is scrubbed of user identifiers before inference.
+                            </p>
+                          </header>
+                          <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+                            <article className="relative overflow-hidden rounded-3xl border border-brand-border/60 bg-brand-abyss/70 p-5 shadow-sapphire-sm">
+                              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(79,70,229,0.24),_transparent_65%)]" />
+                              <div className="relative space-y-3">
+                                <div className="inline-flex items-center gap-2 rounded-full bg-brand-accent-blue/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-brand-accent-blue">
+                                  🧠 FinGPT Alpha
+                                </div>
+                                <p className="text-sm text-brand-ice/80">
+                                  Baseline thesis generator for AVAX markets. Outputs structured reasoning, risk scoring, and confidence so risk managers can throttle exposure instantly. Hallucination guardrails ensure only assets Sapphire actually trades make it to execution.
+                                </p>
+                                <ul className="space-y-2 text-xs text-brand-ice/70">
+                                  <li>• Custom rate limiter prevents endpoint saturation.</li>
+                                  <li>• Responses validated against symbol allowlist & risk thresholds.</li>
+                                  <li>• Commentary piped into dashboard + Telegram with markdown-safe formatting.</li>
+                                </ul>
+                              </div>
+                            </article>
+                            <article className="relative overflow-hidden rounded-3xl border border-brand-border/60 bg-brand-abyss/70 p-5 shadow-sapphire-sm">
+                              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(34,197,94,0.22),_transparent_65%)]" />
+                              <div className="relative space-y-3">
+                                <div className="inline-flex items-center gap-2 rounded-full bg-brand-accent-teal/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-brand-accent-teal">
+                                  🦙 Lag-LLaMA Visionary
+                                </div>
+                                <p className="text-sm text-brand-ice/80">
+                                  Forecasts ARB/USD order flow with probabilistic confidence bands. Trades are gated when confidence intervals widen beyond tolerance, keeping execution disciplined during volatility spikes.
+                                </p>
+                                <ul className="space-y-2 text-xs text-brand-ice/70">
+                                  <li>• Forecast + anomaly scores merged into trading thesis.</li>
+                                  <li>• Confidence intervals surfaced in dashboard tooltips.</li>
+                                  <li>• Community sentiment optional: considered but never overweighted.</li>
+                                </ul>
+                              </div>
+                            </article>
+                          </div>
+                        </section>
+
+                        {/* Key Metrics Dashboard */}
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                          <MetricCard
+                            label="Portfolio Balance"
+                            value={formatMaskedPortfolioValue(derived.balance)}
+                            accent="emerald"
+                            footer={<span>Live account equity</span>}
+                          />
+                          <MetricCard
+                            label="Live Agent P&L"
+                            value={formatCurrency(derived.totalAgentPnL)}
+                            accent="teal"
+                            footer={<span>Combined unrealized result</span>}
+                          />
+                          <MetricCard
+                            label="Available Margin"
+                            value={formatCurrency(derived.availableBalance)}
+                            accent="slate"
+                            footer={<span>Deployable capital</span>}
+                          />
+                          <MetricCard
+                            label="Active Positions"
+                            value={derived.positions.length}
+                            accent="amber"
+                            footer={<span>Across all agents</span>}
+                          />
+                        </div>
+
+                        {/* System Status Overview */}
+                        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                          <StatusCard health={health} loading={loading} />
+                          <div className="sapphire-panel p-6">
+                            <div className="mb-4">
+                              <p className="text-xs uppercase tracking-[0.3em] text-brand-muted/80">Trading Status</p>
+                              <h3 className="mt-2 text-lg font-semibold text-brand-ice">System Health</h3>
+                            </div>
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm text-brand-muted">Trader Service</span>
+                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${traderStatus === 'running' ? 'bg-accent-emerald/30 text-accent-emerald' : 'bg-warning-amber/30 text-warning-amber'
+                                  }`}>
+                                  {traderStatus}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm text-brand-muted">Redis Connection</span>
+                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${redisOnline ? 'bg-accent-emerald/30 text-accent-emerald' : 'bg-error/20 text-error'
+                                  }`}>
+                                  {redisOnline ? 'Online' : 'Offline'}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm text-brand-muted">Active Agents</span>
+                                <span className="px-2 py-1 rounded-full text-xs font-medium bg-accent-sapphire/20 text-accent-sapphire">
+                                  {derived.activeAgents}/{configuredAgents}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="sapphire-panel p-6">
+                            <TargetsAndAlerts targets={dashboardData?.targets} />
+                          </div>
+                        </div>
+
+                        {/* Agent Performance Overview */}
+                        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                          {derived.agents.length > 0 ? (
+                            derived.agents.map((agent) => (
+                              <AgentCard
+                                key={agent.id}
+                                agent={agent}
+                                onClick={() => {
+                                  toast.success(`${agent.name} metrics refreshed`, {
+                                    duration: 2000,
+                                    style: {
+                                      background: 'rgba(4, 16, 41, 0.95)',
+                                      color: '#d9ecff',
+                                      border: '1px solid rgba(79, 209, 255, 0.25)',
+                                    },
+                                  });
+                                }}
+                              />
+                            ))
+                          ) : (
+                            <div className="sapphire-panel p-8 text-center text-brand-muted">
+                              <p className="text-lg font-semibold text-brand-ice">Awaiting live trades</p>
+                              <p className="mt-2 text-sm text-brand-muted">
+                                Start the traders to stream real positions and model performance here.
+                              </p>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Portfolio Performance Chart */}
+                        <div className="sapphire-panel p-6">
+                          <div className="mb-4 flex items-center justify-between">
+                            <div>
+                              <p className="text-xs uppercase tracking-[0.3em] text-brand-muted/80">Portfolio Performance</p>
+                              <h3 className="mt-2 text-xl font-semibold text-brand-ice">Balance & Price Trends</h3>
+                            </div>
+                          </div>
+                          <PortfolioPerformance balanceSeries={performanceSeries.balance} priceSeries={performanceSeries.price} />
+                        </div>
+                      </div>
+                    )}
+
+                    {activeTab === 'positions' && (
+                      <div className="space-y-6">
+                        <section className="sapphire-section border border-accent-emerald/25">
+                          <AuroraField className="-left-64 -top-64 h-[520px] w-[520px]" variant="emerald" intensity="bold" />
+                          <AuroraField className="right-[-10rem] bottom-[-12rem] h-[540px] w-[540px]" variant="sapphire" />
+                          <div className="relative grid gap-10 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+                            <div className="space-y-4">
+                              <p className="text-xs uppercase tracking-[0.35em] text-accent-emerald/80">Exposure Lab</p>
+                              <h2 className="text-3xl font-bold text-brand-ice">Agent Exposure Monitor</h2>
+                              <p className="text-sm leading-relaxed text-brand-muted">
+                                Track how each Sapphire agent is expressing conviction in the market right now. Radar-driven allocation keeps leverage disciplined while highlighting the heaviest targets on deck.
+                              </p>
+                              <div className="flex flex-wrap items-center gap-3">
+                                <span className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.28em] ${positionInsights.netNotional > 0 ? 'bg-accent-emerald/20 text-accent-emerald' : positionInsights.netNotional < 0 ? 'bg-error/20 text-error' : 'bg-brand-border/40 text-brand-muted'}`}>
+                                  {positionInsights.sentiment}
+                                </span>
+                                <span className="inline-flex items-center gap-2 rounded-full border border-brand-border/60 bg-brand-abyss/80 px-4 py-2 text-xs uppercase tracking-[0.28em] text-brand-muted">
+                                  {derived.positions.length} Active Positions
+                                </span>
+                              </div>
+                            </div>
+                            <div className="grid gap-4 text-sm text-brand-ice sm:grid-cols-2">
+                              <div className="sapphire-panel p-5">
+                                <p className="text-[0.65rem] uppercase tracking-[0.28em] text-brand-muted">Net Notional</p>
+                                <p className={`mt-2 text-2xl font-semibold ${positionInsights.netNotional >= 0 ? 'text-accent-emerald' : 'text-error'}`}>{formatCurrency(positionInsights.netNotional)}</p>
+                                <p className="mt-1 text-xs text-brand-muted">Long minus short exposure (USD)</p>
+                              </div>
+                              <div className="sapphire-panel p-5">
+                                <p className="text-[0.65rem] uppercase tracking-[0.28em] text-brand-muted">Gross Notional</p>
+                                <p className="mt-2 text-2xl font-semibold text-brand-ice">{formatCurrency(positionInsights.totalNotional)}</p>
+                                <p className="mt-1 text-xs text-brand-muted">All positions aggregated</p>
+                              </div>
+                              <div className="sapphire-panel p-5">
+                                <p className="text-[0.65rem] uppercase tracking-[0.28em] text-brand-muted">Long / Short</p>
+                                <p className="mt-2 text-2xl font-semibold text-brand-ice">{positionInsights.longCount} / {positionInsights.shortCount}</p>
+                                <p className="mt-1 text-xs text-brand-muted">Directional conviction split</p>
+                              </div>
+                              <div className="sapphire-panel p-5">
+                                <p className="text-[0.65rem] uppercase tracking-[0.28em] text-brand-muted">Hold-Ready</p>
+                                <p className="mt-2 text-2xl font-semibold text-brand-ice">{positionInsights.holdCount}</p>
+                                <p className="mt-1 text-xs text-brand-muted">Agents waiting for better fills</p>
+                              </div>
+                            </div>
+                          </div>
+                        </section>
+
+                        {positionInsights.topSymbols.length > 0 && (
+                          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                            {positionInsights.topSymbols.map(({ symbol, notional }) => {
+                              const meta = resolveTokenMeta(symbol);
+                              return (
+                                <div key={symbol} className="sapphire-panel p-5">
+                                  <div className="relative flex items-start justify-between gap-4">
+                                    <div className={`flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br ${meta.gradient} text-sm font-bold text-white shadow-lg`}>
+                                      {meta.short}
+                                    </div>
+                                    <div className="text-right">
+                                      <p className="text-xs uppercase tracking-[0.28em] text-brand-muted">Focus Notional</p>
+                                      <p className="mt-2 text-lg font-semibold text-brand-ice">{formatCurrency(notional)}</p>
+                                      <p className="text-xs text-brand-muted">{meta.name}</p>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        <Suspense fallback={<SectionSkeleton title="Live Positions" className="h-72" />}>
+                          <LivePositions positions={derived.positions} />
+                        </Suspense>
+                      </div>
+                    )}
+
+                    {activeTab === 'performance' && (
+                      <div className="space-y-6">
+                        <section className="sapphire-section border border-accent-emerald/25">
+                          <AuroraField className="-left-60 -top-60 h-[520px] w-[520px]" variant="emerald" intensity="bold" />
+                          <AuroraField className="right-[-12rem] bottom-[-8rem] h-[500px] w-[500px]" variant="amber" />
+                          <div className="relative grid gap-10 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+                            <div className="space-y-4">
+                              <p className="text-xs uppercase tracking-[0.35em] text-accent-emerald/80">PnL Observatory</p>
+                              <h2 className="text-3xl font-bold text-brand-ice">Momentum Performance Console</h2>
+                              <p className="text-sm leading-relaxed text-brand-muted">
+                                Follow the rolling dialogue between balance trajectory, fills, and realised PnL. Strategies publish their thesis into the MCP log before every trade—this console shows how conviction translates into performance.
+                              </p>
+                              <div className="flex flex-wrap items-center gap-3">
+                                <span className="sapphire-chip text-brand-midnight bg-gradient-to-r from-accent-sapphire/90 to-accent-emerald/80">
+                                  {performanceInsights.totalTrades} Trades Observed
+                                </span>
+                                <span className="sapphire-chip text-brand-midnight bg-gradient-to-r from-accent-emerald/90 to-accent-teal/80">
+                                  {performanceInsights.sentiment}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="grid gap-4 text-sm text-brand-ice sm:grid-cols-2">
+                              <div className="sapphire-panel p-5">
+                                <p className="text-[0.65rem] uppercase tracking-[0.28em] text-brand-muted">Win Rate</p>
+                                <p className="mt-2 text-2xl font-semibold text-brand-ice">{performanceInsights.winRate.toFixed(1)}%</p>
+                                <p className="mt-1 text-xs text-brand-muted">Across recent trade set</p>
+                              </div>
+                              <div className="sapphire-panel p-5">
+                                <p className="text-[0.65rem] uppercase tracking-[0.28em] text-brand-muted">Average Notional</p>
+                                <p className="mt-2 text-2xl font-semibold text-brand-ice">{formatCurrency(performanceInsights.averageNotional)}</p>
+                                <p className="mt-1 text-xs text-brand-muted">Per executed trade</p>
+                              </div>
+                              <div className="sapphire-panel p-5">
+                                <p className="text-[0.65rem] uppercase tracking-[0.28em] text-brand-muted">Total Notional</p>
+                                <p className="mt-2 text-2xl font-semibold text-brand-ice">{formatCurrency(performanceInsights.totalNotional)}</p>
+                                <p className="mt-1 text-xs text-brand-muted">Cumulative deployment</p>
+                              </div>
+                              <div className="sapphire-panel p-5">
+                                <p className="text-[0.65rem] uppercase tracking-[0.28em] text-brand-muted">Last Trade</p>
+                                <p className="mt-2 text-2xl font-semibold text-brand-ice">
+                                  {performanceInsights.lastTrade
+                                    ? new Date(performanceInsights.lastTrade).toLocaleString()
+                                    : 'Awaiting Fill'}
+                                </p>
+                                <p className="mt-1 text-xs text-brand-muted">Local environment time</p>
+                              </div>
+                            </div>
+                          </div>
+                        </section>
+
+                        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
+                          <div className="sapphire-panel p-6">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-xs uppercase tracking-[0.3em] text-brand-muted/80">Balance Trajectory</p>
+                                <h3 className="mt-2 text-lg font-semibold text-brand-ice">Capital vs Guiding Price</h3>
+                              </div>
+                            </div>
+                            <div className="mt-4">
+                              <PortfolioPerformance balanceSeries={performanceSeries.balance} priceSeries={performanceSeries.price} />
+                            </div>
+                          </div>
+                          <div className="sapphire-panel p-6">
+                            <Suspense fallback={<SectionSkeleton title="Trade Trends" className="h-72" />}>
+                              <PerformanceTrends trades={dashboardData?.recent_trades || []} />
+                            </Suspense>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                          <div className="sapphire-panel p-6">
+                            <RiskMetrics portfolio={dashboardData?.portfolio} />
+                          </div>
+                          <div className="sapphire-panel p-6">
+                            <Suspense fallback={<SectionSkeleton title="Targets & Alerts" className="h-72" />}>
+                              <TargetsAndAlerts targets={dashboardData?.targets} />
+                            </Suspense>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+                          <div className="sapphire-panel p-6">
+                            <Suspense fallback={<SectionSkeleton title="Model Performance" className="h-[28rem]" />}>
+                              <ModelPerformance models={dashboardData?.model_performance ?? []} />
+                            </Suspense>
+                          </div>
+                          <div className="sapphire-panel p-6">
+                            <Suspense fallback={<SectionSkeleton title="Model Reasoning" className="h-[28rem]" />}>
+                              <ModelReasoning reasoning={dashboardData?.model_reasoning ?? []} />
+                            </Suspense>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {activeTab === 'community' && (
+                      <div className="space-y-6">
+                        <section className="sapphire-section border border-accent-sapphire/35">
+                          <AuroraField className="-left-64 -top-48 h-[520px] w-[520px]" variant="sapphire" intensity="bold" />
+                          <AuroraField className="right-[-12rem] bottom-[-12rem] h-[560px] w-[560px]" variant="emerald" intensity="soft" />
+                          <div className="relative grid gap-10 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+                            <div className="space-y-5">
+                              <p className="text-xs uppercase tracking-[0.35em] text-accent-sapphire/80">Collective Intelligence</p>
+                              <h2 className="text-3xl font-bold text-brand-ice">Sapphire Community Command</h2>
+                              <p className="text-sm leading-relaxed text-brand-muted">
+                                Every vote, comment, and daily check-in fuels our agent swarm. Insights are privacy-preserving and routed through throttled signals so bots can reference the crowd without overfitting. Follow <a href="https://twitter.com/rari_sui" target="_blank" rel="noreferrer" className="text-accent-sapphire hover:underline">@rari_sui</a> for the behind-the-scenes build.
+                              </p>
+                              <div className="grid gap-4 sm:grid-cols-2">
+                                <div className="sapphire-panel p-5">
+                                  <p className="text-[0.65rem] uppercase tracking-[0.28em] text-brand-muted">Total Votes</p>
+                                  <p className="mt-2 text-2xl font-semibold text-brand-ice">{communityInsights.totalVotes}</p>
+                                  <p className="mt-1 text-xs text-brand-muted">Bullish {communityInsights.bullishRatio}% · Bearish {communityInsights.bearishRatio}%</p>
+                                </div>
+                                <div className="sapphire-panel p-5">
+                                  <p className="text-[0.65rem] uppercase tracking-[0.28em] text-brand-muted">Community Feedback</p>
+                                  <p className="mt-2 text-2xl font-semibold text-brand-ice">{communityInsights.totalComments}</p>
+                                  <p className="mt-1 text-xs text-brand-muted">Signal briefs captured for the agents</p>
+                                </div>
+                                <div className="sapphire-panel p-5">
+                                  <p className="text-[0.65rem] uppercase tracking-[0.28em] text-brand-muted">Top Contributor</p>
+                                  <p className="mt-2 text-2xl font-semibold text-brand-ice">{topContributor?.displayName ?? '—'}</p>
+                                  <p className="mt-1 text-xs text-brand-muted">{topContributor ? `${topContributorPoints.toLocaleString()} pts earned` : 'Join in to claim the leaderboard'}</p>
+                                </div>
+                                <div className="sapphire-panel p-5">
+                                  <p className="text-[0.65rem] uppercase tracking-[0.28em] text-brand-muted">Collective Points</p>
+                                  <p className="mt-2 text-2xl font-semibold text-brand-ice">{communityInsights.totalPoints.toLocaleString()}</p>
+                                  <p className="mt-1 text-xs text-brand-muted">Accrued via check-ins, comments, and sentiment votes</p>
+                                </div>
+                              </div>
+                            </div>
+                            <div>
+                              <CommunityLeaderboard entries={leaderboardEntries} loading={leaderboardLoading} />
+                            </div>
+                          </div>
+                        </section>
+
+                        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+                          <div className="sapphire-panel p-6">
+                            <CrowdSentimentWidget
+                              totalVotes={crowdSentiment.totalVotes}
+                              bullishVotes={crowdSentiment.bullishVotes}
+                              bearishVotes={crowdSentiment.bearishVotes}
+                              hasVoted={crowdSentiment.hasVoted}
+                              onVote={handleCrowdVote}
+                              onAuthenticate={handleAuthenticate}
+                              isAuthenticated={Boolean(user)}
+                              onReset={realtimeCommunity ? undefined : resetCrowd}
+                              loading={sentimentLoading}
+                            />
+                          </div>
+                          <div className="sapphire-panel p-6">
+                            <p className="text-xs uppercase tracking-[0.3em] text-brand-muted">Community Pulse</p>
+                            <h3 className="mt-2 text-xl font-semibold text-brand-ice">How the crowd influences the desk</h3>
+                            <p className="mt-3 text-sm text-brand-muted">
+                              We credit daily check-ins with points, capture ticker-tagged insights (ex: <code>$SOL</code>), and expose anonymized aggregates to the trading agents. Bots treat these signals as optional context—never primary execution drivers—so sparse data never overrides disciplined momentum strategies.
+                            </p>
+                            <ul className="mt-4 space-y-2 text-sm text-brand-muted/90">
+                              <li>• Daily attendance unlocks micropayment rewards when x402 launches.</li>
+                              <li>• Hidden-positions mode keeps PnL private while still surfacing agent intent.</li>
+                              <li>• Privacy coin routing is on the roadmap so shielded communities can participate.</li>
+                            </ul>
+                          </div>
+                        </div>
+
+                        <CommunityFeedback
+                          comments={communityComments}
+                          onSubmit={handleCommentSubmit}
+                          user={user}
+                          loading={authLoading || commentsLoading}
+                          onSignOut={handleSignOut}
+                          authEnabled={authEnabled}
+                          authError={authError}
+                          onSocialSignIn={handleSocialSignIn}
+                          onEmailSignIn={handleEmailSignIn}
+                          onEmailSignUp={handleEmailSignUp}
+                          commentSubmitting={commentSubmitting}
+                        />
+                      </div>
+                    )}
+
+                    {activeTab === 'council' && (
+                      <div className="space-y-6">
+                        <Suspense fallback={<SectionSkeleton title="MCP Council" className="h-[24rem]" />}>
+                          <MCPCouncil messages={mcpMessages ?? []} status={mcpStatus ?? connectionStatus} />
+                        </Suspense>
+                      </div>
+                    )}
+
+                    {activeTab === 'activity' && (
+                      <div className="space-y-6">
+                        <section className="sapphire-section border border-warning-amber/35">
+                          <AuroraField className="-left-48 -top-52 h-[480px] w-[480px]" variant="amber" intensity="bold" />
+                          <AuroraField className="right-[-10rem] bottom-[-12rem] h-[500px] w-[500px]" variant="sapphire" />
+                          <div className="relative grid gap-8 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+                            <div className="space-y-4">
+                              <p className="text-xs uppercase tracking-[0.35em] text-warning-amber">Mission Feed</p>
+                              <h2 className="text-3xl font-bold text-brand-ice">Command & Control Stream</h2>
+                              <p className="text-sm leading-relaxed text-brand-muted">
+                                Sapphire logs every orchestration event—from MCP critiques to orchestrator overrides—in an auditable lab journal. Filter for warnings, replay experiments, and trace causality without leaving the console.
+                              </p>
+                              <div className="flex flex-wrap items-center gap-3">
+                                <span className="sapphire-chip text-brand-midnight bg-gradient-to-r from-warning-amber/90 to-accent-aurora/80">
+                                  {activitySummary.total} Entries Tracked
+                                </span>
+                                {activitySummary.lastEntry && (
+                                  <span className="sapphire-chip text-brand-midnight bg-gradient-to-r from-accent-aurora/90 to-warning-amber/80">
+                                    Last update {new Date(activitySummary.lastEntry.timestamp).toLocaleTimeString()}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="grid gap-4 text-sm text-brand-ice sm:grid-cols-2">
+                              <div className="sapphire-panel p-5">
+                                <p className="text-[0.65rem] uppercase tracking-[0.28em] text-brand-muted">Success Signals</p>
+                                <p className="mt-2 text-2xl font-semibold text-brand-ice">{activitySummary.counts.success}</p>
+                                <p className="mt-1 text-xs text-brand-muted">Orders landed smoothly</p>
+                              </div>
+                              <div className="sapphire-panel p-5">
+                                <p className="text-[0.65rem] uppercase tracking-[0.28em] text-brand-muted">Warnings</p>
+                                <p className="mt-2 text-2xl font-semibold text-warning-amber">{activitySummary.counts.warning}</p>
+                                <p className="mt-1 text-xs text-brand-muted">Pre-emptive flags</p>
+                              </div>
+                              <div className="sapphire-panel p-5">
+                                <p className="text-[0.65rem] uppercase tracking-[0.28em] text-brand-muted">Errors</p>
+                                <p className="mt-2 text-2xl font-semibold text-error">{activitySummary.counts.error}</p>
+                                <p className="mt-1 text-xs text-brand-muted">Needs immediate review</p>
+                              </div>
+                              <div className="sapphire-panel p-5">
+                                <p className="text-[0.65rem] uppercase tracking-[0.28em] text-brand-muted">Informational</p>
+                                <p className="mt-2 text-2xl font-semibold text-brand-ice">{activitySummary.counts.info}</p>
+                                <p className="mt-1 text-xs text-brand-muted">Contextual telemetry</p>
+                              </div>
+                            </div>
+                          </div>
+                        </section>
+
+                        <div className="sapphire-panel p-6">
+                          <Suspense fallback={<SectionSkeleton title="Activity Log" className="h-[28rem]" />}>
+                            <ActivityLog logs={logs} />
+                          </Suspense>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+                          <Suspense fallback={<SectionSkeleton title="MCP Council" className="h-[24rem]" />}>
+                            <MCPCouncil messages={mcpMessages ?? []} status={mcpStatus ?? connectionStatus} />
+                          </Suspense>
+                          <div className="sapphire-panel p-6">
+                            <p className="text-xs uppercase tracking-[0.3em] text-brand-muted">Community Highlights</p>
+                            <h3 className="mt-2 text-lg font-semibold text-brand-ice">See the collective in action</h3>
+                            <p className="mt-2 text-sm text-brand-muted">
+                              Live sentiment, points, and feedback now live in the Community tab. Drop your vote and brief the agents with your sharpest takes.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => setActiveTab('community')}
+                              className="mt-4 inline-flex items-center gap-2 rounded-full bg-accent-sapphire/80 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-brand-midnight transition hover:bg-accent-sapphire"
+                            >
+                              Open Community Hub →
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {activeTab === 'system' && (
+                      <div className="space-y-6">
+                        <section className="sapphire-section border border-primary-500/25">
+                          <AuroraField className="-left-60 -top-60 h-[520px] w-[520px]" variant="sapphire" intensity="bold" />
+                          <AuroraField className="right-[-12rem] bottom-[-10rem] h-[520px] w-[520px]" variant="emerald" />
+                          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(96,165,250,0.18),_transparent_70%)]" />
+                          <div className="relative grid gap-10 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+                            <div className="space-y-4">
+                              <p className="text-xs uppercase tracking-[0.35em] text-security-shield/70">Reliability Core</p>
+                              <h2 className="text-3xl font-bold text-white">Platform Resilience Console</h2>
+                              <p className="text-sm leading-relaxed text-brand-muted">
+                                Snap the infrastructure healthline: orchestrator governance, trader loops, Redis, and MCP connectivity. Everything routes through the load-balanced perimeter with security-first defaults.
+                              </p>
+                              <div className="flex flex-wrap items-center gap-3">
+                                <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs uppercase tracking-[0.28em] text-brand-muted">
+                                  {connectionStatus === 'connected' ? 'Live MCP uplink' : 'MCP reconnecting'}
+                                </span>
+                                <span className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.28em] ${systemSummary.redisConnected ? 'bg-accent-emerald/20 text-accent-emerald' : 'bg-error/20 text-error'}`}>
+                                  Redis {systemSummary.redisConnected ? 'Synchronized' : 'Offline'}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="grid gap-4 text-sm text-brand-ice sm:grid-cols-2">
+                              <div className="rounded-3xl border border-white/10 bg-black/20 p-5">
+                                <p className="text-[0.65rem] uppercase tracking-[0.28em] text-brand-muted">Orchestrator</p>
+                                <p className="mt-2 text-2xl font-semibold text-brand-ice">{systemSummary.orchestratorStatus}</p>
+                                <p className="mt-1 text-xs text-brand-muted">Risk governor status</p>
+                              </div>
+                              <div className="rounded-3xl border border-white/10 bg-black/20 p-5">
+                                <p className="text-[0.65rem] uppercase tracking-[0.28em] text-brand-muted">Cloud Trader</p>
+                                <p className="mt-2 text-2xl font-semibold text-brand-ice">{systemSummary.traderStatus}</p>
+                                <p className="mt-1 text-xs text-brand-muted">Execution loop heartbeat</p>
+                              </div>
+                              <div className="rounded-3xl border border-white/10 bg-black/20 p-5">
+                                <p className="text-[0.65rem] uppercase tracking-[0.28em] text-brand-muted">Last Update</p>
+                                <p className="mt-2 text-2xl font-semibold text-brand-ice">
+                                  {systemSummary.timestamp ? new Date(systemSummary.timestamp).toLocaleString() : 'Awaiting telemetry'}
+                                </p>
+                                <p className="mt-1 text-xs text-brand-muted">System status timestamp</p>
+                              </div>
+                              <div className="rounded-3xl border border-white/10 bg-black/20 p-5">
+                                <p className="text-[0.65rem] uppercase tracking-[0.28em] text-brand-muted">MCP Channel</p>
+                                <p className="mt-2 text-2xl font-semibold text-brand-ice">{connectionStatus === 'connected' ? 'Synchronized' : 'Recovering'}</p>
+                                <p className="mt-1 text-xs text-brand-muted">Mesh consensus transport</p>
+                              </div>
+                            </div>
+                          </div>
+                        </section>
+
+                        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+                          <div className="sapphire-panel p-6">
+                            <Suspense fallback={<SectionSkeleton title="System Status" className="h-[24rem]" />}>
+                              <SystemStatus status={dashboardData?.system_status} />
+                            </Suspense>
+                          </div>
+                          <div className="sapphire-panel p-6">
+                            <StatusCard health={health ?? null} loading={loading} />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </main>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+};
+
+const App: React.FC = () => {
+  const [view, setView] = useState<'landing' | 'dashboard'>('dashboard');
+
+  if (view === 'landing') {
     return (
       <>
-        <LandingPage onEnterApp={handleEnterApp} />
+        <LandingPage onEnterApp={() => setView('dashboard')} />
         <Toaster
           position="top-right"
           toastOptions={{
@@ -410,499 +1146,7 @@ const App: React.FC = () => {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-gray-900 text-white flex">
-      <Sidebar
-        tabs={sidebarTabs}
-        activeTab={activeTab}
-        onSelect={(id) => setActiveTab(id as typeof activeTab)}
-        mobileMenuOpen={mobileMenuOpen}
-        setMobileMenuOpen={setMobileMenuOpen}
-      />
-      <div className="flex-1 flex flex-col">
-        <TopBar
-          onRefresh={refresh}
-          lastUpdated={dashboardData?.system_status?.timestamp}
-          healthRunning={health?.running}
-          mobileMenuOpen={mobileMenuOpen}
-          setMobileMenuOpen={setMobileMenuOpen}
-          onBackToHome={() => setShowLandingPage(true)}
-          connectionStatus={connectionStatus}
-          error={error}
-          autoRefreshEnabled={autoRefreshEnabled}
-          onToggleAutoRefresh={() => setAutoRefreshEnabled(!autoRefreshEnabled)}
-        />
-        <main className="flex-1 p-4 md:p-6 lg:p-8 overflow-y-auto">
-          <div className="space-y-8">
-            {loading ? (
-              <DashboardSkeleton />
-            ) : error ? (
-              <div className="flex items-center justify-center min-h-[400px]">
-                <div className="text-center space-y-6 max-w-md mx-auto">
-                  <div className="relative">
-                    <div className="w-16 h-16 mx-auto rounded-full bg-red-500/20 flex items-center justify-center">
-                      <svg className="w-8 h-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                      </svg>
-                    </div>
-                    <div className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center">
-                      <span className="text-xs text-white font-bold">!</span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <h3 className="text-xl font-semibold text-white">Connection Error</h3>
-                    <p className="text-slate-400 text-sm leading-relaxed">
-                      Unable to connect to the trading service. This might be a temporary network issue.
-                    </p>
-                    <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 mt-4">
-                      <p className="text-red-300 text-xs font-mono break-words">{error}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-3 justify-center">
-                    <button
-                      onClick={refresh}
-                      className="px-4 py-2 bg-accent-ai/80 hover:bg-accent-ai text-white text-sm font-medium rounded-lg transition-colors duration-200 flex items-center gap-2"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                      Retry Connection
-                    </button>
-
-                    <button
-                      onClick={() => window.location.reload()}
-                      className="px-4 py-2 bg-slate-600/80 hover:bg-slate-600 text-white text-sm font-medium rounded-lg transition-colors duration-200"
-                    >
-                      Reload Page
-                    </button>
-                  </div>
-
-                  <div className="text-xs text-slate-500 space-y-1">
-                    <p>• Check your internet connection</p>
-                    <p>• The trading service might be restarting</p>
-                    <p>• Try refreshing the page in a few moments</p>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <>
-                {activeTab === 'overview' && (
-                  <div className="space-y-6">
-                    {/* Key Metrics Dashboard */}
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-                      <MetricCard
-                        label="Portfolio Balance"
-                        value={formatMaskedPortfolioValue(derived.balance)}
-                        accent="emerald"
-                        footer={<span>Live account equity</span>}
-                      />
-                      <MetricCard
-                        label="Live Agent P&L"
-                        value={formatCurrency(derived.totalAgentPnL)}
-                        accent="teal"
-                        footer={<span>Combined unrealized result</span>}
-                      />
-                      <MetricCard
-                        label="Available Margin"
-                        value={formatCurrency(derived.availableBalance)}
-                        accent="slate"
-                        footer={<span>Deployable capital</span>}
-                      />
-                      <MetricCard
-                        label="Active Positions"
-                        value={derived.positions.length}
-                        accent="amber"
-                        footer={<span>Across all agents</span>}
-                      />
-                    </div>
-
-                    {/* System Status Overview */}
-                    <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-                      <StatusCard health={health} loading={loading} />
-                      <div className="rounded-2xl border border-surface-200/40 bg-surface-100/80 p-6 shadow-glass">
-                        <div className="mb-4">
-                          <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Trading Status</p>
-                          <h3 className="mt-2 text-lg font-semibold text-white">System Health</h3>
-                        </div>
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm text-slate-300">Trader Service</span>
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              traderStatus === 'running' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'
-                            }`}>
-                              {traderStatus}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm text-slate-300">Redis Connection</span>
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              redisOnline ? 'bg-emerald-500/20 text-emerald-300' : 'bg-red-500/20 text-red-300'
-                            }`}>
-                              {redisOnline ? 'Online' : 'Offline'}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm text-slate-300">Active Agents</span>
-                            <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-500/20 text-blue-300">
-                              {derived.activeAgents}/{configuredAgents}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      <TargetsAndAlerts targets={dashboardData?.targets} />
-                    </div>
-
-                    {/* Agent Performance Overview */}
-                    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                      {derived.agents.length > 0 ? (
-                        derived.agents.map((agent) => (
-                          <AgentCard
-                            key={agent.id}
-                            agent={agent}
-                            onClick={() => {
-                              toast.success(`${agent.name} metrics refreshed`, {
-                                duration: 2000,
-                                style: {
-                                  background: 'rgba(15, 23, 42, 0.95)',
-                                  color: '#cbd5f5',
-                                  border: '1px solid rgba(59, 130, 246, 0.35)',
-                                },
-                              });
-                            }}
-                          />
-                        ))
-                      ) : (
-                        <div className="rounded-2xl border border-surface-200/40 bg-surface-100/60 p-8 text-center text-slate-400 shadow-glass">
-                          <p className="text-lg font-semibold text-white">Awaiting live trades</p>
-                          <p className="mt-2 text-sm text-slate-400">
-                            Start the traders to stream real positions and model performance here.
-                          </p>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Portfolio Performance Chart */}
-                    <div className="rounded-2xl border border-surface-200/40 bg-surface-100/80 p-6 shadow-glass">
-                      <div className="mb-4 flex items-center justify-between">
-                        <div>
-                          <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Portfolio Performance</p>
-                          <h3 className="mt-2 text-xl font-semibold text-white">Balance & Price Trends</h3>
-                        </div>
-                      </div>
-                      <PortfolioPerformance balanceSeries={performanceSeries.balance} priceSeries={performanceSeries.price} />
-                    </div>
-                  </div>
-                )}
-
-                {activeTab === 'positions' && (
-                  <div className="space-y-6">
-                    <section className="relative overflow-hidden rounded-4xl border border-accent-ai/30 bg-surface-75/70 p-8 shadow-glass-xl">
-                      <AuroraField className="-left-64 -top-64 h-[520px] w-[520px]" variant="emerald" intensity="bold" />
-                      <AuroraField className="right-[-10rem] bottom-[-12rem] h-[540px] w-[540px]" variant="sapphire" />
-                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(20,184,166,0.18),_transparent_70%)]" />
-                      <div className="absolute -right-24 top-1/2 h-64 w-64 -translate-y-1/2 rounded-full bg-accent-ai/10 blur-3xl" />
-                      <div className="relative grid gap-10 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
-                        <div className="space-y-4">
-                          <p className="text-xs uppercase tracking-[0.35em] text-accent-ai/70">Exposure Lab</p>
-                          <h2 className="text-3xl font-bold text-white">Agent Exposure Monitor</h2>
-                          <p className="text-sm leading-relaxed text-slate-300">
-                            Track how each Sapphire agent is expressing conviction in the market right now. Radar-driven allocation keeps leverage disciplined while highlighting the heaviest targets on deck.
-                          </p>
-                          <div className="flex flex-wrap items-center gap-3">
-                            <span className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.28em] ${positionInsights.netNotional > 0 ? 'bg-emerald-400/20 text-emerald-200' : positionInsights.netNotional < 0 ? 'bg-rose-400/20 text-rose-200' : 'bg-slate-500/20 text-slate-200'}`}>
-                              {positionInsights.sentiment}
-                            </span>
-                            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs uppercase tracking-[0.28em] text-slate-200">
-                              {derived.positions.length} Active Positions
-                            </span>
-                          </div>
-                        </div>
-                        <div className="grid gap-4 text-sm text-slate-200 sm:grid-cols-2">
-                          <div className="rounded-3xl border border-white/10 bg-black/20 p-5">
-                            <p className="text-[0.65rem] uppercase tracking-[0.28em] text-slate-400">Net Notional</p>
-                            <p className={`mt-2 text-2xl font-semibold ${positionInsights.netNotional >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{formatCurrency(positionInsights.netNotional)}</p>
-                            <p className="mt-1 text-xs text-slate-400">Long minus short exposure (USD)</p>
-                          </div>
-                          <div className="rounded-3xl border border-white/10 bg-black/20 p-5">
-                            <p className="text-[0.65rem] uppercase tracking-[0.28em] text-slate-400">Gross Notional</p>
-                            <p className="mt-2 text-2xl font-semibold text-white">{formatCurrency(positionInsights.totalNotional)}</p>
-                            <p className="mt-1 text-xs text-slate-400">All positions aggregated</p>
-                          </div>
-                          <div className="rounded-3xl border border-white/10 bg-black/20 p-5">
-                            <p className="text-[0.65rem] uppercase tracking-[0.28em] text-slate-400">Long / Short</p>
-                            <p className="mt-2 text-2xl font-semibold text-white">{positionInsights.longCount} / {positionInsights.shortCount}</p>
-                            <p className="mt-1 text-xs text-slate-400">Directional conviction split</p>
-                          </div>
-                          <div className="rounded-3xl border border-white/10 bg-black/20 p-5">
-                            <p className="text-[0.65rem] uppercase tracking-[0.28em] text-slate-400">Hold-Ready</p>
-                            <p className="mt-2 text-2xl font-semibold text-white">{positionInsights.holdCount}</p>
-                            <p className="mt-1 text-xs text-slate-400">Agents waiting for better fills</p>
-                          </div>
-                        </div>
-                      </div>
-                    </section>
-
-                    {positionInsights.topSymbols.length > 0 && (
-                      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                        {positionInsights.topSymbols.map(({ symbol, notional }) => {
-                          const meta = resolveTokenMeta(symbol);
-                          return (
-                            <div key={symbol} className="relative overflow-hidden rounded-3xl border border-white/10 bg-surface-75/70 p-5 shadow-glass">
-                              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(148,163,255,0.18),_transparent_75%)]" />
-                              <div className="relative flex items-start justify-between gap-4">
-                                <div className={`flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br ${meta.gradient} text-sm font-bold text-white shadow-lg`}>{meta.short}</div>
-                                <div className="text-right">
-                                  <p className="text-xs uppercase tracking-[0.28em] text-slate-400">Focus Notional</p>
-                                  <p className="mt-2 text-lg font-semibold text-white">{formatCurrency(notional)}</p>
-                                  <p className="text-xs text-slate-400">{meta.name}</p>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    <Suspense fallback={<SectionSkeleton title="Live Positions" className="h-72" />}>
-                      <LivePositions positions={derived.positions} />
-                    </Suspense>
-                  </div>
-                )}
-
-                {activeTab === 'performance' && (
-                  <div className="space-y-6">
-                    <section className="relative overflow-hidden rounded-4xl border border-emerald-400/30 bg-surface-75/70 p-8 shadow-glass-xl">
-                      <AuroraField className="-left-60 -top-60 h-[520px] w-[520px]" variant="emerald" intensity="bold" />
-                      <AuroraField className="right-[-12rem] bottom-[-8rem] h-[500px] w-[500px]" variant="amber" />
-                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(16,185,129,0.18),_transparent_70%)]" />
-                      <div className="relative grid gap-10 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
-                        <div className="space-y-4">
-                          <p className="text-xs uppercase tracking-[0.35em] text-emerald-200/80">PnL Observatory</p>
-                          <h2 className="text-3xl font-bold text-white">Momentum Performance Console</h2>
-                          <p className="text-sm leading-relaxed text-slate-300">
-                            Follow the rolling dialogue between balance trajectory, fills, and realised PnL. Strategies publish their thesis into the MCP log before every trade—this console shows how conviction translates into performance.
-                          </p>
-                          <div className="flex flex-wrap items-center gap-3">
-                            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs uppercase tracking-[0.28em] text-slate-200">
-                              {performanceInsights.totalTrades} Trades Observed
-                            </span>
-                            <span className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.28em] bg-emerald-400/20 text-emerald-200">
-                              {performanceInsights.sentiment}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="grid gap-4 text-sm text-slate-200 sm:grid-cols-2">
-                          <div className="rounded-3xl border border-white/10 bg-black/20 p-5">
-                            <p className="text-[0.65rem] uppercase tracking-[0.28em] text-slate-400">Win Rate</p>
-                            <p className="mt-2 text-2xl font-semibold text-white">{performanceInsights.winRate.toFixed(1)}%</p>
-                            <p className="mt-1 text-xs text-slate-400">Across recent trade set</p>
-                          </div>
-                          <div className="rounded-3xl border border-white/10 bg-black/20 p-5">
-                            <p className="text-[0.65rem] uppercase tracking-[0.28em] text-slate-400">Average Notional</p>
-                            <p className="mt-2 text-2xl font-semibold text-white">{formatCurrency(performanceInsights.averageNotional)}</p>
-                            <p className="mt-1 text-xs text-slate-400">Per executed trade</p>
-                          </div>
-                          <div className="rounded-3xl border border-white/10 bg-black/20 p-5">
-                            <p className="text-[0.65rem] uppercase tracking-[0.28em] text-slate-400">Total Notional</p>
-                            <p className="mt-2 text-2xl font-semibold text-white">{formatCurrency(performanceInsights.totalNotional)}</p>
-                            <p className="mt-1 text-xs text-slate-400">Cumulative deployment</p>
-                          </div>
-                          <div className="rounded-3xl border border-white/10 bg-black/20 p-5">
-                            <p className="text-[0.65rem] uppercase tracking-[0.28em] text-slate-400">Last Trade</p>
-                            <p className="mt-2 text-2xl font-semibold text-white">
-                              {performanceInsights.lastTrade
-                                ? new Date(performanceInsights.lastTrade).toLocaleString()
-                                : 'Awaiting Fill'}
-                            </p>
-                            <p className="mt-1 text-xs text-slate-400">Local environment time</p>
-                          </div>
-                        </div>
-                      </div>
-                    </section>
-
-                    <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
-                      <div className="overflow-hidden rounded-4xl border border-white/10 bg-surface-75/70 p-6 shadow-glass">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Balance Trajectory</p>
-                            <h3 className="mt-2 text-lg font-semibold text-white">Capital vs Guiding Price</h3>
-                          </div>
-                        </div>
-                        <div className="mt-4">
-                          <PortfolioPerformance balanceSeries={performanceSeries.balance} priceSeries={performanceSeries.price} />
-                        </div>
-                      </div>
-                      <div className="overflow-hidden rounded-4xl border border-white/10 bg-surface-75/70 p-6 shadow-glass">
-                        <Suspense fallback={<SectionSkeleton title="Trade Trends" className="h-72" />}>
-                          <PerformanceTrends trades={dashboardData?.recent_trades || []} />
-                        </Suspense>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                      <div className="overflow-hidden rounded-4xl border border-white/10 bg-surface-75/70 p-6 shadow-glass">
-                        <RiskMetrics portfolio={dashboardData?.portfolio} />
-                      </div>
-                      <div className="overflow-hidden rounded-4xl border border-white/10 bg-surface-75/70 p-6 shadow-glass">
-                        <Suspense fallback={<SectionSkeleton title="Targets & Alerts" className="h-72" />}>
-                          <TargetsAndAlerts targets={dashboardData?.targets} />
-                        </Suspense>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-                      <Suspense fallback={<SectionSkeleton title="Model Performance" className="h-[28rem]" />}>
-                        <ModelPerformance models={dashboardData?.model_performance ?? []} />
-                      </Suspense>
-                      <Suspense fallback={<SectionSkeleton title="Model Reasoning" className="h-[28rem]" />}>
-                        <ModelReasoning reasoning={dashboardData?.model_reasoning ?? []} />
-                      </Suspense>
-                    </div>
-                  </div>
-                )}
-
-                {activeTab === 'activity' && (
-                  <div className="space-y-6">
-                    <section className="relative overflow-hidden rounded-4xl border border-amber-400/30 bg-surface-75/70 p-8 shadow-glass-xl">
-                      <AuroraField className="-left-48 -top-52 h-[480px] w-[480px]" variant="amber" intensity="bold" />
-                      <AuroraField className="right-[-10rem] bottom-[-12rem] h-[500px] w-[500px]" variant="sapphire" />
-                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(251,191,36,0.18),_transparent_70%)]" />
-                      <div className="relative grid gap-8 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
-                        <div className="space-y-4">
-                          <p className="text-xs uppercase tracking-[0.35em] text-amber-200/80">Mission Feed</p>
-                          <h2 className="text-3xl font-bold text-white">Command & Control Stream</h2>
-                          <p className="text-sm leading-relaxed text-slate-300">
-                            Sapphire logs every orchestration event—from MCP critiques to orchestrator overrides—in an auditable lab journal. Filter for warnings, replay experiments, and trace causality without leaving the console.
-                          </p>
-                          <div className="flex flex-wrap items-center gap-3">
-                            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs uppercase tracking-[0.28em] text-slate-200">
-                              {activitySummary.total} Entries Tracked
-                            </span>
-                            {activitySummary.lastEntry && (
-                              <span className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.28em] bg-amber-400/20 text-amber-100">
-                                Last update {new Date(activitySummary.lastEntry.timestamp).toLocaleTimeString()}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <div className="grid gap-4 text-sm text-slate-200 sm:grid-cols-2">
-                          <div className="rounded-3xl border border-white/10 bg-black/20 p-5">
-                            <p className="text-[0.65rem] uppercase tracking-[0.28em] text-slate-400">Success Signals</p>
-                            <p className="mt-2 text-2xl font-semibold text-white">{activitySummary.counts.success}</p>
-                            <p className="mt-1 text-xs text-slate-400">Orders landed smoothly</p>
-                          </div>
-                          <div className="rounded-3xl border border-white/10 bg-black/20 p-5">
-                            <p className="text-[0.65rem] uppercase tracking-[0.28em] text-slate-400">Warnings</p>
-                            <p className="mt-2 text-2xl font-semibold text-white">{activitySummary.counts.warning}</p>
-                            <p className="mt-1 text-xs text-slate-400">Pre-emptive flags</p>
-                          </div>
-                          <div className="rounded-3xl border border-white/10 bg-black/20 p-5">
-                            <p className="text-[0.65rem] uppercase tracking-[0.28em] text-slate-400">Errors</p>
-                            <p className="mt-2 text-2xl font-semibold text-white">{activitySummary.counts.error}</p>
-                            <p className="mt-1 text-xs text-slate-400">Needs immediate review</p>
-                          </div>
-                          <div className="rounded-3xl border border-white/10 bg-black/20 p-5">
-                            <p className="text-[0.65rem] uppercase tracking-[0.28em] text-slate-400">Informational</p>
-                            <p className="mt-2 text-2xl font-semibold text-white">{activitySummary.counts.info}</p>
-                            <p className="mt-1 text-xs text-slate-400">Contextual telemetry</p>
-                          </div>
-                        </div>
-                      </div>
-                    </section>
-
-                    <div className="overflow-hidden rounded-4xl border border-white/10 bg-surface-75/70 p-6 shadow-glass">
-                      <Suspense fallback={<SectionSkeleton title="Activity Log" className="h-[28rem]" />}>
-                        <ActivityLog logs={logs} />
-                      </Suspense>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-                      <Suspense fallback={<SectionSkeleton title="MCP Council" className="h-[24rem]" />}>
-                        <MCPCouncil messages={mcpMessages ?? []} status={mcpStatus ?? connectionStatus} />
-                      </Suspense>
-                      <div className="overflow-hidden rounded-4xl border border-white/10 bg-surface-75/70 p-6 shadow-glass">
-                        <CrowdSentimentWidget
-                          totalVotes={crowdSentiment.totalVotes}
-                          bullishVotes={crowdSentiment.bullishVotes}
-                          bearishVotes={crowdSentiment.bearishVotes}
-                          onVote={castCrowdVote}
-                          onReset={resetCrowd}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {activeTab === 'system' && (
-                  <div className="space-y-6">
-                    <section className="relative overflow-hidden rounded-4xl border border-security-shield/40 bg-surface-75/70 p-8 shadow-glass-xl">
-                      <AuroraField className="-left-60 -top-60 h-[520px] w-[520px]" variant="sapphire" intensity="bold" />
-                      <AuroraField className="right-[-12rem] bottom-[-10rem] h-[520px] w-[520px]" variant="emerald" />
-                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(96,165,250,0.18),_transparent_70%)]" />
-                      <div className="relative grid gap-10 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
-                        <div className="space-y-4">
-                          <p className="text-xs uppercase tracking-[0.35em] text-security-shield/70">Reliability Core</p>
-                          <h2 className="text-3xl font-bold text-white">Platform Resilience Console</h2>
-                          <p className="text-sm leading-relaxed text-slate-300">
-                            Snap the infrastructure healthline: orchestrator governance, trader loops, Redis, and MCP connectivity. Everything routes through the load-balanced perimeter with security-first defaults.
-                          </p>
-                          <div className="flex flex-wrap items-center gap-3">
-                            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs uppercase tracking-[0.28em] text-slate-200">
-                              {connectionStatus === 'connected' ? 'Live MCP uplink' : 'MCP reconnecting'}
-                            </span>
-                            <span className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.28em] ${systemSummary.redisConnected ? 'bg-emerald-400/20 text-emerald-200' : 'bg-rose-400/20 text-rose-200'}`}>
-                              Redis {systemSummary.redisConnected ? 'Synchronized' : 'Offline'}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="grid gap-4 text-sm text-slate-200 sm:grid-cols-2">
-                          <div className="rounded-3xl border border-white/10 bg-black/20 p-5">
-                            <p className="text-[0.65rem] uppercase tracking-[0.28em] text-slate-400">Orchestrator</p>
-                            <p className="mt-2 text-2xl font-semibold text-white">{systemSummary.orchestratorStatus}</p>
-                            <p className="mt-1 text-xs text-slate-400">Risk governor status</p>
-                          </div>
-                          <div className="rounded-3xl border border-white/10 bg-black/20 p-5">
-                            <p className="text-[0.65rem] uppercase tracking-[0.28em] text-slate-400">Cloud Trader</p>
-                            <p className="mt-2 text-2xl font-semibold text-white">{systemSummary.traderStatus}</p>
-                            <p className="mt-1 text-xs text-slate-400">Execution loop heartbeat</p>
-                          </div>
-                          <div className="rounded-3xl border border-white/10 bg-black/20 p-5">
-                            <p className="text-[0.65rem] uppercase tracking-[0.28em] text-slate-400">Last Update</p>
-                            <p className="mt-2 text-2xl font-semibold text-white">
-                              {systemSummary.timestamp ? new Date(systemSummary.timestamp).toLocaleString() : 'Awaiting telemetry'}
-                            </p>
-                            <p className="mt-1 text-xs text-slate-400">System status timestamp</p>
-                          </div>
-                          <div className="rounded-3xl border border-white/10 bg-black/20 p-5">
-                            <p className="text-[0.65rem] uppercase tracking-[0.28em] text-slate-400">MCP Channel</p>
-                            <p className="mt-2 text-2xl font-semibold text-white">{connectionStatus === 'connected' ? 'Synchronized' : 'Recovering'}</p>
-                            <p className="mt-1 text-xs text-slate-400">Mesh consensus transport</p>
-                          </div>
-                        </div>
-                      </div>
-                    </section>
-
-                    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-                      <div className="overflow-hidden rounded-4xl border border-white/10 bg-surface-75/70 p-6 shadow-glass">
-                        <Suspense fallback={<SectionSkeleton title="System Status" className="h-[24rem]" />}>
-                          <SystemStatus status={dashboardData?.system_status} />
-                        </Suspense>
-                      </div>
-                      <div className="overflow-hidden rounded-4xl border border-white/10 bg-surface-75/70 p-6 shadow-glass">
-                        <StatusCard health={health ?? null} loading={loading} />
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        </main>
-      </div>
-    </div>
-  );
+  return <Dashboard onBackToHome={() => setView('landing')} />;
 };
 
 export default App;

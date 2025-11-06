@@ -26,11 +26,11 @@ This entire platform—from the low-latency trading bots to the GCP control plan
 
 ### Real Trading Intelligence
 
-**AI Fusion Core**
-- DeepSeek momentum scouts analyze market microstructure
-- Qwen flow interpreters detect sentiment shifts
-- Phi-3 hedging tacticians manage risk exposure
-- Multi-agent consensus ensures no impulsive decisions
+**Open-Source Analyst Core**
+- FinGPT Alpha crafts structured trade theses with risk + confidence scoring and hallucination guards
+- Lag-LLaMA Visionary provides probabilistic price forecasts, confidence intervals, and anomaly scoring
+- Sui Walrus/Seal/Nautilus hooks keep research user-owned and privacy-preserving for decentralized science experiments
+- Multi-agent gating ensures trades respect slippage, risk thresholds, and community weighting rules
 
 **Live Market Data Pipeline**
 - Real-time ticker feeds from Aster DEX
@@ -41,10 +41,10 @@ This entire platform—from the low-latency trading bots to the GCP control plan
 ### What Makes It Competition-Ready
 
 **Professional Dashboard**
-- Real-time radar visualizations of agent activity
-- Live portfolio tracking with P&L updates
-- Telegram notifications for trade execution
-- Community sentiment polling and feedback
+- Sapphire cosmic UI with radar visualizations, AI council, and responsive layouts
+- Live portfolio tracking with masked public metrics and real positions server-side
+- Telegram notifications with throttled summaries plus analytics consent banner for privacy
+- Community sentiment polling that agents can consider without ever overweighting sparse data
 
 **Enterprise Security**
 - Admin API tokens protect critical endpoints

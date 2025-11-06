@@ -17,7 +17,10 @@ const PortfolioCard = ({ portfolio }) => {
             minimumFractionDigits: 2,
         }).format(value);
     };
-    const formatMaskedCurrency = (_value) => '%s';
+    const formatMaskedCurrency = (value) => {
+        void value;
+        return '%s';
+    };
     if (!portfolio) {
         return (_jsx("div", { className: "rounded-2xl border border-surface-200/40 bg-surface-100/60 p-6 shadow-glass", children: _jsxs("div", { className: "animate-pulse space-y-4", children: [_jsx("div", { className: "h-5 w-32 rounded bg-slate-600/30" }), _jsxs("div", { className: "grid grid-cols-3 gap-4", children: [_jsx("div", { className: "h-16 rounded-xl bg-slate-600/10" }), _jsx("div", { className: "h-16 rounded-xl bg-slate-600/10" }), _jsx("div", { className: "h-16 rounded-xl bg-slate-600/10" })] })] }) }));
     }

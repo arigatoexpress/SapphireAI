@@ -15,7 +15,7 @@ import httpx
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.middleware.cors import CORSMiddleware
+# from fastapi.middleware.cors import CORSMiddleware  # CORS handled manually
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from .service import TradingService
@@ -63,24 +63,7 @@ def build_app(service: TradingService | None = None) -> FastAPI:
     trading_service = service or TradingService()
     app = FastAPI(title="Cloud Trader", version="1.0")
 
-    # Add CORS middleware with production-safe configuration
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=[
-            "https://cloud-trader-880429861698.us-central1.run.app",
-            "https://cloud-trader-cfxefrvooa-uc.a.run.app",
-            "https://sapphiretrade.xyz",
-            "https://www.sapphiretrade.xyz",
-            "https://api.sapphiretrade.xyz",
-            "https://trader.sapphiretrade.xyz",
-            "http://localhost:3000",
-            "http://localhost:5173",
-            "*",  # Allow all origins temporarily for debugging
-        ],  # Explicitly allow known origins
-        allow_credentials=True,
-        allow_methods=["GET", "POST", "OPTIONS"],  # Include OPTIONS for CORS preflight
-        allow_headers=["Content-Type", "Authorization", "Accept", "Origin"],  # Include CORS headers
-    )
+    # CORS headers will be handled manually in OPTIONS handlers
 
     # Add Prometheus instrumentation
     Instrumentator().instrument(app).expose(app, endpoint="/metrics")
@@ -100,20 +83,25 @@ def build_app(service: TradingService | None = None) -> FastAPI:
 
     @app.get("/healthz")
     async def healthz() -> Dict[str, object]:
+        from fastapi.responses import JSONResponse
         try:
             status = trading_service.health()
-            return {
+            data = {
                 "running": status.running,
                 "paper_trading": status.paper_trading,
                 "last_error": status.last_error,
             }
         except Exception as e:
             # Return a basic response if health check fails
-            return {
+            data = {
                 "running": False,
                 "paper_trading": True,
                 "last_error": str(e),
             }
+        response = JSONResponse(content=data)
+        response.headers["Access-Control-Allow-Origin"] = "https://sapphiretrade.xyz"
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        return response
 
     admin_token = trading_service.settings.admin_api_token
     admin_guard_disabled = admin_token is None
@@ -212,18 +200,69 @@ def build_app(service: TradingService | None = None) -> FastAPI:
             raise HTTPException(status_code=exc.response.status_code, detail=exc.response.text)
         return {"endpoint": endpoint, "response": response.json()}
 
+    @app.options("/dashboard")
+    async def dashboard_options():
+        from fastapi.responses import Response
+        response = Response()
+        response.headers["Access-Control-Allow-Origin"] = "https://sapphiretrade.xyz"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, Accept, Origin, X-Requested-With"
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        return response
+
+    @app.options("/healthz")
+    async def healthz_options():
+        from fastapi.responses import Response
+        response = Response()
+        response.headers["Access-Control-Allow-Origin"] = "https://sapphiretrade.xyz"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, Accept, Origin, X-Requested-With"
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        return response
+
+    @app.options("/start")
+    async def start_options():
+        from fastapi.responses import Response
+        response = Response()
+        response.headers["Access-Control-Allow-Origin"] = "https://sapphiretrade.xyz"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, Accept, Origin, X-Requested-With"
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        return response
+
+    @app.options("/stop")
+    async def stop_options():
+        from fastapi.responses import Response
+        response = Response()
+        response.headers["Access-Control-Allow-Origin"] = "https://sapphiretrade.xyz"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, Accept, Origin, X-Requested-With"
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        return response
+
     @app.get("/dashboard")
     async def dashboard() -> Dict[str, object]:
         """Get comprehensive dashboard data"""
+        from fastapi.responses import JSONResponse
         try:
             import asyncio
             # Add timeout to prevent hanging
-            return await asyncio.wait_for(trading_service.dashboard_snapshot(), timeout=10.0)
+            data = await asyncio.wait_for(trading_service.dashboard_snapshot(), timeout=10.0)
+            response = JSONResponse(content=data)
+            response.headers["Access-Control-Allow-Origin"] = "https://sapphiretrade.xyz"
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            return response
         except asyncio.TimeoutError:
             logger.error("Dashboard snapshot timed out after 10 seconds")
-            raise HTTPException(status_code=504, detail="Dashboard snapshot request timed out")
+            response = JSONResponse(content={"error": "Dashboard snapshot request timed out"}, status_code=504)
+            response.headers["Access-Control-Allow-Origin"] = "https://sapphiretrade.xyz"
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            return response
         except Exception as exc:  # pragma: no cover - defensive logging
             logger.exception("Failed to build dashboard snapshot: %s", exc)
-            raise HTTPException(status_code=500, detail="Failed to build dashboard snapshot")
+            response = JSONResponse(content={"error": "Failed to build dashboard snapshot"}, status_code=500)
+            response.headers["Access-Control-Allow-Origin"] = "https://sapphiretrade.xyz"
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            return response
 
     return app

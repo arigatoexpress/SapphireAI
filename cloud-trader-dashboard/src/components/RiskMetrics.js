@@ -56,7 +56,10 @@ const RiskMetrics = ({ portfolio }) => {
             minimumFractionDigits: 2,
         }).format(value);
     };
-    const formatMaskedCurrency = (_value) => '%s';
+    const formatMaskedCurrency = (value) => {
+        void value;
+        return '%s';
+    };
     const formatPercent = (value) => {
         return `${value.toFixed(1)}%`;
     };

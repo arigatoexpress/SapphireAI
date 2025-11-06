@@ -70,7 +70,10 @@ const RiskMetrics: React.FC<RiskMetricsProps> = ({ portfolio }) => {
     }).format(value);
   };
 
-  const formatMaskedCurrency = (_value: number) => '%s';
+  const formatMaskedCurrency = (value: number) => {
+    void value;
+    return '%s';
+  };
 
   const formatPercent = (value: number) => {
     return `${value.toFixed(1)}%`;

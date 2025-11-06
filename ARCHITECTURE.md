@@ -32,11 +32,11 @@ Sapphire AI represents a fundamental rethinking of trading platform development.
 - ATR-based stop losses that adapt to volatility
 - Slippage protection with configurable tolerance
 
-**2. AI Fusion Core**
-- **DeepSeek V3**: Momentum analysis and trend detection
-- **Qwen 2.5**: Sentiment interpretation and flow analysis
-- **Phi-3**: Risk management and hedging strategies
-- Multi-agent consensus prevents impulsive trading decisions
+**2. Open-Source Analyst Core**
+- **FinGPT Alpha**: Generates structured trade theses with risk/confidence scores and symbol validation
+- **Lag-LLaMA Visionary**: Supplies probabilistic forecasts, confidence intervals, and anomaly scoring
+- **Sui Walrus/Seal/Nautilus Hooks**: Future-proof interfaces for privacy-preserving storage, secure compute, and on-chain telemetry
+- Multi-agent gating ensures trades respect slippage, risk thresholds, and community weighting rules
 
 **3. Risk Management System**
 - Portfolio-level exposure limits (configurable leverage caps)
@@ -49,6 +49,7 @@ Sapphire AI represents a fundamental rethinking of trading platform development.
 - Cloud Monitoring alerts for instant failure detection
 - Pub/Sub telemetry bus for decision traceability
 - Structured logging with correlation IDs
+- Opt-in privacy-preserving analytics (GA4/Plausible) with anonymized IPs
 
 ## Production-Ready Features
 
@@ -109,25 +110,5 @@ Sapphire AI represents a fundamental rethinking of trading platform development.
 ```bash
 # Local development
 pip install -r requirements.txt
-python run_live_trader.py --host 0.0.0.0 --port 8080
+uvicorn cloud_trader.api:app --reload --host 0.0.0.0 --port 8080
 ```
-
-### Production
-```bash
-# Single-command deployment
-./deploy_cloud_run.sh
-
-# Health verification
-curl https://api.sapphiretrade.xyz/healthz
-
-# Start trading
-curl -X POST https://api.sapphiretrade.xyz/start \
-  -H "Authorization: Bearer ${ADMIN_API_TOKEN}"
-```
-
-## Why This Wins
-
-Sapphire AI isn't just another trading bot—it's a complete platform that demonstrates how individual brilliance can build something more robust, faster, and smarter than large-team efforts. The combination of cutting-edge AI, production-grade infrastructure, and real-world trading experience makes this a clear winner for any competition focused on innovation and execution.
-
-Visit [sapphiretrade.xyz](https://sapphiretrade.xyz) to see it in action.
-

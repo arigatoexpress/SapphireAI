@@ -7,12 +7,12 @@ export const useTraderService = () => {
     const [error, setError] = useState(null);
     const [retryCount, setRetryCount] = useState(0);
     const [logs, setLogs] = useState([]);
-    const [pollInterval, setPollInterval] = useState(15000); // Default 15s - faster updates for better UX
+    const pollInterval = 15000; // Default 15s - faster updates for better UX
     const [connectionStatus, setConnectionStatus] = useState('connecting');
     const [mcpMessages, setMcpMessages] = useState([]);
     const mcpBaseUrl = import.meta.env.VITE_MCP_URL;
     const [mcpStatus, setMcpStatus] = useState(mcpBaseUrl ? 'connecting' : 'disconnected');
-    const [mcpSocket, setMcpSocket] = useState(null);
+    const mcpSocketRef = useRef(null);
     const reconnectRef = useRef(null);
     const addLog = useCallback((message, type = 'info') => {
         const timestamp = new Date().toISOString();
@@ -75,14 +75,11 @@ export const useTraderService = () => {
         finally {
             setLoading(false);
         }
-    }, [addLog, retryCount]); // Include retryCount to handle retry logic
+    }, [addLog, retryCount, loading, health]);
     // Use refs to avoid stale closures in polling
     const pollIntervalRef = React.useRef(pollInterval);
     const connectionStatusRef = React.useRef(connectionStatus);
     // Update refs when values change
-    React.useEffect(() => {
-        pollIntervalRef.current = pollInterval;
-    }, [pollInterval]);
     React.useEffect(() => {
         connectionStatusRef.current = connectionStatus;
     }, [connectionStatus]);
@@ -111,10 +108,6 @@ export const useTraderService = () => {
                 clearTimeout(intervalId);
         };
     }, [refresh]); // Only depend on refresh to prevent excessive re-runs
-    const temporaryPoll = useCallback(() => {
-        setPollInterval(2000);
-        setTimeout(() => setPollInterval(10000), 15000); // Reset after 15 seconds
-    }, []);
     // Connection status indicator
     useEffect(() => {
         if (connectionStatus === 'disconnected' && !error) {
@@ -137,13 +130,14 @@ export const useTraderService = () => {
                 setMcpStatus('connecting');
                 socket.onopen = () => {
                     setMcpStatus('connected');
-                    setMcpSocket(socket);
+                    mcpSocketRef.current = socket;
                 };
                 socket.onerror = () => {
                     setMcpStatus('disconnected');
                 };
                 socket.onclose = () => {
                     setMcpStatus('disconnected');
+                    mcpSocketRef.current = null;
                     const timeoutId = setTimeout(() => {
                         if (!controller.signal.aborted) {
                             connect();
@@ -174,18 +168,20 @@ export const useTraderService = () => {
             }
             catch (err) {
                 setMcpStatus('disconnected');
+                console.error('Failed to initialise MCP socket', err);
             }
         };
         connect();
         return () => {
             controller.abort();
-            if (mcpSocket && mcpSocket.readyState === WebSocket.OPEN) {
-                mcpSocket.close();
+            const activeSocket = mcpSocketRef.current;
+            if (activeSocket && activeSocket.readyState === WebSocket.OPEN) {
+                activeSocket.close();
             }
             if (reconnectRef.current) {
                 clearTimeout(reconnectRef.current);
             }
-            setMcpSocket(null);
+            mcpSocketRef.current = null;
         };
     }, [mcpBaseUrl]);
     return {

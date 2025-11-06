@@ -20,6 +20,23 @@ class Settings(BaseSettings):
     # Telegram notifications
     telegram_bot_token: str | None = Field(default=None, validation_alias="TELEGRAM_BOT_TOKEN")
     telegram_chat_id: str | None = Field(default=None, validation_alias="TELEGRAM_CHAT_ID")
+    telegram_enable_market_observer: bool = Field(
+        default=False,
+        validation_alias="TELEGRAM_ENABLE_MARKET_OBSERVER",
+        description="Enable periodic portfolio summaries via Telegram",
+    )
+    telegram_summary_interval_seconds: int = Field(
+        default=14_400,
+        ge=0,
+        validation_alias="TELEGRAM_SUMMARY_INTERVAL_SECONDS",
+        description="Minimum seconds between periodic Telegram summaries (0 disables)",
+    )
+    telegram_trade_cooldown_seconds: int = Field(
+        default=180,
+        ge=0,
+        validation_alias="TELEGRAM_TRADE_COOLDOWN_SECONDS",
+        description="Minimum seconds between trade notifications per symbol (0 disables throttling)",
+    )
 
     # Administrative API security
     admin_api_token: str | None = Field(default=None, validation_alias="ADMIN_API_TOKEN")
@@ -42,7 +59,9 @@ class Settings(BaseSettings):
             raise ValueError(f"Invalid URL: {v}")
 
     # Trading configuration
-    symbols: List[str] = Field(default_factory=lambda: ["BTCUSDT", "ETHUSDT", "SOLUSDT", "SUIUSDT"])
+    symbols: List[str] = Field(
+        default_factory=lambda: ["BTCUSDT", "ETHUSDT", "SOLUSDT", "SUIUSDT", "AVAXUSDT", "ARBUSDT"]
+    )
     decision_interval_seconds: int = Field(default=30, ge=5, le=300)
     max_concurrent_positions: int = Field(default=6, ge=1, le=10)
     max_position_risk: float = Field(default=0.10, gt=0, le=0.5)
@@ -85,6 +104,14 @@ class Settings(BaseSettings):
     min_llm_confidence: float = Field(default=0.7, ge=0, le=1, description="Minimum confidence threshold for LLM decisions")
     llm_endpoint: str = Field(default="https://deepseek-trader-880429861698.us-central1.run.app", validation_alias="LLM_ENDPOINT")
     llm_timeout_seconds: int = Field(default=30, ge=5, le=120)
+
+    # Open-source analyst endpoints
+    fingpt_endpoint: str | None = Field(default=None, validation_alias="FINGPT_ENDPOINT")
+    fingpt_api_key: str | None = Field(default=None, validation_alias="FINGPT_API_KEY")
+    lagllama_endpoint: str | None = Field(default=None, validation_alias="LAGLLAMA_ENDPOINT")
+    lagllama_api_key: str | None = Field(default=None, validation_alias="LAGLLAMA_API_KEY")
+    fingpt_min_risk_score: float = Field(default=0.4, ge=0, le=1, validation_alias="FINGPT_MIN_RISK_SCORE")
+    lagllama_max_ci_span: float = Field(default=0.25, ge=0, validation_alias="LAGLLAMA_MAX_CI_SPAN")
     max_position_pct: float = Field(default=0.02, gt=0, le=0.1, description="Maximum position size as % of portfolio")
     min_position_size: float = Field(default=0.001, gt=0, description="Minimum viable position size")
 

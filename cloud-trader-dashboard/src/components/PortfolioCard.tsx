@@ -23,7 +23,10 @@ const PortfolioCard: React.FC<PortfolioCardProps> = ({ portfolio }) => {
     }).format(value);
   };
 
-  const formatMaskedCurrency = (_value: number) => '%s';
+  const formatMaskedCurrency = (value: number) => {
+    void value;
+    return '%s';
+  };
 
   if (!portfolio) {
     return (

@@ -20,6 +20,7 @@ from .enums import OrderSide, OrderStatus
 from .exchange import AsterClient, Ticker, Trade, TrailingStop, Execution, Order
 from .mcp import MCPClient
 from .optimization.bandit import EpsilonGreedyBandit
+from .open_source import OpenSourceAnalyst
 from .pubsub import PubSubClient
 from .order_tags import generate_order_tag, parse_order_tag
 from .risk import PortfolioState, RiskManager, Position
@@ -116,6 +117,24 @@ AGENT_DEFINITIONS: List[Dict[str, Any]] = [
         "description": "SUI risk-balanced swing trading using Qwen2.5-7B.",
         "baseline_win_rate": 0.62,
     },
+    {
+        "id": "fingpt-alpha",
+        "name": "FinGPT Alpha",
+        "model": "FinGPT-8B",
+        "emoji": "📊",
+        "symbols": ["AVAXUSDT"],
+        "description": "FinGPT open-source finance agent covering AVAX momentum regimes.",
+        "baseline_win_rate": 0.63,
+    },
+    {
+        "id": "llama3-visionary",
+        "name": "LLaMA3 Visionary",
+        "model": "LLaMA3-70B",
+        "emoji": "🦙",
+        "symbols": ["ARBUSDT"],
+        "description": "LLaMA3 open-source strategist for ARB macro structure and volatility shifts.",
+        "baseline_win_rate": 0.61,
+    },
 ]
 
 
@@ -200,6 +219,8 @@ class TradingService:
         self._latest_portfolio_frontend: Dict[str, Any] = {}
         self._price_cache: Dict[str, float] = {}
         self._symbol_filters: Dict[str, Dict[str, Decimal]] = {}
+        self._notification_windows: Dict[str, Dict[str, float]] = {}
+        self._open_source_analyst = OpenSourceAnalyst(self._settings)
 
     async def _get_symbol_filters(self, symbol: str) -> Dict[str, Decimal]:
         symbol_key = symbol.upper()
@@ -434,9 +455,15 @@ class TradingService:
             logger.info("Creating _run_loop task...")
             self._task = asyncio.create_task(self._run_loop())
 
-            # Start periodic market observation task (every 2 hours)
-            self._observation_task = asyncio.create_task(self._periodic_market_observations())
-            logger.info("Market observation task started.")
+            # Start periodic market observation task if enabled
+            if (
+                self._settings.telegram_enable_market_observer
+                and self._settings.telegram_summary_interval_seconds > 0
+            ):
+                self._observation_task = asyncio.create_task(self._periodic_market_observations())
+                logger.info("Market observation task started.")
+            else:
+                logger.info("Telegram market observer disabled; skipping periodic summaries.")
 
             logger.warning("--- EXITING start() ---")
         except Exception as exc:
@@ -449,7 +476,7 @@ class TradingService:
         self._stop_event.set()
         if self._task:
             await self._task
-        if hasattr(self, '_observation_task') and self._observation_task:
+        if self._observation_task:
             self._observation_task.cancel()
             try:
                 await self._observation_task
@@ -714,18 +741,81 @@ class TradingService:
                 # Continue to next symbol
                 continue
 
-    def _generate_trade_thesis(self, symbol: str, side: str, price: float, market_context: dict) -> str:
-        """Generate an intelligent trading thesis based on market conditions."""
+    async def _generate_trade_thesis(
+        self,
+        agent_id: Optional[str],
+        symbol: str,
+        side: str,
+        price: float,
+        market_context: dict,
+        take_profit: float,
+        stop_loss: float,
+    ) -> str:
+        """Generate a trading thesis, delegating to open-source analysts when available."""
+
+        if agent_id:
+            analysis = await self._open_source_analyst.generate_thesis(
+                agent_id,
+                symbol,
+                side,
+                price,
+                market_context,
+            )
+            if analysis and isinstance(analysis.get("thesis"), str):
+                thesis_text = analysis["thesis"].strip()
+                thesis_upper = thesis_text.upper()
+                if symbol.upper() not in thesis_upper:
+                    thesis_text = f"{thesis_text} (instrument: {symbol.upper()})"
+
+                if agent_id == "fingpt-alpha":
+                    risk_score = analysis.get("risk_score")
+                    if risk_score is None or risk_score >= self._settings.fingpt_min_risk_score:
+                        extras: list[str] = []
+                        confidence = analysis.get("confidence")
+                        if isinstance(risk_score, (int, float)):
+                            extras.append(f"risk {risk_score:.2f}")
+                        if isinstance(confidence, (int, float)):
+                            extras.append(f"confidence {confidence:.2f}")
+                        if extras:
+                            thesis_text = f"{thesis_text} [{' | '.join(extras)}]"
+                        return thesis_text
+                    logger.info(
+                        "FinGPT thesis for %s discarded (risk_score %.2f < %.2f)",
+                        symbol,
+                        risk_score,
+                        self._settings.fingpt_min_risk_score,
+                    )
+                elif agent_id == "lagllama-visionary":
+                    ci_span = analysis.get("ci_span")
+                    if ci_span is not None and ci_span > self._settings.lagllama_max_ci_span:
+                        logger.info(
+                            "Lag-LLaMA thesis for %s discarded (CI span %.2f > %.2f)",
+                            symbol,
+                            ci_span,
+                            self._settings.lagllama_max_ci_span,
+                        )
+                    else:
+                        extras = []
+                        if isinstance(ci_span, (int, float)):
+                            extras.append(f"CI span {ci_span:.2%}")
+                        anomaly = analysis.get("anomaly_score")
+                        if isinstance(anomaly, (int, float)):
+                            extras.append(f"anomaly {anomaly:.2f}")
+                        confidence = analysis.get("confidence")
+                        if isinstance(confidence, (int, float)):
+                            extras.append(f"confidence {confidence:.2f}")
+                        if extras:
+                            thesis_text = f"{thesis_text} [{' | '.join(extras)}]"
+                        return thesis_text
+
         change_24h = market_context.get('change_24h', 0)
         volume = market_context.get('volume', 0)
         atr = market_context.get('atr')
 
-        # Analyze market conditions
         trend_strength = abs(change_24h)
-        volume_level = "high" if volume > 1000000 else "moderate" if volume > 100000 else "low"
+        volume_level = "high" if volume > 1_000_000 else "moderate" if volume > 100_000 else "low"
         volatility = "high" if atr and atr > price * 0.02 else "moderate" if atr and atr > price * 0.01 else "low"
 
-        # Generate thesis based on conditions
         if side == "BUY":
             if trend_strength > 5:
                 thesis = f"Strong bullish momentum with {change_24h:.1f}% 24h gain. "
@@ -734,19 +824,10 @@ class TradingService:
             else:
                 thesis = f"Early bullish signal despite {change_24h:.1f}% 24h change. "
 
-            if volume_level == "high":
-                thesis += f"High volume confirms buying pressure. "
-            elif volume_level == "moderate":
-                thesis += f"Moderate volume supports the bullish case. "
-
-            if volatility == "high":
-                thesis += f"High volatility suggests potential for quick moves. "
-            elif volatility == "low":
-                thesis += f"Low volatility environment favors steady accumulation. "
-
-            thesis += f"Targeting ${take_profit:.2f} take-profit with calculated risk management."
-
-        else:  # SELL
+            thesis += "High volume confirms buying pressure. " if volume_level == "high" else "Moderate participation from buyers. " if volume_level == "moderate" else "Subdued volume, scale entries carefully. "
+            thesis += "High volatility implies fast follow-through. " if volatility == "high" else "Moderate volatility, monitor trailing stops. " if volatility == "moderate" else "Low volatility favours staged accumulation. "
+            thesis += f"Targets ${take_profit:.2f} with protection near ${stop_loss:.2f}."
+        else:
             if trend_strength > 5:
                 thesis = f"Strong bearish momentum with {change_24h:.1f}% 24h decline. "
             elif trend_strength > 2:
@@ -754,38 +835,65 @@ class TradingService:
             else:
                 thesis = f"Early bearish signal despite {change_24h:.1f}% 24h change. "
 
-            if volume_level == "high":
-                thesis += f"High volume confirms selling pressure. "
-            elif volume_level == "moderate":
-                thesis += f"Moderate volume supports the bearish case. "
-
-            if volatility == "high":
-                thesis += f"High volatility suggests potential for quick downside moves. "
-            elif volatility == "low":
-                thesis += f"Low volatility environment favors steady position reduction. "
-
-            thesis += f"Targeting ${take_profit:.2f} take-profit with disciplined risk controls."
+            thesis += "Heavy sell volume validates downside. " if volume_level == "high" else "Moderate volume supports distribution. " if volume_level == "moderate" else "Thin volume—avoid oversizing. "
+            thesis += "Volatility elevated—expect sharp moves. " if volatility == "high" else "Controlled volatility, ride trend cautiously. " if volatility == "moderate" else "Low volatility, scaling out methodically. "
+            thesis += f"Targets ${take_profit:.2f} with stop near ${stop_loss:.2f}."
 
         return thesis
 
+    def _can_send_notification(
+        self,
+        category: str,
+        scope: Optional[str],
+        cooldown_seconds: Optional[float] = None,
+    ) -> bool:
+        """Return True if a notification can be sent without breaching cooldown."""
+
+        if cooldown_seconds is None or cooldown_seconds <= 0:
+            return True
+
+        bucket = self._notification_windows.setdefault(category, {})
+        key = scope or "__global__"
+        now = time.time()
+        last_sent = bucket.get(key, 0.0)
+        if now - last_sent < cooldown_seconds:
+            return False
+
+        bucket[key] = now
+        return True
+
     async def _periodic_market_observations(self) -> None:
         """Send periodic market observations and portfolio updates via Telegram."""
-        observation_interval = 7200  # 2 hours in seconds
-
+        cooldown = self._settings.telegram_summary_interval_seconds
+        if cooldown <= 0:
+            logger.info("Periodic market observations disabled (cooldown <= 0).")
+            return
+ 
         while not self._stop_event.is_set():
             try:
-                await asyncio.sleep(observation_interval)
-
+                try:
+                    await asyncio.wait_for(self._stop_event.wait(), timeout=cooldown)
+                    continue
+                except asyncio.TimeoutError:
+                    pass
+ 
                 if not self._telegram:
                     continue
 
+                if not self._can_send_notification("summary", None, cooldown):
+                    logger.debug("Skipping Telegram summary due to cooldown window.")
+                    continue
+ 
                 # Collect market summary
                 market_summary = {}
                 for symbol, data in self._market_cache.items():
-                    if isinstance(data, dict):
+                    snapshot = data if isinstance(data, dict) else None
+                    if not snapshot and isinstance(data, tuple) and len(data) == 2:
+                        snapshot = data[0] if isinstance(data[0], dict) else None
+                    if snapshot:
                         market_summary[symbol] = {
-                            'change_24h': data.get('change_24h', 0),
-                            'volume': data.get('volume', 0)
+                            'change_24h': snapshot.get('change_24h', 0),
+                            'volume': snapshot.get('volume', 0),
                         }
 
                 # Collect active positions
@@ -809,6 +917,25 @@ class TradingService:
                     'win_rate': self._settings.expected_win_rate * 100,
                     'avg_return': 0.0  # Would be calculated from trade history
                 }
+
+                has_recent_trade = False
+                lookback_cutoff = datetime.utcnow().timestamp() - min(cooldown, 86_400)
+                for trade in list(self._recent_trades):
+                    timestamp_value = trade.get("timestamp")
+                    if not timestamp_value:
+                        continue
+                    try:
+                        normalized = timestamp_value.replace("Z", "+00:00")
+                        trade_ts = datetime.fromisoformat(normalized).timestamp()
+                    except ValueError:
+                        continue
+                    if trade_ts >= lookback_cutoff:
+                        has_recent_trade = True
+                        break
+
+                if not active_positions and not has_recent_trade:
+                    logger.debug("Skipping Telegram summary due to no new activity in lookback window.")
+                    continue
 
                 # Send market observation
                 try:
@@ -983,7 +1110,15 @@ class TradingService:
                     }
 
                 # Generate trading thesis based on market conditions
-                trade_thesis = self._generate_trade_thesis(symbol, side, execution_price, market_context)
+                trade_thesis = await self._generate_trade_thesis(
+                    agent_id,
+                    symbol,
+                    side,
+                    execution_price,
+                    market_context,
+                    take_profit,
+                    stop_loss,
+                )
 
                 # Calculate risk/reward ratio
                 risk_amount = abs(execution_price - stop_loss) if stop_loss > 0 else 0

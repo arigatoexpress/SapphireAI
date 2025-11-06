@@ -28,14 +28,13 @@ This entire platform—from low-latency trading bots to the GCP control plane—
 
 ## ✨ Features
 
-- 🤖 **AI Fusion Core**: DeepSeek, Qwen, and Phi-3 agents with multi-consensus trading decisions
-- 📊 **Professional Dashboard**: Real-time radar visualizations and portfolio tracking
-- ⚡ **Ultra-Low Latency**: <100ms trade execution with Cloud Run optimization
-- 🛡️ **Institutional Risk**: Kelly Criterion sizing, ATR stops, emergency circuit breakers
-- 📱 **Mobile-First UI**: Beautiful glassmorphism design that works on all devices
-- 🔒 **Enterprise Security**: Admin tokens, rate limiting, comprehensive monitoring
-- 📈 **Live Analytics**: Prometheus metrics, Cloud Monitoring alerts, Pub/Sub telemetry
-- 🔄 **Real-Time Updates**: Live market data, position verification, Telegram notifications
+- 🤖 **Open-Source Agent Stack**: FinGPT Alpha + Lag-LLaMA Visionary deliver explainable trade theses with risk scoring and anomaly detection
+- 📊 **Sapphire Command Center**: World-class dashboard with cosmic sapphire skin, radar analytics, and responsive glassmorphism
+- ⚡ **Ultra-Low Latency**: <100ms trade execution with Cloud Run optimization and precision rounding safeguards
+- 🛡️ **Institutional Risk**: Kelly Criterion sizing, ATR stops, slippage validation, emergency circuit breakers
+- 🔐 **Privacy-Preserving Research**: Sui Walrus/Seal/Nautilus hooks ready for user-owned data experiments
+- 🔄 **Real-Time Updates**: Live market data, portfolio verification, Telegram notifications with throttled summaries
+- 📈 **Opt-in Analytics**: GA4/Plausible integration with anonymized IPs and consent banner
 
 ## 🏗️ Architecture
 
@@ -48,6 +47,8 @@ cloud_trader/              # Core trading engine
 ├── client.py              # Aster DEX API client
 ├── config.py              # Pydantic configuration with validation
 ├── secrets.py             # Secure credential management
+├── open_source.py         # FinGPT/Lag-LLaMA analyst integration with Sui hooks
+├── sui_clients.py         # Walrus/Seal/Nautilus stubs for decentralized science
 └── orchestrator/          # Wallet-level risk gateway
 
 cloud-trader-dashboard/    # React + TypeScript frontend
@@ -73,8 +74,10 @@ pip install -r requirements.txt
 # Optional: export credentials locally instead of using Secret Manager
 export ASTER_API_KEY="your-key"
 export ASTER_SECRET_KEY="your-secret"
+export FINGPT_ENDPOINT="https://your-fingpt-endpoint"
+export LAGLLAMA_ENDPOINT="https://your-lagllama-endpoint"
 
-python run_live_trader.py --host 0.0.0.0 --port 8080
+uvicorn cloud_trader.api:app --host 0.0.0.0 --port 8080
 
 # Optional: start wallet orchestrator on :8082
 python run_orchestrator.py --host 0.0.0.0 --port 8082
@@ -135,6 +138,13 @@ Configuration lives in `cloud_trader.config.Settings`. Values come from environm
   - `REDIS_URL` (Redis Streams telemetry, defaults to `redis://localhost:6379`)
   - `MODEL_ENDPOINT` (OpenAI-compatible base URL for llama.cpp/vLLM)
   - `BOT_ID` (tag embedded in client order IDs/telemetry)
+  - `FINGPT_ENDPOINT` / `FINGPT_API_KEY` / `FINGPT_MIN_RISK_SCORE`
+  - `LAGLLAMA_ENDPOINT` / `LAGLLAMA_API_KEY` / `LAGLLAMA_MAX_CI_SPAN`
+- Communications:
+  - `TELEGRAM_ENABLE_MARKET_OBSERVER`, `TELEGRAM_SUMMARY_INTERVAL_SECONDS`, `TELEGRAM_TRADE_COOLDOWN_SECONDS`
+  - `ADMIN_API_TOKEN` for authenticated lifecycle endpoints
+- Frontend analytics:
+  - `VITE_ANALYTICS_ID`, `VITE_ANALYTICS_PROVIDER`, `VITE_PLAUSIBLE_DOMAIN`
 - Optimisation knobs:
   - `MOMENTUM_THRESHOLD`, `NOTIONAL_FRACTION`
   - `BANDIT_EPSILON`, `TRAILING_STOP_BUFFER`, `TRAILING_STEP`
@@ -204,6 +214,14 @@ REDIS_URL="redis://your-redis-instance"
 ORCHESTRATOR_URL="https://your-orchestrator-url"
 ENABLE_LLM_TRADING=true
 LLM_ENDPOINT="https://your-llm-service"
+FINGPT_ENDPOINT="https://your-fingpt"
+FINGPT_API_KEY=""
+FINGPT_MIN_RISK_SCORE="0.4"
+LAGLLAMA_ENDPOINT="https://your-lagllama"
+LAGLLAMA_API_KEY=""
+LAGLLAMA_MAX_CI_SPAN="0.25"
+VITE_ANALYTICS_ID="G-XXXXXXX" # optional GA4 / Plausible id
+VITE_ANALYTICS_PROVIDER="ga4"
 ```
 
 ### Current Production Status

@@ -7,11 +7,11 @@ interface LandingPageProps {
 
 const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
   return (
-    <div className="min-h-screen bg-gray-900 text-white relative overflow-hidden">
+    <div className="min-h-screen bg-brand-midnight text-brand-ice relative overflow-hidden">
       {/* Aurora Background Effects */}
       <AuroraField className="-left-72 top-[-14rem] h-[620px] w-[620px]" variant="sapphire" intensity="bold" />
       <AuroraField className="right-[-12rem] bottom-[-10rem] h-[540px] w-[540px]" variant="emerald" intensity="soft" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.22),_transparent_65%)]" />
+      <div className="absolute inset-0 bg-sapphire-mesh opacity-80" />
 
       {/* Main Content */}
       <div className="relative z-10">
@@ -19,24 +19,36 @@ const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
         <section className="px-6 py-20 lg:px-8">
           <div className="mx-auto max-w-7xl">
             <div className="text-center">
-              <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.35em] text-slate-100 mb-8">
+              <span className="inline-flex items-center gap-2 rounded-full border border-accent-sapphire/40 bg-brand-abyss/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.35em] text-brand-muted mb-8">
                 Competition-Ready AI Trading
               </span>
 
-              <h1 className="text-5xl sm:text-7xl lg:text-8xl font-black leading-tight text-white mb-6">
+              <h1 className="text-5xl sm:text-7xl lg:text-8xl font-black leading-tight text-brand-ice mb-6">
                 Sapphire Trade
-                <span className="block text-4xl sm:text-5xl lg:text-6xl font-bold text-accent-ai mt-2">
+                <span className="block text-4xl sm:text-5xl lg:text-6xl font-bold text-accent-sapphire mt-2">
                   Solo-Built Excellence
                 </span>
               </h1>
 
-              <p className="mx-auto max-w-3xl text-lg sm:text-xl leading-relaxed text-slate-300/90 mb-12">
+              <p className="mx-auto max-w-3xl text-lg sm:text-xl leading-relaxed text-brand-ice/90 mb-8">
                 I engineered every layer—from low-latency execution bots to the GCP control plane—to prove that a focused, one-person team can ship faster, safer, and smarter than much larger shops. This entry delivers an institutional-grade experience that is ready to win from day 1.
               </p>
 
+              <div className="mb-12 flex items-center justify-center">
+                <a
+                  href="https://twitter.com/rari_sui"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-3 rounded-full border border-brand-accent-blue/40 bg-brand-accent-blue/10 px-5 py-2 text-sm font-semibold text-brand-ice transition-all duration-300 hover:border-brand-accent-blue hover:bg-brand-accent-blue/20 hover:text-white"
+                >
+                  <span className="text-lg">🐦</span>
+                  <span>Follow the build on <span className="text-white">@rari_sui</span></span>
+                </a>
+              </div>
+
               <button
                 onClick={onEnterApp}
-                className="group relative inline-flex items-center gap-3 rounded-2xl bg-gradient-to-r from-accent-ai via-accent-aurora to-emerald-400 px-8 py-4 text-lg font-bold text-white shadow-2xl shadow-accent-ai/25 transition-all duration-300 hover:scale-105 hover:shadow-accent-ai/40"
+                className="group relative inline-flex items-center gap-3 rounded-2xl bg-gradient-to-r from-accent-sapphire via-accent-emerald to-accent-aurora px-8 py-4 text-lg font-bold text-brand-midnight shadow-2xl shadow-sapphire transition-all duration-300 hover:scale-105 hover:shadow-sapphire"
               >
                 <span>Enter Trading Control</span>
                 <svg className="h-5 w-5 transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -215,6 +227,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
                     <li>• Public dashboards with real-time data</li>
                     <li>• Follower access and community engagement</li>
                     <li>• Nightly performance recaps via Telegram</li>
+                    <li>• x402 agent micropayment rail for tipping & rewards</li>
                     <li>• Showcase live trading edge</li>
                   </ul>
                 </div>
@@ -229,6 +242,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
                   <h3 className="mb-4 text-xl font-bold text-white">Vault Strategies</h3>
                   <ul className="space-y-2 text-sm text-slate-300">
                     <li>• Auto-balancing thematic trading vaults</li>
+                    <li>• Hidden Positions framework with Aster secure routing</li>
                     <li>• Transparent risk bands and drawdown limits</li>
                     <li>• Emergency circuit breakers for all positions</li>
                     <li>• Institutional-grade risk management</li>
@@ -247,6 +261,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
                     <li>• Strategy marketplace for trader collaboration</li>
                     <li>• Promptable AI copilots for followers</li>
                     <li>• Incentive systems and performance streaks</li>
+                    <li>• Cross-chain execution fabric with direct Aster L1 integration</li>
+                    <li>• Privacy coin compatibility for shielded execution</li>
                     <li>• Multi-chain deployment (Solana, Base)</li>
                   </ul>
                 </div>

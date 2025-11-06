@@ -34,11 +34,11 @@
 
 ## 🏗️ Technical Excellence
 
-### AI Fusion Core
-- **DeepSeek V3**: Momentum analysis and trend detection
-- **Qwen 2.5**: Sentiment interpretation and flow analysis
-- **Phi-3**: Risk management and hedging strategies
-- **Multi-Agent Consensus**: No impulsive decisions—agents vote before trading
+### Open-Source Analyst Core
+- **FinGPT Alpha**: Structured trade theses with risk/confidence scoring and hallucination guards
+- **Lag-LLaMA Visionary**: Probabilistic forecasts with confidence intervals and anomaly scoring
+- **Sui Hooks**: Walrus/Seal/Nautilus stubs ready for privacy-preserving research storage and compute
+- **Multi-Agent Gating**: Trades only execute when risk, slippage, and consensus thresholds agree
 
 ### Production Architecture
 - **Cloud Run**: Ultra-low latency trading bots
@@ -55,10 +55,11 @@
 ## 🚀 Live Demo Flow
 
 1. **Visit [sapphiretrade.xyz](https://sapphiretrade.xyz)** - Professional dashboard loads
-2. **Real-Time Data** - Live market prices, portfolio balance, agent status
-3. **AI Decision Making** - Watch agents negotiate trades via MCP council
-4. **Live Execution** - See actual orders placed on Aster DEX (when enabled)
-5. **Risk Monitoring** - Real-time position limits, exposure tracking, alerts
+2. **Opt-In Analytics Banner** - Privacy notice offers anonymized GA4/Plausible tracking only if user consents
+3. **Real-Time Data** - Live market prices, portfolio balance, agent status
+4. **AI Decision Making** - Watch agents negotiate trades via MCP council
+5. **Live Execution** - See actual orders placed on Aster DEX (when enabled)
+6. **Risk Monitoring** - Real-time position limits, exposure tracking, alerts
 
 ## 💡 Why Judges Will Love This
 
