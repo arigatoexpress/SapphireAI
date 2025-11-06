@@ -21,6 +21,7 @@ export const useTraderService = () => {
   const [dashboardData, setDashboardData] = useState<DashboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [pollInterval, setPollInterval] = useState(15000); // Default 15s - faster updates for better UX
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
@@ -61,6 +62,7 @@ export const useTraderService = () => {
       setHealth(healthData);
       setConnectionStatus('connected');
       setError(null);
+      setRetryCount(0); // Reset retry count on successful connection
 
       // Only log health checks occasionally to avoid spam
       if (wasLoading || !health || health.running !== healthData.running) {
@@ -69,13 +71,31 @@ export const useTraderService = () => {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error fetching health';
 
-      setError(errorMessage);
-      setConnectionStatus('disconnected');
-      addLog(`Connection error: ${errorMessage}`, 'error');
+      // Be more forgiving on initial loads and network errors
+      const isNetworkError = errorMessage.includes('CORS') || errorMessage.includes('fetch') || errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError');
+
+      if (isNetworkError && retryCount < 3) {
+        // Network errors on initial attempts - these might be temporary
+        setConnectionStatus('connecting');
+        setRetryCount(prev => prev + 1);
+        addLog(`Network connectivity issue (attempt ${retryCount + 1}/3): ${errorMessage}`, 'warning');
+        // Don't show error state yet, let it retry
+        setError(null);
+      } else if (isNetworkError) {
+        // After 3 failed attempts, show a user-friendly error
+        setError('Unable to connect to trading service. Please check your internet connection and try again.');
+        setConnectionStatus('disconnected');
+        addLog(`Connection failed after ${retryCount} attempts: ${errorMessage}`, 'error');
+      } else {
+        // Other types of errors (parsing, server errors, etc.)
+        setError(errorMessage);
+        setConnectionStatus('disconnected');
+        addLog(`Connection error: ${errorMessage}`, 'error');
+      }
     } finally {
       setLoading(false);
     }
-  }, [addLog]); // Only depend on addLog to prevent excessive re-renders
+  }, [addLog, retryCount]); // Include retryCount to handle retry logic
 
   // Use refs to avoid stale closures in polling
   const pollIntervalRef = React.useRef(pollInterval);
