@@ -43,7 +43,8 @@ WORKDIR /app
 COPY --from=builder --chown=trader:trader /root/.local /home/trader/.local
 
 # Copy application code with forced cache invalidation
-ADD https://www.google.com /tmp/cache_bust
+ARG CACHE_BUST
+RUN echo "Cache bust: $CACHE_BUST"
 COPY --chown=trader:trader cloud_trader ./cloud_trader
 COPY --chown=trader:trader pyproject.toml README.md ./
 # Force rebuild marker with timestamp
