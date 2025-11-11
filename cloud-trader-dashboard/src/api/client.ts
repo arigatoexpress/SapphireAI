@@ -14,7 +14,7 @@ const getApiUrl = () => {
     }
     // Use the direct service URL for production
     if (hostname === 'sapphiretrade.xyz' || hostname === 'www.sapphiretrade.xyz') {
-      return 'https://api.sapphiretrade.xyz';
+      return 'https://cloud-trader-880429861698.us-central1.run.app';
     }
     return origin;
   }
@@ -33,7 +33,7 @@ const DASHBOARD_URL = (() => {
     }
     // Use the direct service URL for production dashboard endpoint
     if (hostname === 'sapphiretrade.xyz' || hostname === 'www.sapphiretrade.xyz') {
-      return 'https://api.sapphiretrade.xyz';
+      return 'https://cloud-trader-880429861698.us-central1.run.app';
     }
   }
   return DEFAULT_DASHBOARD_URL;
@@ -82,10 +82,19 @@ export interface DashboardTargets {
   alerts: string[];
 }
 
+export interface DashboardCacheStatus {
+  backend: string;
+  connected: boolean;
+}
+
 export interface DashboardSystemStatus {
   services: Record<string, string>;
   models: Record<string, string>;
-  redis_connected: boolean;
+  cache: DashboardCacheStatus;
+  storage_ready: boolean;
+  pubsub_connected: boolean;
+  feature_store_ready: boolean;
+  bigquery_ready: boolean;
   timestamp: string;
 }
 
@@ -217,7 +226,7 @@ export const fetchHealth = async (): Promise<HealthResponse> => {
   } catch (err) {
     // Continue to try healthz
   }
-  
+
   // Try the healthz endpoint
   try {
     return (await fetchWithCustomTimeout(`${API_URL}/healthz`, {}, 10000)) as HealthResponse;
@@ -247,7 +256,7 @@ export const fetchTradeHistory = async (
     if (startDate) params.append('start_date', startDate);
     if (endDate) params.append('end_date', endDate);
     params.append('limit', limit.toString());
-    
+
     const response = await fetch(`${API_URL}/api/trades/history?${params.toString()}`);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return await response.json();
@@ -269,7 +278,7 @@ export const fetchAgentPerformance = async (
     if (startDate) params.append('start_date', startDate);
     if (endDate) params.append('end_date', endDate);
     params.append('limit', limit.toString());
-    
+
     const response = await fetch(`${API_URL}/api/agents/performance?${params.toString()}`);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return await response.json();
@@ -304,12 +313,18 @@ export const fetchDashboard = async (): Promise<DashboardResponse> => {
           orchestrator: 'unknown'
         },
         models: {},
-        redis_connected: false,
+        cache: {
+          backend: 'memory',
+          connected: false,
+        },
+        storage_ready: false,
+        pubsub_connected: false,
+        feature_store_ready: false,
+        bigquery_ready: false,
         timestamp: new Date().toISOString()
       },
       targets: {
         daily_pnl_target: 0.02,
-        max_drawdown: 0.05,
         max_drawdown_limit: 0.10,
         min_confidence_threshold: 0.7,
         target_win_rate: 0.55,

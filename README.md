@@ -28,7 +28,7 @@ This entire platform—from low-latency trading bots to the GCP control plane—
 
 ## ✨ Features
 
-- 🤖 **Open-Source Agent Stack**: FinGPT Alpha + Lag-LLaMA Visionary deliver explainable trade theses with risk scoring and anomaly detection
+- 🤖 **Multi-Agent AI Stack**: FinGPT Alpha + Lag-LLaMA Visionary deliver explainable trade theses with parallel querying, risk scoring, and anomaly detection. For AVAX/ARB, both agents collaborate simultaneously for enhanced accuracy.
 - 📊 **Sapphire Command Center**: World-class dashboard with cosmic sapphire skin, radar analytics, and responsive glassmorphism
 - ⚡ **Ultra-Low Latency**: <100ms trade execution with Cloud Run optimization and precision rounding safeguards
 - 🛡️ **Institutional Risk**: Kelly Criterion sizing, ATR stops, slippage validation, emergency circuit breakers
@@ -47,7 +47,7 @@ cloud_trader/              # Core trading engine
 ├── client.py              # Aster DEX API client
 ├── config.py              # Pydantic configuration with validation
 ├── secrets.py             # Secure credential management
-├── open_source.py         # FinGPT/Lag-LLaMA analyst integration with Sui hooks
+├── open_source.py         # Multi-agent FinGPT/Lag-LLaMA integration with parallel queries, caching, and validation
 ├── sui_clients.py         # Walrus/Seal/Nautilus stubs for decentralized science
 └── orchestrator/          # Wallet-level risk gateway
 
@@ -138,8 +138,12 @@ Configuration lives in `cloud_trader.config.Settings`. Values come from environm
   - `REDIS_URL` (Redis Streams telemetry, defaults to `redis://localhost:6379`)
   - `MODEL_ENDPOINT` (OpenAI-compatible base URL for llama.cpp/vLLM)
   - `BOT_ID` (tag embedded in client order IDs/telemetry)
-  - `FINGPT_ENDPOINT` / `FINGPT_API_KEY` / `FINGPT_MIN_RISK_SCORE`
-  - `LAGLLAMA_ENDPOINT` / `LAGLLAMA_API_KEY` / `LAGLLAMA_MAX_CI_SPAN`
+  - `FINGPT_ENDPOINT` / `FINGPT_API_KEY` / `FINGPT_MIN_RISK_SCORE` (default: 0.4)
+  - `LAGLLAMA_ENDPOINT` / `LAGLLAMA_API_KEY` / `LAGLLAMA_MAX_CI_SPAN` (default: 0.25)
+  - `RISK_THRESHOLD` (default: 0.7) - Minimum risk score for thesis acceptance
+  - `MAX_PARALLEL_AGENTS` (default: 4) - Max agents to query in parallel
+  - `AGENT_RETRY_ATTEMPTS` (default: 3) - Retry attempts for agent queries
+  - `AGENT_CACHE_TTL_SECONDS` (default: 10.0) - Cache TTL for agent responses
 - Communications:
   - `TELEGRAM_ENABLE_MARKET_OBSERVER`, `TELEGRAM_SUMMARY_INTERVAL_SECONDS`, `TELEGRAM_TRADE_COOLDOWN_SECONDS`
   - `ADMIN_API_TOKEN` for authenticated lifecycle endpoints
@@ -220,6 +224,10 @@ FINGPT_MIN_RISK_SCORE="0.4"
 LAGLLAMA_ENDPOINT="https://your-lagllama"
 LAGLLAMA_API_KEY=""
 LAGLLAMA_MAX_CI_SPAN="0.25"
+RISK_THRESHOLD="0.7"  # Reject theses below this risk score
+MAX_PARALLEL_AGENTS="4"  # Parallel agent queries
+AGENT_RETRY_ATTEMPTS="3"  # Retry logic for agent calls
+AGENT_CACHE_TTL_SECONDS="10.0"  # Cache agent responses
 VITE_ANALYTICS_ID="G-XXXXXXX" # optional GA4 / Plausible id
 VITE_ANALYTICS_PROVIDER="ga4"
 ```

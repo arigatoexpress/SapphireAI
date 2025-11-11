@@ -34,12 +34,12 @@ class MomentumStrategy:
         if snapshot.change_24h < -aggressive_threshold:
             return "SELL"
         return "HOLD"
-
+    
     def allocate_notional(self, portfolio_balance: float, expected_return: float, volatility: float) -> float:
         """Allocate 10% of portfolio for asymmetric bets with higher frequency trading."""
         if volatility <= 0:
             return 0.0
-
+        
         # Use asymmetric Kelly Criterion for more aggressive allocation
         # Higher edge assumption for asymmetric bets
         asymmetric_edge = expected_return * 1.5  # 50% more aggressive

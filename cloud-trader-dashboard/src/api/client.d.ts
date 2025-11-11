@@ -36,10 +36,18 @@ export interface DashboardTargets {
     target_win_rate: number;
     alerts: string[];
 }
+export interface DashboardCacheStatus {
+    backend: string;
+    connected: boolean;
+}
 export interface DashboardSystemStatus {
     services: Record<string, string>;
     models: Record<string, string>;
-    redis_connected: boolean;
+    cache: DashboardCacheStatus;
+    storage_ready: boolean;
+    pubsub_connected: boolean;
+    feature_store_ready: boolean;
+    bigquery_ready: boolean;
     timestamp: string;
 }
 export interface DashboardTrade {
@@ -72,6 +80,16 @@ export interface DashboardAgent {
         timestamp: string;
         equity: number;
     }>;
+    // Dynamic agent configurations
+    dynamic_position_sizing?: boolean;
+    adaptive_leverage?: boolean;
+    intelligence_tp_sl?: boolean;
+    max_leverage_limit?: number;
+    min_position_size_pct?: number;
+    max_position_size_pct?: number;
+    risk_tolerance?: string;
+    time_horizon?: string;
+    market_regime_preference?: string;
 }
 export interface DashboardResponse {
     portfolio: DashboardPortfolio;
@@ -95,4 +113,4 @@ export declare const fetchAgentPerformance: (agentId: string, startDate?: string
 export declare const fetchDashboard: () => Promise<DashboardResponse>;
 export declare const startTrader: () => Promise<ActionResponse>;
 export declare const stopTrader: () => Promise<ActionResponse>;
-export {};
+export { };

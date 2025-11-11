@@ -13,8 +13,21 @@ const statusColorMap: Record<string, string> = {
 };
 
 const AgentRadar: React.FC<AgentRadarProps> = ({ agent }) => {
-  const tokens = useMemo(() => agent.symbols ?? [], [agent.symbols]);
   const activeSymbols = useMemo(() => new Set((agent.positions ?? []).map((p) => (p.symbol || '').toUpperCase())), [agent.positions]);
+
+  // Show only active positions + up to 8 example symbols for visual variety
+  const tokens = useMemo(() => {
+    const allSymbols = agent.symbols ?? [];
+    if (allSymbols.length === 0) return [];
+
+    const activePositions = Array.from(activeSymbols);
+    const availableSymbols = allSymbols.filter(s => !activeSymbols.has(s.toUpperCase()));
+
+    // Prioritize active positions, then add some examples for visual effect
+    const displaySymbols = [...activePositions, ...availableSymbols.slice(0, Math.max(0, 12 - activePositions.length))];
+
+    return displaySymbols;
+  }, [agent.symbols, activeSymbols]);
 
   const radarTargets = useMemo(() => {
     if (tokens.length === 0) {
@@ -51,7 +64,7 @@ const AgentRadar: React.FC<AgentRadarProps> = ({ agent }) => {
           </span>
         </div>
         <p className="text-[0.65rem] text-slate-400 mt-2">
-          {tokens.length > 0 ? tokens.slice(0, 4).join(' · ') + (tokens.length > 4 ? ` +${tokens.length - 4}` : '') : 'Monitoring'}
+          {agent.symbols?.length ? `${agent.symbols.length} symbols available` : 'Monitoring'}
         </p>
       </div>
 

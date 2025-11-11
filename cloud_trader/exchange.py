@@ -116,6 +116,11 @@ class AsterClient:
     async def get_all_tickers(self) -> List[Dict[str, Any]]:
         return await self._make_request("GET", "/fapi/v1/ticker/24hr")
 
+    async def get_all_symbols(self) -> List[Dict[str, Any]]:
+        """Get all trading symbols from exchange info."""
+        exchange_info = await self._make_request("GET", "/fapi/v1/exchangeInfo")
+        return exchange_info.get("symbols", [])
+
     async def get_account_info(self) -> Dict[str, Any]:
         return await self._make_request("GET", "/fapi/v4/account", signed=True)
 

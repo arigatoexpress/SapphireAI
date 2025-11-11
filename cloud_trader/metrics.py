@@ -43,6 +43,20 @@ RISK_LIMITS_BREACHED = Counter(
     "Total number of times risk limits were breached",
     ["limit_type"],
 )
+AGENT_MARGIN_REMAINING = Gauge(
+    "agent_margin_remaining_usd",
+    "Remaining margin allocation per agent",
+    ["agent_id"],
+)
+AGENT_MARGIN_UTILIZATION = Gauge(
+    "agent_margin_utilization_ratio",
+    "Margin utilization ratio (0-1) per agent",
+    ["agent_id"],
+)
+PORTFOLIO_DRAWDOWN = Gauge(
+    "portfolio_drawdown_pct",
+    "Current portfolio drawdown percentage",
+)
 
 TRADE_EXECUTION_SUCCESS = Counter(
     "trade_execution_success_total",

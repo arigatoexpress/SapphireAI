@@ -17,6 +17,7 @@ class SuiWalrusClient:
     """Stub for Walrus decentralized storage interactions."""
 
     endpoint: Optional[str] = None
+    api_key: Optional[str] = None
 
     async def put_private_blob(self, namespace: str, payload: Dict[str, Any]) -> str:
         """Persist encrypted payloads while preserving user data ownership.

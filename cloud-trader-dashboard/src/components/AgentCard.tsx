@@ -18,9 +18,9 @@ const modelPalette: Record<string, { label: string; subtitle: string; accent: st
     icon: '🧠',
     multiAgent: true,
   },
-  'lagllama-visionary': {
-    label: 'Lag-LLaMA Visionary',
-    subtitle: 'Probabilistic forecasts with anomaly guardrails \u2022 Parallel queries enabled',
+  'lagllama-degen': {
+    label: 'Lag-LLaMA Degenerate',
+    subtitle: 'High-volatility forecasts with anomaly guardrails \u2022 Parallel queries enabled',
     accent: 'from-brand-accent-purple/30 via-brand-accent-teal/20 to-brand-accent-blue/30',
     icon: '🦙',
     multiAgent: true,
@@ -116,9 +116,8 @@ const AgentCard: React.FC<AgentCardProps> = ({ agent, onClick, onViewHistory }) 
           </div>
 
           <span
-            className={`inline-flex min-w-[8rem] items-center justify-center gap-2 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] ${
-              statusTone[agent.status as keyof typeof statusTone] ?? statusTone.monitoring
-            }`}
+            className={`inline-flex min-w-[8rem] items-center justify-center gap-2 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] ${statusTone[agent.status as keyof typeof statusTone] ?? statusTone.monitoring
+              }`}
           >
             <span className="h-2 w-2 rounded-full bg-current shadow-inner" />
             {agent.status}
@@ -184,6 +183,24 @@ const AgentCard: React.FC<AgentCardProps> = ({ agent, onClick, onViewHistory }) 
               })}
             </div>
           </div>
+        </div>
+
+        {/* Agent Config - Compact */}
+        <div className="flex flex-wrap gap-2">
+          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${
+            (agent as any).risk_tolerance === 'extreme' ? 'bg-red-400/20 text-red-300' :
+            (agent as any).risk_tolerance === 'high' ? 'bg-orange-400/20 text-orange-300' :
+            (agent as any).risk_tolerance === 'medium' ? 'bg-yellow-400/20 text-yellow-300' :
+            'bg-green-400/20 text-green-300'
+          }`}>
+            {(agent as any).risk_tolerance?.toUpperCase() || 'MED'}
+          </span>
+          <span className="inline-flex items-center gap-1 rounded-full bg-purple-400/20 px-2 py-1 text-xs font-medium text-purple-300">
+            {(agent as any).max_leverage_limit || 3}x
+          </span>
+          <span className="inline-flex items-center gap-1 rounded-full bg-blue-400/20 px-2 py-1 text-xs font-medium text-blue-300">
+            {agent.total_trades} trades
+          </span>
         </div>
 
         {/* Key Metrics */}

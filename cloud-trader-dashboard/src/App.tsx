@@ -328,15 +328,26 @@ const Dashboard: React.FC<{ onBackToHome: () => void }> = ({ onBackToHome }) => 
   const systemSummary = useMemo(() => {
     const orchestratorStatus = systemStatus?.services?.orchestrator ?? 'unknown';
     const traderStatus = systemStatus?.services?.cloud_trader ?? 'unknown';
-    const redisConnected = systemStatus?.redis_connected ?? false;
+    const cacheBackend = systemStatus?.cache?.backend ?? 'memory';
+    const cacheConnected = systemStatus?.cache?.connected ?? false;
+    const storageReady = systemStatus?.storage_ready ?? false;
+    const pubsubConnected = systemStatus?.pubsub_connected ?? false;
+    const featureStoreReady = systemStatus?.feature_store_ready ?? false;
+    const bigqueryReady = systemStatus?.bigquery_ready ?? false;
     return {
       orchestratorStatus,
       traderStatus,
-      redisConnected,
+      cacheBackend,
+      cacheConnected,
+      storageReady,
+      pubsubConnected,
+      featureStoreReady,
+      bigqueryReady,
       timestamp: systemStatus?.timestamp ?? null,
     };
   }, [systemStatus]);
 
+  const traderStatus = systemStatus?.services?.cloud_trader ?? 'unknown';
   const communityInsights = useMemo(() => {
     const totalVotes = crowdSentiment.totalVotes;
     const bullishRatio = totalVotes ? Math.round((crowdSentiment.bullishVotes / totalVotes) * 100) : 0;
@@ -359,8 +370,8 @@ const Dashboard: React.FC<{ onBackToHome: () => void }> = ({ onBackToHome }) => 
   const topContributorPoints = topContributor?.points ?? 0;
 
   const configuredAgents = derived.agents.length || 4;
-  const traderStatus = systemStatus?.services?.cloud_trader ?? 'unknown';
-  const redisOnline = systemStatus?.redis_connected ?? false;
+  const cacheConnected = systemStatus?.cache?.connected ?? false;
+  const cacheBackend = systemStatus?.cache?.backend ?? 'memory';
   const tabs = [
     { id: 'overview', label: 'Live Trading', icon: '🚀' },
     { id: 'positions', label: 'Positions', icon: '📈' },
@@ -542,42 +553,53 @@ const Dashboard: React.FC<{ onBackToHome: () => void }> = ({ onBackToHome }) => 
                 ) : (
                   <>
                     {activeTab === 'overview' && (
-                       <div className="space-y-6">
+                      <div className="space-y-6">
                         <section className="sapphire-section flex flex-col gap-6 rounded-4xl p-8 lg:flex-row lg:items-center">
-                          <div className="flex-1 space-y-4">
-                            <span className="inline-flex items-center gap-2 rounded-full bg-brand-abyss/80 px-4 py-2 text-xs font-semibold uppercase tracking-[0.4em] text-accent-sapphire">
-                              ∞ Sapphire Command Loop
+                          <div className="flex-1 space-y-6">
+                            <span className="inline-flex items-center gap-2 rounded-full border border-accent-sapphire/40 bg-brand-abyss/80 px-4 py-2 text-xs font-semibold uppercase tracking-[0.32em] text-accent-sapphire">
+                              Command Center
                             </span>
-                            <h2 className="text-3xl font-bold text-brand-ice">World-class AI trading, distilled for you</h2>
-                            <p className="text-sm leading-relaxed text-brand-muted">
-                              This dashboard streams live output from our GCP-native multi-agent stack. Sapphire’s traders listen to market structure, coordinate via MCP consensus, and execute with disciplined risk overlays. Every panel here explains what the bots are doing now, how capital is positioned, and how you can interact in real time.
-                            </p>
-                            <div className="grid gap-3 text-sm text-brand-muted md:grid-cols-3">
-                              <div className="rounded-2xl border border-brand-border/60 bg-brand-abyss/80 p-4 shadow-sapphire">
-                                <p className="text-xs uppercase tracking-[0.3em] text-accent-sapphire/80">How to read it</p>
-                                <p className="mt-2 text-brand-ice">Start with the metrics grid below, then scan positions and performance. Every card highlights live agent intent.</p>
+                            <div className="space-y-3">
+                              <h2 className="text-3xl font-bold text-brand-ice">
+                                Live trading telemetry at a glance
+                              </h2>
+                              <p className="max-w-2xl text-sm leading-relaxed text-brand-muted">
+                                4 AI agents trading 154 symbols with intelligent risk management.
+                              </p>
+                            </div>
+                            <div className="grid gap-3 sm:grid-cols-2">
+                              <div className="rounded-2xl border border-brand-border/60 bg-brand-abyss/70 p-5 shadow-sapphire-sm">
+                                <p className="text-[0.65rem] uppercase tracking-[0.28em] text-brand-muted/70">Status</p>
+                                <p className="mt-2 text-xl font-semibold text-brand-ice">Live Trading</p>
+                                <p className="mt-1 text-xs text-brand-muted">$350 daily target, max profit optimization.</p>
                               </div>
-                              <div className="rounded-2xl border border-brand-border/60 bg-brand-abyss/80 p-4 shadow-sapphire">
-                                <p className="text-xs uppercase tracking-[0.3em] text-accent-emerald/80">Interact</p>
-                                <p className="mt-2 text-brand-ice">Use the Community tab to vote, brief agents, and earn points. Notifications surface in Activity and Council when your signal matters.</p>
+                              <div className="rounded-2xl border border-brand-border/60 bg-brand-abyss/70 p-5 shadow-sapphire-sm">
+                                <p className="text-[0.65rem] uppercase tracking-[0.28em] text-brand-muted/70">Risk Control</p>
+                                <p className="mt-2 text-xl font-semibold text-brand-ice">Active</p>
+                                <p className="mt-1 text-xs text-brand-muted">Liquidation protection, adaptive leverage.</p>
                               </div>
-                              <div className="rounded-2xl border border-brand-border/60 bg-brand-abyss/80 p-4 shadow-sapphire">
-                                <p className="text-xs uppercase tracking-[0.3em] text-accent-aurora/80">Stay in control</p>
-                                <p className="mt-2 text-brand-ice">Toggle auto-refresh, monitor connection status, and review risk envelopes to understand how Sapphire protects capital.</p>
-                              </div>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3 pt-2 text-xs text-brand-muted/70">
+                              <span className="inline-flex items-center gap-2 rounded-full border border-brand-border/50 bg-brand-abyss/80 px-4 py-2 font-semibold uppercase tracking-[0.28em] text-brand-ice/80">
+                                {configuredAgents} Agents Coordinated
+                              </span>
+                              <span className="inline-flex items-center gap-2 rounded-full border border-brand-border/50 bg-brand-abyss/80 px-4 py-2 font-semibold uppercase tracking-[0.28em] text-brand-ice/80">
+                                Cache Backend: {cacheBackend}
+                              </span>
                             </div>
                           </div>
                           <div className="relative w-full max-w-sm rounded-3xl border border-brand-border/60 bg-brand-abyss/80 p-6 shadow-sapphire overflow-hidden">
-                            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(63,156,255,0.24),_transparent_70%)]" />
+                            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(79,209,255,0.22),_transparent_65%)]" />
                             <div className="relative space-y-4 text-sm text-brand-ice">
-                              <p className="text-xs uppercase tracking-[0.35em] text-brand-muted/80">Quick playbook</p>
-                              <ol className="space-y-3">
-                                <li className="flex items-start gap-3"><span className="mt-1 text-accent-sapphire">①</span><span>Check the Command Center metrics to confirm bots and markets are synchronized.</span></li>
-                                <li className="flex items-start gap-3"><span className="mt-1 text-accent-emerald">②</span><span>Drill into Positions, Performance, or System tabs for deeper diagnostics.</span></li>
-                                <li className="flex items-start gap-3"><span className="mt-1 text-accent-aurora">③</span><span>Head to Community to influence sentiment — your vote routes to agents but never overrides risk.</span></li>
-                              </ol>
-                              <div className="rounded-2xl border border-brand-border/50 bg-brand-abyss/90 p-3 text-xs text-brand-muted/80">
-                                <p>The ∞ infinity motif represents Sapphire’s continuous feedback loop between execution, telemetry, and community input.</p>
+                              <p className="text-xs uppercase tracking-[0.35em] text-brand-muted/80">Quick View</p>
+                              <h3 className="text-lg font-semibold text-brand-ice">What to watch</h3>
+                              <ul className="space-y-2 text-xs text-brand-muted/75">
+                                <li>• Fills & exposure update every refresh interval.</li>
+                                <li>• System tab shows cache/storage/pubsub health without Redis.</li>
+                                <li>• Community tab surfaces feedback that agents may reference.</li>
+                              </ul>
+                              <div className="rounded-2xl border border-brand-border/50 bg-brand-midnight/80 p-3 text-xs text-brand-muted">
+                                <p>Telemetry runs entirely on GCP: Pub/Sub for streaming, Cloud SQL + BigQuery for history, and in-memory caching for fast reads.</p>
                               </div>
                             </div>
                           </div>
@@ -678,10 +700,10 @@ const Dashboard: React.FC<{ onBackToHome: () => void }> = ({ onBackToHome }) => 
                                 </span>
                               </div>
                               <div className="flex items-center justify-between">
-                                <span className="text-sm text-brand-muted">Redis Connection</span>
-                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${redisOnline ? 'bg-accent-emerald/30 text-accent-emerald' : 'bg-error/20 text-error'
+                                <span className="text-sm text-brand-muted">Cache Backend ({cacheBackend})</span>
+                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${cacheConnected ? 'bg-accent-emerald/30 text-accent-emerald' : 'bg-error/20 text-error'
                                   }`}>
-                                  {redisOnline ? 'Online' : 'Offline'}
+                                  {cacheConnected ? 'Online' : 'Offline'}
                                 </span>
                               </div>
                               <div className="flex items-center justify-between">
@@ -1081,14 +1103,14 @@ const Dashboard: React.FC<{ onBackToHome: () => void }> = ({ onBackToHome }) => 
                               <p className="text-xs uppercase tracking-[0.35em] text-security-shield/70">Reliability Core</p>
                               <h2 className="text-3xl font-bold text-white">Platform Resilience Console</h2>
                               <p className="text-sm leading-relaxed text-brand-muted">
-                                Snap the infrastructure healthline: orchestrator governance, trader loops, Redis, and MCP connectivity. Everything routes through the load-balanced perimeter with security-first defaults.
+                                Snap the infrastructure healthline: orchestrator governance, trader loops, cache layer, and MCP connectivity. Everything routes through the load-balanced perimeter with security-first defaults.
                               </p>
                               <div className="flex flex-wrap items-center gap-3">
                                 <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs uppercase tracking-[0.28em] text-brand-muted">
                                   {connectionStatus === 'connected' ? 'Live MCP uplink' : 'MCP reconnecting'}
                                 </span>
-                                <span className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.28em] ${systemSummary.redisConnected ? 'bg-accent-emerald/20 text-accent-emerald' : 'bg-error/20 text-error'}`}>
-                                  Redis {systemSummary.redisConnected ? 'Synchronized' : 'Offline'}
+                                <span className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.28em] ${cacheConnected ? 'bg-accent-emerald/20 text-accent-emerald' : 'bg-error/20 text-error'}`}>
+                                  Cache {cacheConnected ? 'Synchronized' : 'Offline'}
                                 </span>
                               </div>
                             </div>
@@ -1138,7 +1160,7 @@ const Dashboard: React.FC<{ onBackToHome: () => void }> = ({ onBackToHome }) => 
           </div>
         </div>
       </div>
-      
+
       {/* Historical Performance Modal */}
       {selectedAgentForHistory && (
         <HistoricalPerformance
