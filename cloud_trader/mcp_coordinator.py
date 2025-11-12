@@ -21,6 +21,7 @@ from starlette.responses import JSONResponse
 
 from .config import get_settings
 from .mcp import MCPMessageType, MCPProposalPayload, MCPResponsePayload
+from .portfolio_orchestrator import get_portfolio_orchestrator
 from .pubsub import PubSubClient
 
 logger = logging.getLogger(__name__)
@@ -65,6 +66,14 @@ class MCPCoordinator:
         self.settings = get_settings()
         self.pubsub_client = None
         self.app = FastAPI(title="MCP Coordinator", version="1.0.0")
+
+        # Portfolio orchestrator
+        self.portfolio_orchestrator = get_portfolio_orchestrator()
+
+        # Communication management
+        self.agent_activity_levels: Dict[str, Dict[str, Any]] = {}
+        self.communication_throttles: Dict[str, datetime] = {}
+        self.participation_thresholds: Dict[str, float] = {}
 
         # Component registry
         self.registered_components: Dict[str, ComponentType] = {}
@@ -138,6 +147,10 @@ class MCPCoordinator:
         @self.app.post("/signal")
         async def receive_signal(signal: TradingSignal):
             """Receive trading signal from a component."""
+            # Track trading activity for participation management
+            agent_id = self._get_agent_id_from_source(signal.source)
+            self._update_agent_activity(agent_id, "trading")
+
             # Store signal
             self.active_signals[signal.symbol].append(signal)
 
@@ -202,6 +215,79 @@ class MCPCoordinator:
             """Get all theses shared for a symbol."""
             theses = getattr(self, 'agent_theses', {}).get(symbol, [])
             return {"symbol": symbol, "theses": theses}
+
+        @self.app.get("/portfolio-status")
+        async def get_portfolio_status():
+            """Get comprehensive portfolio status from orchestrator."""
+            return self.portfolio_orchestrator.get_portfolio_status()
+
+        @self.app.get("/agent-roles")
+        async def get_agent_roles():
+            """Get agent roles and responsibilities."""
+            return {
+                agent_id: {
+                    "role": personality.role.value,
+                    "expertise": personality.expertise,
+                    "contribution": personality.portfolio_contribution,
+                    "communication_style": personality.communication_style,
+                    "collaboration_partners": [p.value for p in personality.collaboration_partners],
+                    "risk_tolerance": personality.risk_tolerance,
+                    "time_horizon": personality.time_horizon,
+                    "preferred_assets": personality.preferred_assets,
+                    "allocated_capital": self.portfolio_orchestrator.agent_allocations.get(agent_id, 0)
+                }
+                for agent_id, personality in self.portfolio_orchestrator.agent_personalities.items()
+            }
+
+        @self.app.get("/agent/{agent_id}/guidance")
+        async def get_agent_guidance(agent_id: str):
+            """Get personalized guidance for an agent."""
+            guidance = self.portfolio_orchestrator.get_agent_guidance(agent_id)
+            return guidance
+
+        @self.app.get("/agent/{agent_id}/participation-check")
+        async def check_agent_participation(agent_id: str):
+            """Check if agent should participate in communication."""
+            should_participate = self.should_agent_participate(agent_id, "communication")
+            return {"should_participate": should_participate}
+
+        @self.app.post("/validate-trade/{agent_id}")
+        async def validate_agent_trade(agent_id: str, trade_details: Dict[str, Any]):
+            """Validate a trade against portfolio constraints."""
+            is_valid = self.portfolio_orchestrator.validate_agent_trade(agent_id, trade_details)
+            return {
+                "agent_id": agent_id,
+                "trade_valid": is_valid,
+                "validation_details": "Trade validated against portfolio constraints" if is_valid else "Trade exceeds portfolio limits"
+            }
+
+        @self.app.post("/portfolio-goal")
+        async def set_portfolio_goal(goal: Dict[str, str]):
+            """Set portfolio optimization goal."""
+            from .portfolio_orchestrator import PortfolioGoal
+            goal_enum = PortfolioGoal(goal["goal"])
+            self.portfolio_orchestrator.portfolio_goal = goal_enum
+            return {"status": "goal_updated", "new_goal": goal_enum.value}
+
+        @self.app.get("/agent-activity")
+        async def get_agent_activity():
+            """Get current agent activity levels."""
+            return {
+                agent_id: {
+                    "activity_score": data["activity_score"],
+                    "communication_count": data["communication_count"],
+                    "trading_count": data["trading_count"],
+                    "last_activity": data["last_activity"].isoformat(),
+                    "participation_threshold": self.participation_thresholds.get(agent_id, 0.5)
+                }
+                for agent_id, data in self.agent_activity_levels.items()
+            }
+
+        @self.app.post("/set-participation-threshold/{agent_id}")
+        async def set_agent_participation_threshold(agent_id: str, threshold: Dict[str, float]):
+            """Set participation threshold for an agent."""
+            self.set_participation_threshold(agent_id, threshold["threshold"])
+            return {"status": "threshold_set", "agent_id": agent_id, "threshold": threshold["threshold"]}
 
         @self.app.get("/global-signals")
         async def get_global_signals():
@@ -304,14 +390,109 @@ class MCPCoordinator:
         }
 
         # Broadcast to all registered agents for learning opportunities
+        # Only send to agents that should participate and aren't throttled
         for component_id in self.registered_components.keys():
-            await self._notify_component(component_id, {
-                "message_type": "global_signal_broadcast",
-                "signal": global_signal,
-                "timestamp": datetime.now()
-            })
+            if self.should_agent_participate(component_id, "communication"):
+                await self._notify_component(component_id, {
+                    "message_type": "global_signal_broadcast",
+                    "signal": global_signal,
+                    "timestamp": datetime.now()
+                })
+                self.update_communication_throttle(component_id)
 
         logger.info(f"Global signal broadcast: {signal.source} trading {signal.symbol} {signal.side}")
+
+    def should_agent_participate(self, agent_id: str, activity_type: str = "communication") -> bool:
+        """Determine if agent should participate based on activity levels and thresholds."""
+        # Update activity levels
+        self._update_agent_activity(agent_id, activity_type)
+
+        # Check participation threshold
+        threshold = self.participation_thresholds.get(agent_id, 0.5)  # Default 50% participation
+
+        # Get agent's activity level compared to others
+        agent_activity = self._get_agent_activity_level(agent_id)
+        average_activity = self._get_average_activity_level()
+
+        # Agents participate less if they're much more active than average
+        if agent_activity > average_activity * 2:
+            participation_chance = max(0.1, threshold * 0.5)  # Reduce participation
+        elif agent_activity < average_activity * 0.5:
+            participation_chance = min(0.9, threshold * 1.5)  # Increase participation
+        else:
+            participation_chance = threshold
+
+        # Random chance based on participation threshold
+        import random
+        return random.random() < participation_chance
+
+    def is_agent_throttled(self, agent_id: str, throttle_seconds: int = 30) -> bool:
+        """Check if agent is currently throttled from communication."""
+        last_communication = self.communication_throttles.get(agent_id)
+        if not last_communication:
+            return False
+
+        time_since_last = (datetime.now() - last_communication).total_seconds()
+        return time_since_last < throttle_seconds
+
+    def update_communication_throttle(self, agent_id: str):
+        """Update agent's communication throttle timestamp."""
+        self.communication_throttles[agent_id] = datetime.now()
+
+    def _update_agent_activity(self, agent_id: str, activity_type: str):
+        """Update agent's activity level tracking."""
+        if agent_id not in self.agent_activity_levels:
+            self.agent_activity_levels[agent_id] = {
+                "communication_count": 0,
+                "trading_count": 0,
+                "last_activity": datetime.now(),
+                "activity_score": 0.0
+            }
+
+        activity_data = self.agent_activity_levels[agent_id]
+        activity_data["last_activity"] = datetime.now()
+
+        if activity_type == "communication":
+            activity_data["communication_count"] += 1
+        elif activity_type == "trading":
+            activity_data["trading_count"] += 1
+
+        # Calculate activity score (trades are weighted more heavily)
+        activity_data["activity_score"] = (
+            activity_data["communication_count"] * 0.3 +
+            activity_data["trading_count"] * 0.7
+        )
+
+    def _get_agent_activity_level(self, agent_id: str) -> float:
+        """Get agent's activity level score."""
+        if agent_id not in self.agent_activity_levels:
+            return 0.0
+        return self.agent_activity_levels[agent_id]["activity_score"]
+
+    def _get_average_activity_level(self) -> float:
+        """Get average activity level across all agents."""
+        if not self.agent_activity_levels:
+            return 1.0
+
+        total_activity = sum(data["activity_score"] for data in self.agent_activity_levels.values())
+        return total_activity / len(self.agent_activity_levels)
+
+    def set_participation_threshold(self, agent_id: str, threshold: float):
+        """Set participation threshold for an agent (0.0 to 1.0)."""
+        self.participation_thresholds[agent_id] = max(0.0, min(1.0, threshold))
+
+    def _get_agent_id_from_source(self, source) -> str:
+        """Get agent ID from signal source."""
+        # Map signal sources to agent IDs
+        source_mapping = {
+            "deepseek": "deepseek-v3",
+            "qwen": "qwen-7b",
+            "fingpt": "fingpt-alpha",
+            "lagllama": "lagllama-degen",
+            "freqtrade": "freqtrade-hft",
+            "hummingbot": "hummingbot-mm",
+        }
+        return source_mapping.get(source.value, source.value)
 
     async def receive_trade_thesis(self, thesis: Dict[str, Any]):
         """Receive detailed trade thesis from an agent."""
@@ -336,13 +517,15 @@ class MCPCoordinator:
             self.agent_theses[thesis["symbol"]] = []
         self.agent_theses[thesis["symbol"]].append(thesis_data)
 
-        # Broadcast thesis to all agents
+        # Broadcast thesis to all agents (with participation filtering)
         for component_id in self.registered_components.keys():
-            await self._notify_component(component_id, {
-                "message_type": "trade_thesis_shared",
-                "thesis": thesis_data,
-                "timestamp": datetime.now()
-            })
+            if self.should_agent_participate(component_id, "communication"):
+                await self._notify_component(component_id, {
+                    "message_type": "trade_thesis_shared",
+                    "thesis": thesis_data,
+                    "timestamp": datetime.now()
+                })
+                self.update_communication_throttle(component_id)
 
         # Publish to BigQuery for analysis
         if hasattr(self, 'bigquery_exporter') and self.bigquery_exporter:
@@ -362,24 +545,27 @@ class MCPCoordinator:
             "timestamp": discussion.get("timestamp", datetime.now().isoformat())
         }
 
-        # Route to specific agent or broadcast
+        # Route to specific agent or broadcast (with participation filtering)
         if discussion_data["to_agent"]:
             component_id = self._get_component_id_for_agent(discussion_data["to_agent"])
-            if component_id:
+            if component_id and self.should_agent_participate(component_id, "communication"):
                 await self._notify_component(component_id, {
                     "message_type": "strategy_discussion",
                     "discussion": discussion_data,
                     "timestamp": datetime.now()
                 })
+                self.update_communication_throttle(component_id)
         else:
-            # Broadcast to all agents
+            # Broadcast to all agents (with participation filtering)
             for component_id in self.registered_components.keys():
                 if component_id != self._get_component_id_for_agent(discussion_data["from_agent"]):
-                    await self._notify_component(component_id, {
-                        "message_type": "strategy_discussion_broadcast",
-                        "discussion": discussion_data,
-                        "timestamp": datetime.now()
-                    })
+                    if self.should_agent_participate(component_id, "communication"):
+                        await self._notify_component(component_id, {
+                            "message_type": "strategy_discussion_broadcast",
+                            "discussion": discussion_data,
+                            "timestamp": datetime.now()
+                        })
+                        self.update_communication_throttle(component_id)
 
         logger.info(f"Strategy discussion: {discussion_data['from_agent']} → {discussion_data['to_agent'] or 'ALL'}: {discussion_data['topic']}")
 

@@ -267,6 +267,11 @@ class HummingbotMCPAdapter:
         if not self.mcp_client:
             return
 
+        # Check if we should participate in communication
+        if not await self._should_participate_in_communication():
+            logger.debug("Hummingbot skipping insight sharing due to participation threshold")
+            return
+
         try:
             insight_payload = {
                 "agent": "hummingbot",
@@ -358,16 +363,138 @@ class HummingbotMCPAdapter:
             return []
 
         try:
-            # This would analyze global signals and provide insights
-            return [
-                "Cross-agent analysis: High momentum convergence on BTC",
-                "Liquidity coordination: Multiple agents providing BTC/USDT liquidity",
-                "Risk correlation: Agents showing synchronized volatility responses",
-                "Arbitrage opportunity: Price discrepancies across correlated assets"
-            ]
+            # Query coordinator for global signals and portfolio status
+            signals_response = await self.mcp_client._client.get("/global-signals")
+            portfolio_response = await self.mcp_client._client.get("/portfolio-status")
+
+            insights = []
+
+            if signals_response.status_code == 200:
+                signals_data = signals_response.json()
+                insights.extend(self._analyze_liquidity_opportunities(signals_data.get("signals", [])))
+
+            if portfolio_response.status_code == 200:
+                portfolio_data = portfolio_response.json()
+                insights.extend(self._analyze_portfolio_coordination(portfolio_data))
+
+            return insights
         except Exception as e:
             logger.error(f"Failed to analyze cross-agent activity: {e}")
             return []
+
+    async def get_role_guidance(self) -> Dict[str, Any]:
+        """Get role guidance from portfolio orchestrator."""
+        if not self.mcp_client:
+            return {"guidance": "MCP not available"}
+
+        try:
+            response = await self.mcp_client._client.get(f"/agent/hummingbot-mm/guidance")
+            if response.status_code == 200:
+                return response.json()
+            else:
+                return {"guidance": "Guidance not available"}
+        except Exception as e:
+            logger.error(f"Failed to get role guidance: {e}")
+            return {"guidance": "Error retrieving guidance"}
+
+    async def validate_liquidity_provision(self, spread_bps: float, inventory_target: float) -> bool:
+        """Validate liquidity provision strategy against portfolio constraints."""
+        trade_details = {
+            "symbol": "BTCUSDT",  # Primary liquidity pair
+            "notional": inventory_target,
+            "strategy": "market_making",
+            "leverage": 1.0,  # Market making typically uses low leverage
+            "spread_bps": spread_bps
+        }
+
+        if not self.mcp_client:
+            return True
+
+        try:
+            response = await self.mcp_client._client.post(
+                "/validate-trade/hummingbot-mm",
+                json=trade_details
+            )
+            if response.status_code == 200:
+                result = response.json()
+                return result.get("trade_valid", True)
+            else:
+                return True
+        except Exception as e:
+            logger.error(f"Failed to validate liquidity provision: {e}")
+            return True
+
+    def _analyze_liquidity_opportunities(self, signals: list) -> list:
+        """Analyze signals for liquidity provision opportunities."""
+        insights = []
+
+        if not signals:
+            return insights
+
+        # Group by symbol
+        symbol_signals = {}
+        for signal in signals:
+            symbol = signal.get("symbol", "unknown")
+            if symbol not in symbol_signals:
+                symbol_signals[symbol] = []
+            symbol_signals[symbol].append(signal)
+
+        # Look for high volatility assets needing liquidity
+        for symbol, sym_signals in symbol_signals.items():
+            # Count high conviction signals (indicating potential volatility)
+            high_conf_signals = [s for s in sym_signals if s.get("confidence", 0) > 0.7]
+
+            if len(high_conf_signals) >= 3:
+                insights.append(f"High volatility opportunity on {symbol} - consider tighter spreads")
+
+            # Look for directional bias for inventory management
+            buy_signals = [s for s in sym_signals if s.get("side") == "buy"]
+            sell_signals = [s for s in sym_signals if s.get("side") == "sell"]
+
+            total_signals = len(sym_signals)
+            if total_signals > 0:
+                buy_ratio = len(buy_signals) / total_signals
+                if buy_ratio > 0.6:
+                    insights.append(f"Bullish bias on {symbol} - skew inventory toward long positions")
+                elif buy_ratio < 0.4:
+                    insights.append(f"Bearish bias on {symbol} - skew inventory toward short positions")
+
+        return insights
+
+    def _analyze_portfolio_coordination(self, portfolio_data: Dict) -> list:
+        """Analyze portfolio data for coordination insights."""
+        insights = []
+
+        allocations = portfolio_data.get("agent_allocations", {})
+        total_allocation = sum(allocations.values())
+
+        if total_allocation > 0:
+            my_allocation = allocations.get("hummingbot-mm", 0)
+            my_percentage = my_allocation / total_allocation
+
+            if my_percentage < 0.05:  # Less than 5%
+                insights.append("Low portfolio allocation - focus on high-volume pairs only")
+            elif my_percentage > 0.15:  # More than 15%
+                insights.append("High portfolio allocation - expand to more pairs for diversification")
+
+        return insights
+
+    async def _should_participate_in_communication(self) -> bool:
+        """Check if Hummingbot should participate in communication based on activity levels."""
+        if not self.mcp_client:
+            return False
+
+        try:
+            # Check with coordinator if we should participate
+            response = await self.mcp_client._client.get("/agent/hummingbot-mm/participation-check")
+            if response.status_code == 200:
+                result = response.json()
+                return result.get("should_participate", True)
+            else:
+                return True  # Default to participating if check fails
+        except Exception as e:
+            logger.debug(f"Participation check failed, defaulting to participate: {e}")
+            return True
 
     async def _check_pending_discussions(self) -> list:
         """Check for pending discussion invitations."""

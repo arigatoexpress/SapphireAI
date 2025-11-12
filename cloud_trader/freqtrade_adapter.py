@@ -269,6 +269,11 @@ class FreqtradeMCPAdapter:
         if not self.mcp_client:
             return
 
+        # Check if we should participate in communication
+        if not await self._should_participate_in_communication():
+            logger.debug("Freqtrade skipping insight sharing due to participation threshold")
+            return
+
         try:
             insight_payload = {
                 "agent": "freqtrade",
@@ -363,16 +368,105 @@ class FreqtradeMCPAdapter:
             return []
 
         try:
-            # This would query the coordinator for recent global signals
-            # For now, return insights that can be learned
-            return [
-                "Global signal analysis: Multiple agents showing BTC momentum",
-                "Cross-asset correlation: ETH following BTC pattern",
-                "Risk aggregation: High conviction across multiple agents on BTC"
-            ]
+            # Query coordinator for recent global signals
+            response = await self.mcp_client._client.get("/global-signals")
+            if response.status_code == 200:
+                signals_data = response.json()
+                return self._analyze_global_signals(signals_data.get("signals", []))
+            else:
+                return []
         except Exception as e:
             logger.error(f"Failed to learn from global signals: {e}")
             return []
+
+    async def get_role_guidance(self) -> Dict[str, Any]:
+        """Get role guidance from portfolio orchestrator."""
+        if not self.mcp_client:
+            return {"guidance": "MCP not available"}
+
+        try:
+            response = await self.mcp_client._client.get(f"/agent/freqtrade-hft/guidance")
+            if response.status_code == 200:
+                return response.json()
+            else:
+                return {"guidance": "Guidance not available"}
+        except Exception as e:
+            logger.error(f"Failed to get role guidance: {e}")
+            return {"guidance": "Error retrieving guidance"}
+
+    async def validate_trade_intent(self, trade_details: Dict[str, Any]) -> bool:
+        """Validate trade against portfolio constraints."""
+        if not self.mcp_client:
+            return True  # Allow trade if MCP unavailable
+
+        try:
+            response = await self.mcp_client._client.post(
+                "/validate-trade/freqtrade-hft",
+                json=trade_details
+            )
+            if response.status_code == 200:
+                result = response.json()
+                return result.get("trade_valid", True)
+            else:
+                return True  # Allow trade if validation fails
+        except Exception as e:
+            logger.error(f"Failed to validate trade: {e}")
+            return True  # Allow trade on error
+
+    def _analyze_global_signals(self, signals: list) -> list:
+        """Analyze global signals for Freqtrade insights."""
+        insights = []
+
+        if not signals:
+            return insights
+
+        # Group by symbol
+        symbol_signals = {}
+        for signal in signals:
+            symbol = signal.get("symbol", "unknown")
+            if symbol not in symbol_signals:
+                symbol_signals[symbol] = []
+            symbol_signals[symbol].append(signal)
+
+        # Analyze each symbol
+        for symbol, sym_signals in symbol_signals.items():
+            # Look for consensus patterns
+            buy_signals = [s for s in sym_signals if s.get("side") == "buy"]
+            sell_signals = [s for s in sym_signals if s.get("side") == "sell"]
+
+            total_signals = len(sym_signals)
+            buy_ratio = len(buy_signals) / total_signals if total_signals > 0 else 0
+
+            if buy_ratio > 0.7:
+                insights.append(f"Strong bullish consensus on {symbol} ({buy_ratio:.1%})")
+            elif buy_ratio < 0.3:
+                insights.append(f"Strong bearish consensus on {symbol} ({1-buy_ratio:.1%})")
+            else:
+                insights.append(f"Mixed signals on {symbol}, monitor closely")
+
+            # Check for high conviction signals
+            high_conf_signals = [s for s in sym_signals if s.get("confidence", 0) > 0.8]
+            if high_conf_signals:
+                insights.append(f"High conviction signals detected on {symbol}")
+
+        return insights
+
+    async def _should_participate_in_communication(self) -> bool:
+        """Check if Freqtrade should participate in communication based on activity levels."""
+        if not self.mcp_client:
+            return False
+
+        try:
+            # Check with coordinator if we should participate
+            response = await self.mcp_client._client.get("/agent/freqtrade-hft/participation-check")
+            if response.status_code == 200:
+                result = response.json()
+                return result.get("should_participate", True)
+            else:
+                return True  # Default to participating if check fails
+        except Exception as e:
+            logger.debug(f"Participation check failed, defaulting to participate: {e}")
+            return True
 
     async def _check_pending_discussions(self) -> list:
         """Check for pending discussion invitations."""
