@@ -218,20 +218,94 @@ class FreqtradeMCPAdapter:
         except Exception as e:
             logger.error(f"Failed to publish strategy adjustment: {e}")
 
-    async def consume_llm_signals(self) -> list:
-        """Consume LLM signals from other agents."""
-        # This would typically poll the MCP coordinator for consensus decisions
-        # For now, return mock signals for demonstration
+    async def consume_collaboration_signals(self) -> list:
+        """Consume collaboration signals and discussions from other agents."""
         if not self.mcp_client:
             return []
 
         try:
-            # In a real implementation, this would query the coordinator
-            # for consensus decisions that Freqtrade should execute
-            return []
+            # Check for discussion invitations and agent communications
+            discussions = await self._check_pending_discussions()
+            questions = await self._check_pending_questions()
+            insights = await self._check_pending_insights()
+
+            return {
+                "discussions": discussions,
+                "questions": questions,
+                "insights": insights
+            }
         except Exception as e:
-            logger.error(f"Failed to consume LLM signals: {e}")
-            return []
+            logger.error(f"Failed to consume collaboration signals: {e}")
+            return {"discussions": [], "questions": [], "insights": []}
+
+    async def ask_agent_question(self, target_agent: str, question: str, context: Dict[str, Any] = None):
+        """Ask a question to another agent."""
+        if not self.mcp_client:
+            return
+
+        try:
+            question_payload = {
+                "asking_agent": "freqtrade",
+                "target_agent": target_agent,
+                "question": question,
+                "context": context or {},
+                "timestamp": asyncio.get_event_loop().time()
+            }
+
+            # Ask via MCP coordinator
+            response = await self.mcp_client.publish({
+                "message_type": "ask_question",
+                "question": question_payload
+            })
+
+            logger.info(f"Freqtrade asked {target_agent}: {question}")
+            return response
+
+        except Exception as e:
+            logger.error(f"Failed to ask question: {e}")
+
+    async def share_strategy_insight(self, symbol: str, insight: str, confidence: float = None):
+        """Share a trading insight with other agents."""
+        if not self.mcp_client:
+            return
+
+        try:
+            insight_payload = {
+                "agent": "freqtrade",
+                "symbol": symbol,
+                "insight": insight,
+                "confidence": confidence,
+                "strategy_type": "technical_analysis",
+                "timestamp": asyncio.get_event_loop().time()
+            }
+
+            await self.mcp_client.publish({
+                "message_type": "share_insight",
+                "insight": insight_payload
+            })
+
+            logger.info(f"Freqtrade shared insight about {symbol}: {insight}")
+
+        except Exception as e:
+            logger.error(f"Failed to share insight: {e}")
+
+    async def _check_pending_discussions(self) -> list:
+        """Check for pending discussion invitations."""
+        # This would poll the coordinator for discussions
+        # For now, return empty list
+        return []
+
+    async def _check_pending_questions(self) -> list:
+        """Check for questions directed at Freqtrade."""
+        # This would poll the coordinator for questions
+        # For now, return empty list
+        return []
+
+    async def _check_pending_insights(self) -> list:
+        """Check for insights shared by other agents."""
+        # This would poll the coordinator for insights
+        # For now, return empty list
+        return []
 
     async def health_check(self) -> Dict[str, Any]:
         """Perform health check."""

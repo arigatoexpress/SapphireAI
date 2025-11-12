@@ -218,18 +218,86 @@ class HummingbotMCPAdapter:
         except Exception as e:
             logger.error(f"Failed to publish inventory adjustment: {e}")
 
-    async def consume_consensus_signals(self) -> list:
-        """Consume consensus signals from the coordinator."""
+    async def consume_collaboration_signals(self) -> dict:
+        """Consume collaboration signals and discussions from other agents."""
         if not self.mcp_client:
-            return []
+            return {"discussions": [], "questions": [], "insights": []}
 
         try:
-            # Query the coordinator for consensus decisions
-            # This would be implemented based on the coordinator's API
-            return []
+            # Check for discussion invitations and agent communications
+            discussions = await self._check_pending_discussions()
+            questions = await self._check_pending_questions()
+            insights = await self._check_pending_insights()
+
+            return {
+                "discussions": discussions,
+                "questions": questions,
+                "insights": insights
+            }
         except Exception as e:
-            logger.error(f"Failed to consume consensus signals: {e}")
-            return []
+            logger.error(f"Failed to consume collaboration signals: {e}")
+            return {"discussions": [], "questions": [], "insights": []}
+
+    async def ask_agent_question(self, target_agent: str, question: str, context: Dict[str, Any] = None):
+        """Ask a question to another agent about market making strategies."""
+        if not self.mcp_client:
+            return
+
+        try:
+            question_payload = {
+                "asking_agent": "hummingbot",
+                "target_agent": target_agent,
+                "question": question,
+                "context": context or {},
+                "timestamp": asyncio.get_event_loop().time()
+            }
+
+            await self.mcp_client.publish({
+                "message_type": "ask_question",
+                "question": question_payload
+            })
+
+            logger.info(f"Hummingbot asked {target_agent}: {question}")
+
+        except Exception as e:
+            logger.error(f"Failed to ask question: {e}")
+
+    async def share_market_making_insight(self, symbol: str, insight: str, spread_data: Dict[str, Any] = None):
+        """Share market making insights with other agents."""
+        if not self.mcp_client:
+            return
+
+        try:
+            insight_payload = {
+                "agent": "hummingbot",
+                "symbol": symbol,
+                "insight": insight,
+                "spread_data": spread_data,
+                "strategy_type": "market_making",
+                "timestamp": asyncio.get_event_loop().time()
+            }
+
+            await self.mcp_client.publish({
+                "message_type": "share_insight",
+                "insight": insight_payload
+            })
+
+            logger.info(f"Hummingbot shared market making insight about {symbol}: {insight}")
+
+        except Exception as e:
+            logger.error(f"Failed to share insight: {e}")
+
+    async def _check_pending_discussions(self) -> list:
+        """Check for pending discussion invitations."""
+        return []
+
+    async def _check_pending_questions(self) -> list:
+        """Check for questions directed at Hummingbot."""
+        return []
+
+    async def _check_pending_insights(self) -> list:
+        """Check for insights shared by other agents."""
+        return []
 
     async def adjust_spread(self, symbol: str, new_spread: float):
         """Adjust market making spread based on consensus."""

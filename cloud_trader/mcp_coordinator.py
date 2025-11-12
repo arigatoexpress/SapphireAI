@@ -149,8 +149,8 @@ class MCPCoordinator:
                     "action": "signal_received"
                 })
 
-            # Check for consensus
-            await self._check_consensus(signal.symbol)
+            # Check for collaboration opportunities
+            await self._check_collaboration_opportunities(signal.symbol)
 
             return {"status": "received", "signal_id": f"{signal.source}_{signal.timestamp.isoformat()}"}
 
@@ -170,6 +170,24 @@ class MCPCoordinator:
             consensus = await self._calculate_consensus(symbol)
             return {"symbol": symbol, "consensus": consensus}
 
+        @self.app.post("/ask-question")
+        async def ask_question(question: Dict[str, Any]):
+            """Allow agents to ask questions to other agents."""
+            await self.receive_agent_question(question)
+            return {"status": "question_routed"}
+
+        @self.app.post("/share-insight")
+        async def share_insight(insight: Dict[str, Any]):
+            """Allow agents to share insights with other agents."""
+            await self.receive_agent_insight(insight)
+            return {"status": "insight_shared"}
+
+        @self.app.get("/discussions/{symbol}")
+        async def get_symbol_discussions(symbol: str):
+            """Get recent discussions for a symbol."""
+            # This would be implemented to return recent discussions
+            return {"symbol": symbol, "discussions": []}
+
         @self.app.get("/status")
         async def get_status():
             """Get overall system status."""
@@ -186,52 +204,110 @@ class MCPCoordinator:
                 "consensus_count": len(self.consensus_decisions)
             }
 
-    async def _check_consensus(self, symbol: str):
-        """Check if consensus is reached for a symbol."""
+    async def _check_collaboration_opportunities(self, symbol: str):
+        """Check for collaboration opportunities and facilitate communication."""
         signals = self.active_signals[symbol]
 
-        # Require signals from at least 2 different component types
-        signal_sources = {s.source for s in signals}
-        if len(signal_sources) < 2:
-            return
+        # Share information when multiple agents are active on the same symbol
+        if len(signals) >= 2:
+            await self._facilitate_agent_discussion(symbol, signals)
 
-        # Calculate consensus confidence
-        buy_signals = [s for s in signals if s.side == "buy"]
-        sell_signals = [s for s in signals if s.side == "sell"]
-
-        # Simple majority voting
-        if len(buy_signals) > len(sell_signals):
-            consensus_side = "buy"
-            consensus_confidence = sum(s.confidence for s in buy_signals) / len(buy_signals)
-        elif len(sell_signals) > len(buy_signals):
-            consensus_side = "sell"
-            consensus_confidence = sum(s.confidence for s in sell_signals) / len(sell_signals)
-        else:
-            return  # No clear consensus
-
-        # Create consensus decision
-        consensus = {
+    async def _facilitate_agent_discussion(self, symbol: str, signals: list):
+        """Facilitate collaborative discussion between agents."""
+        # Create discussion context
+        discussion = {
             "symbol": symbol,
-            "side": consensus_side,
-            "confidence": consensus_confidence,
-            "sources": [s.source.value for s in (buy_signals if consensus_side == "buy" else sell_signals)],
+            "active_agents": [s.source for s in signals],
+            "signal_summary": [
+                {
+                    "agent": s.source,
+                    "side": s.side,
+                    "confidence": s.confidence,
+                    "strategy": getattr(s, 'strategy', 'unknown'),
+                    "notional": s.notional
+                }
+                for s in signals
+            ],
             "timestamp": datetime.now(),
-            "rationale": f"Consensus from {len(signal_sources)} component types"
+            "discussion_id": f"disc_{symbol}_{int(datetime.now().timestamp())}"
         }
 
-        self.consensus_decisions.append(consensus)
-
-        # Publish consensus
+        # Publish discussion opportunity
         if self.pubsub_client:
-            await self.pubsub_client.publish_decision({
-                "consensus": consensus,
-                "action": "consensus_reached"
+            await self.pubsub_client.publish_reasoning({
+                "event": "agent_discussion",
+                "discussion": discussion,
+                "action": "collaboration_opportunity"
             })
 
-        # Execute consensus action
-        await self._execute_consensus(consensus)
+        # Allow agents to respond and ask questions
+        await self._broadcast_discussion_to_agents(discussion)
 
-        logger.info(f"Consensus reached for {symbol}: {consensus_side} with {consensus_confidence:.2f} confidence")
+        logger.info(f"Agent discussion initiated for {symbol} with {len(signals)} participants")
+
+    async def _broadcast_discussion_to_agents(self, discussion: Dict[str, Any]):
+        """Broadcast discussion opportunity to all participating agents."""
+        for agent_type in discussion["active_agents"]:
+            component_id = self._get_component_id_for_agent(agent_type)
+            if component_id:
+                await self._notify_component(component_id, {
+                    "message_type": "discussion_invitation",
+                    "discussion": discussion,
+                    "timestamp": datetime.now()
+                })
+
+    def _get_component_id_for_agent(self, agent_type: str) -> Optional[str]:
+        """Get component ID for an agent type."""
+        for component_id, component_type in self.registered_components.items():
+            if agent_type.lower() in component_id.lower():
+                return component_id
+        return None
+
+    async def receive_agent_question(self, question: Dict[str, Any]):
+        """Receive a question from an agent and route it appropriately."""
+        target_agent = question.get("target_agent")
+        asking_agent = question.get("asking_agent")
+        question_content = question.get("question")
+
+        # Route question to target agent or broadcast to all
+        if target_agent:
+            component_id = self._get_component_id_for_agent(target_agent)
+            if component_id:
+                await self._notify_component(component_id, {
+                    "message_type": "agent_question",
+                    "question": question,
+                    "timestamp": datetime.now()
+                })
+        else:
+            # Broadcast question to all agents
+            for component_id in self.registered_components.keys():
+                await self._notify_component(component_id, {
+                    "message_type": "agent_question_broadcast",
+                    "question": question,
+                    "timestamp": datetime.now()
+                })
+
+        logger.info(f"Agent {asking_agent} asked: {question_content}")
+
+    async def receive_agent_insight(self, insight: Dict[str, Any]):
+        """Receive an insight from an agent and share with others."""
+        symbol = insight.get("symbol")
+        agent = insight.get("agent")
+        insight_content = insight.get("insight")
+
+        # Share insight with other agents working on the same symbol
+        signals = self.active_signals.get(symbol, [])
+        for signal in signals:
+            if signal.source != agent:  # Don't send back to sender
+                component_id = self._get_component_id_for_agent(signal.source)
+                if component_id:
+                    await self._notify_component(component_id, {
+                        "message_type": "agent_insight",
+                        "insight": insight,
+                        "timestamp": datetime.now()
+                    })
+
+        logger.info(f"Agent {agent} shared insight about {symbol}: {insight_content}")
 
     async def _execute_consensus(self, consensus: Dict[str, Any]):
         """Execute a consensus trading decision."""
