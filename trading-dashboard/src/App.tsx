@@ -4,6 +4,7 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { CssBaseline, Box } from '@mui/material';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { TradingProvider } from './contexts/TradingContext';
+import Sidebar from './components/Sidebar';
 import Navbar from './components/Navbar';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -92,55 +93,41 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 function AppContent() {
   const { user } = useAuth();
 
+  if (!user) {
+    return (
+      <Router>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="*" element={<Navigate to="/login" />} />
+        </Routes>
+      </Router>
+    );
+  }
+
   return (
     <Router>
-      <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-        {user && <Navbar />}
-        <Box component="main" sx={{ flexGrow: 1, py: user ? 3 : 0 }}>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route
-              path="/"
-              element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/portfolio"
-              element={
-                <ProtectedRoute>
-                  <Portfolio />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/agents"
-              element={
-                <ProtectedRoute>
-                  <Agents />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/analytics"
-              element={
-                <ProtectedRoute>
-                  <Analytics />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/settings"
-              element={
-                <ProtectedRoute>
-                  <Settings />
-                </ProtectedRoute>
-              }
-            />
-            <Route path="*" element={<Navigate to="/" />} />
-          </Routes>
+      <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
+        <Sidebar />
+        <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+          <Navbar />
+          <Box
+            component="main"
+            sx={{
+              flexGrow: 1,
+              p: 3,
+              overflow: 'auto',
+              background: 'linear-gradient(135deg, #0a0a0a 0%, #0d0d0d 100%)',
+            }}
+          >
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/portfolio" element={<Portfolio />} />
+              <Route path="/agents" element={<Agents />} />
+              <Route path="/analytics" element={<Analytics />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="*" element={<Navigate to="/" />} />
+            </Routes>
+          </Box>
         </Box>
       </Box>
     </Router>
