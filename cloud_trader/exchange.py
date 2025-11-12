@@ -287,6 +287,23 @@ class AsterClient:
             params={"symbol": symbol, "interval": interval, "limit": limit},
         )
 
+    async def get_historical_klines(
+        self, symbol: str, interval: str = "1h", limit: int = 100
+    ) -> Optional[List[List[Any]]]:
+        """Alias for get_klines to maintain compatibility."""
+        try:
+            result = await self.get_klines(symbol, interval, limit)
+            # Convert dict format to list format expected by some callers
+            if isinstance(result, list) and len(result) > 0 and isinstance(result[0], dict):
+                return [[item.get('openTime'), item.get('open'), item.get('high'),
+                         item.get('low'), item.get('close'), item.get('volume'),
+                         item.get('closeTime'), item.get('quoteVolume'),
+                         item.get('trades'), item.get('takerBase'),
+                         item.get('takerQuote'), item.get('ignore')] for item in result]
+            return result
+        except Exception:
+            return None
+
     async def get_ticker_price(self, symbol: str) -> Dict[str, Any]:
         return await self._make_request(
             "GET", "/fapi/v1/ticker/price", params={"symbol": symbol}

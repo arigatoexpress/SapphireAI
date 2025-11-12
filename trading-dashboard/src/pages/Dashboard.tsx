@@ -9,13 +9,16 @@ const Dashboard: React.FC = () => {
   const { error, refreshData } = useTrading();
 
   return (
-    <Container maxWidth="xl" sx={{ py: 2 }}>
+    <Container maxWidth="xl" sx={{ py: 2 }} className="fade-in-up">
       {error && (
         <Alert
           severity="error"
           sx={{
             mb: 3,
             borderRadius: 2,
+            backdropFilter: 'blur(10px)',
+            background: 'rgba(255, 87, 87, 0.1)',
+            border: '1px solid rgba(255, 87, 87, 0.2)',
             '& .MuiAlert-message': { width: '100%' }
           }}
           action={
@@ -23,7 +26,12 @@ const Dashboard: React.FC = () => {
               color="inherit"
               size="small"
               onClick={refreshData}
-              sx={{ fontWeight: 600 }}
+              sx={{
+                fontWeight: 600,
+                '&:hover': {
+                  background: 'rgba(255, 255, 255, 0.1)'
+                }
+              }}
             >
               Retry
             </Button>
@@ -41,12 +49,36 @@ const Dashboard: React.FC = () => {
       )}
 
       {/* System Overview */}
-      <Typography variant="h4" sx={{ mb: 1, fontWeight: 700 }}>
-        Trading Operations Center
-      </Typography>
-      <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
-        Enterprise-grade autonomous trading system with real-time monitoring and AI-driven decision making.
-      </Typography>
+      <Box sx={{ mb: 4, textAlign: 'center' }}>
+        <Typography
+          variant="h3"
+          sx={{
+            mb: 2,
+            fontWeight: 800,
+            background: 'linear-gradient(135deg, #00d4aa 0%, #8a2be2 50%, #00f5d4 100%)',
+            backgroundClip: 'text',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            textAlign: 'center',
+            animation: 'float 6s ease-in-out infinite',
+          }}
+        >
+          💎 Sapphire Trading Operations Center
+        </Typography>
+        <Typography
+          variant="h6"
+          sx={{
+            color: 'rgba(255, 255, 255, 0.7)',
+            maxWidth: '600px',
+            mx: 'auto',
+            lineHeight: 1.6,
+            fontWeight: 400,
+          }}
+        >
+          Enterprise-grade autonomous trading system with real-time monitoring,
+          AI-driven decision making, and institutional-grade risk management.
+        </Typography>
+      </Box>
 
       {/* Key Performance Indicators */}
       <EnhancedMetrics />

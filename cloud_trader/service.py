@@ -1284,12 +1284,12 @@ class TradingService:
                 # Agent dynamically calculates TP/SL based on their personality and market conditions
                 if getattr(agent_state, 'intelligence_tp_sl', True):
                     tp_sl_levels = self._risk.calculate_agent_tp_sl(
-                        agent_config, market_conditions, price, conviction_score
+                        agent_config, market_conditions, snapshot.price, conviction_score
                     )
                 else:
                     # Fallback to standard TP/SL calculation
                     tp_sl_levels = self._risk.calculate_optimal_tp_sl(
-                        price, volatility_estimate, confidence_score
+                        snapshot.price, volatility_estimate, confidence_score
                     )
 
                 if self._mcp:

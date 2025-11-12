@@ -1,4 +1,3 @@
-import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { CssBaseline, Box } from '@mui/material';
@@ -6,6 +5,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { TradingProvider } from './contexts/TradingContext';
 import Sidebar from './components/Sidebar';
 import Navbar from './components/Navbar';
+import AnimatedBackground from './components/AnimatedBackground';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Portfolio from './pages/Portfolio';
@@ -13,82 +13,138 @@ import Agents from './pages/Agents';
 import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
 
-// Dark theme optimized for trading dashboard
+// 🎨 Premium Sapphire Theme - Artful & Sophisticated
 const theme = createTheme({
   palette: {
     mode: 'dark',
     primary: {
       main: '#00d4aa', // Sapphire green
+      light: '#00f5d4',
+      dark: '#009d80',
     },
     secondary: {
-      main: '#ff6b35', // Coral accent
+      main: '#8a2be2', // Electric purple
+      light: '#a855f7',
+      dark: '#6b21a8',
     },
     background: {
-      default: '#0a0a0a',
-      paper: '#1a1a1a',
+      default: 'transparent', // Let CSS handle background
+      paper: 'rgba(255, 255, 255, 0.08)',
     },
     success: {
       main: '#00d4aa',
     },
     error: {
-      main: '#ff4444',
+      main: '#ff4757',
     },
     warning: {
-      main: '#ffaa00',
+      main: '#ffa502',
+    },
+    info: {
+      main: '#3742fa',
     },
   },
   typography: {
-    fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
+    fontFamily: '"Inter", "SF Pro Display", "Segoe UI", system-ui, sans-serif',
     h1: {
-      fontSize: '2.5rem',
-      fontWeight: 700,
+      fontSize: '3rem',
+      fontWeight: 800,
+      letterSpacing: '-0.02em',
+      lineHeight: 1.1,
     },
     h2: {
-      fontSize: '2rem',
-      fontWeight: 600,
+      fontSize: '2.25rem',
+      fontWeight: 700,
+      letterSpacing: '-0.01em',
+      lineHeight: 1.2,
     },
     h3: {
-      fontSize: '1.75rem',
+      fontSize: '1.875rem',
       fontWeight: 600,
+      letterSpacing: '-0.01em',
+      lineHeight: 1.3,
+    },
+    h4: {
+      fontSize: '1.5rem',
+      fontWeight: 600,
+      letterSpacing: '0em',
+      lineHeight: 1.4,
+    },
+    h5: {
+      fontSize: '1.25rem',
+      fontWeight: 600,
+      letterSpacing: '0em',
+      lineHeight: 1.5,
+    },
+    h6: {
+      fontSize: '1.125rem',
+      fontWeight: 600,
+      letterSpacing: '0em',
+      lineHeight: 1.6,
+    },
+    body1: {
+      fontSize: '1rem',
+      lineHeight: 1.7,
+      letterSpacing: '0.01em',
+    },
+    body2: {
+      fontSize: '0.875rem',
+      lineHeight: 1.6,
+      letterSpacing: '0.02em',
     },
   },
+  shape: {
+    borderRadius: 16,
+  },
   components: {
-    MuiButton: {
-      styleOverrides: {
-        root: {
-          borderRadius: 8,
-          textTransform: 'none',
-          fontWeight: 600,
-        },
-      },
-    },
     MuiCard: {
       styleOverrides: {
         root: {
-          borderRadius: 12,
-          background: 'linear-gradient(135deg, rgba(26,26,26,0.9) 0%, rgba(15,15,15,0.9) 100%)',
-          backdropFilter: 'blur(10px)',
-          border: '1px solid rgba(0,212,170,0.1)',
+          background: 'rgba(255, 255, 255, 0.08)',
+          backdropFilter: 'blur(20px)',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
+          borderRadius: '16px',
+          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          '&:hover': {
+            transform: 'translateY(-2px)',
+            boxShadow: '0 12px 40px rgba(0, 0, 0, 0.4)',
+          },
+        },
+      },
+    },
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          borderRadius: '12px',
+          textTransform: 'none',
+          fontWeight: 600,
+          letterSpacing: '0.02em',
+          transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+        },
+        contained: {
+          background: 'linear-gradient(135deg, #00d4aa 0%, #00f5d4 100%)',
+          boxShadow: '0 4px 16px rgba(0, 212, 170, 0.3)',
+          '&:hover': {
+            background: 'linear-gradient(135deg, #00f5d4 0%, #00d4aa 100%)',
+            boxShadow: '0 6px 24px rgba(0, 212, 170, 0.4)',
+            transform: 'translateY(-1px)',
+          },
+        },
+      },
+    },
+    MuiPaper: {
+      styleOverrides: {
+        root: {
+          backgroundImage: 'none',
+          background: 'rgba(255, 255, 255, 0.08)',
+          backdropFilter: 'blur(20px)',
         },
       },
     },
   },
 });
 
-// Protected Route component
-const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, loading } = useAuth();
-
-  if (loading) {
-    return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh">
-        <div>Loading...</div>
-      </Box>
-    );
-  }
-
-  return user ? <>{children}</> : <Navigate to="/login" />;
-};
 
 function AppContent() {
   const { user } = useAuth();
@@ -106,7 +162,8 @@ function AppContent() {
 
   return (
     <Router>
-      <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
+      <AnimatedBackground />
+      <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'transparent' }}>
         <Sidebar />
         <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
           <Navbar />
@@ -116,7 +173,7 @@ function AppContent() {
               flexGrow: 1,
               p: 3,
               overflow: 'auto',
-              background: 'linear-gradient(135deg, #0a0a0a 0%, #0d0d0d 100%)',
+              background: 'transparent',
             }}
           >
             <Routes>
