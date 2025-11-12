@@ -36,6 +36,10 @@ spec:
           value: '["fingpt-alpha"]'
         - name: ENABLE_VERTEX_AI
           value: "true"
+        - name: MCP_ENABLED
+          value: "true"
+        - name: MCP_COORDINATOR_URL
+          value: "http://mcp-coordinator.trading.svc.cluster.local:8081"
         - name: FINGPT_VERTEX_ENDPOINT
           value: "https://us-central1-aiplatform.googleapis.com/v1/projects/sapphireinfinite/locations/us-central1/endpoints/fingpt-alpha-endpoint"
         envFrom:
