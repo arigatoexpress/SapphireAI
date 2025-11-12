@@ -8,6 +8,7 @@ import asyncio
 import httpx
 import json
 import logging
+import os
 import sys
 from datetime import datetime
 from typing import Dict, List, Any
@@ -18,8 +19,17 @@ logger = logging.getLogger(__name__)
 class DeploymentValidator:
     """Validates deployment readiness and system integration."""
 
-    def __init__(self, base_url: str = "http://localhost:8081"):
-        self.base_url = base_url
+    def __init__(self, base_url: str = None):
+        # Auto-detect environment
+        if base_url:
+            self.base_url = base_url
+        elif os.getenv("KUBERNETES_SERVICE_HOST"):
+            # Running inside Kubernetes
+            self.base_url = "http://mcp-coordinator.trading.svc.cluster.local:8081"
+        else:
+            # Local development - check if services are running
+            self.base_url = "http://localhost:8081"
+
         self.client = httpx.AsyncClient(timeout=30.0)
 
     async def validate_mcp_coordinator(self) -> Dict[str, Any]:

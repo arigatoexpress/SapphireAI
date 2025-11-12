@@ -226,7 +226,7 @@ class RiskManager:
         # Recalculate exposure and leverage
         await self._recalculate_exposure()
 
-        logger.info(".2f"
+        logger.info(f"Portfolio value updated: ${old_value:.2f} → ${new_value:.2f} (P&L: ${self.daily_pnl:.2f})")
     async def update_position(self, symbol: str, position_data: Dict):
         """Update position information."""
         self.positions[symbol] = position_data
