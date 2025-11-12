@@ -192,8 +192,9 @@ const EnhancedMetrics: React.FC = () => {
     if (!portfolio) return { trend: 'neutral' as const, value: '0%' };
     // This would calculate actual portfolio change - for now, mock data
     const change = 2.5; // Mock positive change
+    const trend: 'up' | 'down' | 'neutral' = change > 0 ? 'up' : change < 0 ? 'down' : 'neutral';
     return {
-      trend: (change > 0 ? 'up' : change < 0 ? 'down' : 'neutral') as const,
+      trend,
       value: `${change > 0 ? '+' : ''}${change.toFixed(1)}%`
     };
   };

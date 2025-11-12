@@ -1,6 +1,4 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { doc, onSnapshot, collection, query, orderBy, limit } from 'firebase/firestore';
-import { db } from '../lib/firebase';
 
 interface PortfolioData {
   portfolio_value: number;
@@ -37,7 +35,10 @@ interface TradingContextType {
   recentSignals: TradingSignal[];
   loading: boolean;
   error: string | null;
+  isOnline: boolean;
+  lastUpdated: Date | null;
   refreshData: () => void;
+  checkHealth: () => Promise<boolean>;
 }
 
 const TradingContext = createContext<TradingContextType | undefined>(undefined);
@@ -60,47 +61,124 @@ export const TradingProvider: React.FC<TradingProviderProps> = ({ children }) =>
   const [recentSignals, setRecentSignals] = useState<TradingSignal[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isOnline, setIsOnline] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   // Backend API base URL
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://cloud-trader-880429861698.us-central1.run.app';
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.sapphiretrade.xyz';
 
-  const fetchPortfolioData = useCallback(async () => {
+  const fetchPortfolioData = useCallback(async (retryCount = 0) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/portfolio-status`);
-      if (!response.ok) throw new Error('Failed to fetch portfolio data');
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
+      const response = await fetch(`${API_BASE_URL}/portfolio-status`, {
+        signal: controller.signal,
+        headers: { 'Cache-Control': 'no-cache' }
+      });
+      clearTimeout(timeoutId);
+
+      if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       const data = await response.json();
       setPortfolio(data);
+      setLastUpdated(new Date());
+      setError(null); // Clear any previous errors
+      setIsOnline(true);
     } catch (err) {
-      console.error('Error fetching portfolio data:', err);
-      setError('Failed to fetch portfolio data');
+      const error = err as Error;
+      if (error.name === 'AbortError') {
+        setError('Request timeout - please check your connection');
+      } else if (retryCount < 2) {
+        // Retry up to 2 times with exponential backoff
+        setTimeout(() => fetchPortfolioData(retryCount + 1), Math.pow(2, retryCount) * 1000);
+        return;
+      } else {
+        setError('Failed to fetch portfolio data after retries');
+      }
     }
   }, [API_BASE_URL]);
 
-  const fetchAgentActivities = useCallback(async () => {
+  const fetchAgentActivities = useCallback(async (retryCount = 0) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/agent-activity`);
-      if (!response.ok) throw new Error('Failed to fetch agent activities');
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+      const response = await fetch(`${API_BASE_URL}/agent-activity`, {
+        signal: controller.signal,
+        headers: { 'Cache-Control': 'no-cache' }
+      });
+      clearTimeout(timeoutId);
+
+      if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       const data = await response.json();
       const activities = Object.entries(data).map(([agent_id, activity]: [string, any]) => ({
         agent_id,
         ...activity
       }));
       setAgentActivities(activities);
+      setLastUpdated(new Date());
+      setError(null);
+      setIsOnline(true);
     } catch (err) {
-      console.error('Error fetching agent activities:', err);
-      setError('Failed to fetch agent activities');
+      const error = err as Error;
+      if (error.name === 'AbortError') {
+        setError('Request timeout - please check your connection');
+      } else if (retryCount < 2) {
+        setTimeout(() => fetchAgentActivities(retryCount + 1), Math.pow(2, retryCount) * 1000);
+        return;
+      } else {
+        setError('Failed to fetch agent activities after retries');
+      }
     }
   }, [API_BASE_URL]);
 
-  const fetchRecentSignals = useCallback(async () => {
+  const fetchRecentSignals = useCallback(async (retryCount = 0) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/global-signals`);
-      if (!response.ok) throw new Error('Failed to fetch recent signals');
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+      const response = await fetch(`${API_BASE_URL}/global-signals`, {
+        signal: controller.signal,
+        headers: { 'Cache-Control': 'no-cache' }
+      });
+      clearTimeout(timeoutId);
+
+      if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       const data = await response.json();
       setRecentSignals(data.signals || []);
+      setLastUpdated(new Date());
+      setError(null);
+      setIsOnline(true);
     } catch (err) {
-      console.error('Error fetching recent signals:', err);
-      setError('Failed to fetch recent signals');
+      const error = err as Error;
+      if (error.name === 'AbortError') {
+        setError('Request timeout - please check your connection');
+      } else if (retryCount < 2) {
+        setTimeout(() => fetchRecentSignals(retryCount + 1), Math.pow(2, retryCount) * 1000);
+        return;
+      } else {
+        setError('Failed to fetch recent signals after retries');
+      }
+    }
+  }, [API_BASE_URL]);
+
+  const checkHealth = useCallback(async (): Promise<boolean> => {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+      const response = await fetch(`${API_BASE_URL}/healthz`, {
+        signal: controller.signal,
+        method: 'GET'
+      });
+      clearTimeout(timeoutId);
+
+      const isHealthy = response.ok;
+      setIsOnline(isHealthy);
+      return isHealthy;
+    } catch (err) {
+      setIsOnline(false);
+      return false;
     }
   }, [API_BASE_URL]);
 
@@ -109,13 +187,14 @@ export const TradingProvider: React.FC<TradingProviderProps> = ({ children }) =>
     setError(null);
 
     try {
-      await Promise.all([
+      await Promise.allSettled([
         fetchPortfolioData(),
         fetchAgentActivities(),
         fetchRecentSignals()
       ]);
+      // Promise.allSettled allows partial failures - if one API fails, others still succeed
     } catch (err) {
-      console.error('Error refreshing data:', err);
+      setError('Failed to refresh data');
     } finally {
       setLoading(false);
     }
@@ -126,6 +205,7 @@ export const TradingProvider: React.FC<TradingProviderProps> = ({ children }) =>
 
     // Set up real-time updates (polling for now, can be upgraded to websockets later)
     const interval = setInterval(() => {
+      // Use individual fetches for background updates to avoid blocking UI
       fetchPortfolioData();
       fetchAgentActivities();
       fetchRecentSignals();
@@ -140,7 +220,10 @@ export const TradingProvider: React.FC<TradingProviderProps> = ({ children }) =>
     recentSignals,
     loading,
     error,
+    isOnline,
+    lastUpdated,
     refreshData,
+    checkHealth,
   };
 
   return <TradingContext.Provider value={value}>{children}</TradingContext.Provider>;

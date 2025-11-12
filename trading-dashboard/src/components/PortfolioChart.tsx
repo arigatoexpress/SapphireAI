@@ -31,13 +31,10 @@ import {
   AreaChart,
   Bar,
   BarChart as RechartsBarChart,
-  PieChart,
-  Pie,
-  Cell,
 } from 'recharts';
 
 const PortfolioChart: React.FC = () => {
-  const { portfolio, agentActivities, loading, refreshData } = useTrading();
+  const { portfolio, loading, refreshData } = useTrading();
   const [chartType, setChartType] = useState<'line' | 'area' | 'bar'>('area');
   const [timeRange, setTimeRange] = useState<'1h' | '24h' | '7d' | '30d'>('24h');
 
@@ -45,7 +42,6 @@ const PortfolioChart: React.FC = () => {
   const generatePortfolioData = () => {
     const data = [];
     const points = timeRange === '1h' ? 60 : timeRange === '24h' ? 24 : timeRange === '7d' ? 7 : 30;
-    const multiplier = timeRange === '1h' ? 1 : timeRange === '24h' ? 60 : timeRange === '7d' ? 1440 : 10080;
 
     let currentValue = portfolio?.portfolio_value || 10000;
 
@@ -176,7 +172,27 @@ const PortfolioChart: React.FC = () => {
         );
 
       default:
-        return null;
+        return (
+          <AreaChart {...commonProps}>
+            <defs>
+              <linearGradient id="portfolioGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#00d4aa" stopOpacity={0.3}/>
+                <stop offset="95%" stopColor="#00d4aa" stopOpacity={0}/>
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+            <XAxis dataKey="time" stroke="#888" fontSize={12} />
+            <YAxis tickFormatter={formatValue} stroke="#888" fontSize={12} />
+            <RechartsTooltip content={<CustomTooltip />} />
+            <Area
+              type="monotone"
+              dataKey="value"
+              stroke="#00d4aa"
+              strokeWidth={2}
+              fill="url(#portfolioGradient)"
+            />
+          </AreaChart>
+        );
     }
   };
 

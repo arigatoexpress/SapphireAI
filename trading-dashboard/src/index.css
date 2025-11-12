@@ -1,4 +1,4 @@
-/* Global styles for Sapphire Trading Dashboard */
+/* 🎨 SAPPHIRE TRADING - Premium Visual Design System */
 
 * {
   box-sizing: border-box;
@@ -8,63 +8,227 @@ html, body, #root {
   height: 100%;
   margin: 0;
   padding: 0;
-  font-family: 'Inter', 'Roboto', 'Helvetica', 'Arial', sans-serif;
-  background-color: #0a0a0a;
-  color: #ffffff;
+  font-family: 'Inter', 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
+  background:
+    radial-gradient(ellipse at top, rgba(0, 212, 170, 0.1) 0%, transparent 50%),
+    radial-gradient(ellipse at bottom, rgba(138, 43, 226, 0.1) 0%, transparent 50%),
+    linear-gradient(135deg, #0a0a0a 0%, #0f0f23 50%, #0a0a0a 100%);
+  background-attachment: fixed;
+  color: rgba(255, 255, 255, 0.95);
+  overflow-x: hidden;
 }
 
 body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "kern" 1, "liga" 1;
+  letter-spacing: -0.01em;
 }
 
-/* Custom scrollbar */
+/* ✨ Advanced Custom Scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 12px;
+  height: 12px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #1a1a1a;
+  background:
+    linear-gradient(180deg,
+      rgba(255, 255, 255, 0.05) 0%,
+      rgba(255, 255, 255, 0.02) 50%,
+      rgba(255, 255, 255, 0.05) 100%);
+  border-radius: 8px;
+  margin: 4px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #00d4aa;
-  border-radius: 4px;
+  background:
+    linear-gradient(180deg,
+      rgba(0, 212, 170, 0.8) 0%,
+      rgba(0, 212, 170, 0.6) 50%,
+      rgba(0, 212, 170, 0.8) 100%);
+  border-radius: 8px;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  box-shadow:
+    0 2px 8px rgba(0, 212, 170, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #00f5d4;
+  background:
+    linear-gradient(180deg,
+      rgba(0, 245, 212, 0.9) 0%,
+      rgba(0, 245, 212, 0.7) 50%,
+      rgba(0, 245, 212, 0.9) 100%);
+  transform: scale(1.1);
+  box-shadow:
+    0 4px 12px rgba(0, 245, 212, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
-/* Animation classes */
-@keyframes fadeIn {
+::-webkit-scrollbar-corner {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* 🌟 ADVANCED ANIMATIONS & EFFECTS */
+
+/* Premium fade-in with scale */
+@keyframes fadeInUp {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(30px) scale(0.95);
+    filter: blur(10px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
+    filter: blur(0);
   }
 }
 
-.fade-in {
-  animation: fadeIn 0.3s ease-out;
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(50px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
-/* Loading spinner */
-.spinner {
-  border: 3px solid rgba(0, 212, 170, 0.3);
+@keyframes glowPulse {
+  0%, 100% {
+    box-shadow:
+      0 0 20px rgba(0, 212, 170, 0.3),
+      0 0 40px rgba(0, 212, 170, 0.1),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+  50% {
+    box-shadow:
+      0 0 30px rgba(0, 212, 170, 0.5),
+      0 0 60px rgba(0, 212, 170, 0.2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+/* Premium animation classes */
+.fade-in-up {
+  animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.slide-in-right {
+  animation: slideInRight 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glow-pulse {
+  animation: glowPulse 3s ease-in-out infinite;
+}
+
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.1),
+    transparent
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
+
+.float {
+  animation: float 6s ease-in-out infinite;
+}
+
+/* Advanced glassmorphism */
+.glass {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.glass-strong {
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 20px;
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+/* Premium loading spinner */
+.spinner-premium {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(0, 212, 170, 0.2);
   border-top: 3px solid #00d4aa;
+  border-right: 3px solid #00f5d4;
   border-radius: 50%;
-  width: 30px;
-  height: 30px;
-  animation: spin 1s linear infinite;
+  animation: spinPremium 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+  box-shadow: 0 0 20px rgba(0, 212, 170, 0.3);
 }
 
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+@keyframes spinPremium {
+  0% {
+    transform: rotate(0deg) scale(1);
+    filter: hue-rotate(0deg);
+  }
+  50% {
+    transform: rotate(180deg) scale(1.1);
+    filter: hue-rotate(180deg);
+  }
+  100% {
+    transform: rotate(360deg) scale(1);
+    filter: hue-rotate(360deg);
+  }
+}
+
+/* Advanced gradient backgrounds */
+.gradient-primary {
+  background: linear-gradient(135deg,
+    rgba(0, 212, 170, 0.2) 0%,
+    rgba(138, 43, 226, 0.2) 50%,
+    rgba(0, 212, 170, 0.2) 100%);
+}
+
+.gradient-accent {
+  background: linear-gradient(135deg,
+    rgba(0, 245, 212, 0.3) 0%,
+    rgba(138, 43, 226, 0.3) 100%);
+}
+
+.gradient-text {
+  background: linear-gradient(135deg, #00d4aa 0%, #8a2be2 50%, #00f5d4 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 /* Chart customizations */

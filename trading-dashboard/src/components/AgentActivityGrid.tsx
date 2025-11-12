@@ -18,15 +18,10 @@ import {
 } from '@mui/material';
 import {
   Psychology,
-  TrendingUp,
-  Message,
-  Settings,
   Info,
-  Timeline,
-  BarChart,
 } from '@mui/icons-material';
 import { useTrading } from '../contexts/TradingContext';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
+import { XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
 
 interface AgentCardProps {
   agent: {
