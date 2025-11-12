@@ -15,7 +15,8 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Set
 
 import httpx
-from fastapi import FastAPI, HTTPException
+import uuid
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field
 from starlette.responses import JSONResponse
 
@@ -23,6 +24,9 @@ from .config import get_settings
 from .mcp import MCPMessageType, MCPProposalPayload, MCPResponsePayload
 from .portfolio_orchestrator import get_portfolio_orchestrator
 from .pubsub import PubSubClient
+from .logging_config import get_trading_logger, correlation_context, log_performance
+from .data_collector import get_data_collector, collect_market_data, collect_trading_decision, collect_trade_execution
+from .resilience import get_resilience_manager, circuit_breaker, health_check
 
 logger = logging.getLogger(__name__)
 
@@ -67,8 +71,11 @@ class MCPCoordinator:
         self.pubsub_client = None
         self.app = FastAPI(title="MCP Coordinator", version="1.0.0")
 
-        # Portfolio orchestrator
+        # Initialize core systems
         self.portfolio_orchestrator = get_portfolio_orchestrator()
+        self.data_collector = get_data_collector()
+        self.resilience_manager = get_resilience_manager()
+        self.logger = get_trading_logger("mcp-coordinator")
 
         # Communication management
         self.agent_activity_levels: Dict[str, Dict[str, Any]] = {}
@@ -145,11 +152,45 @@ class MCPCoordinator:
             return {"status": "registered", "component_id": component_id}
 
         @self.app.post("/signal")
-        async def receive_signal(signal: TradingSignal):
+        @log_performance("receive_signal")
+        async def receive_signal(signal: TradingSignal, request: Request = None):
             """Receive trading signal from a component."""
+            # Generate correlation ID for tracing
+            correlation_id = request.headers.get("X-Correlation-ID") if request else str(uuid.uuid4())
+            self.logger.set_correlation_id(correlation_id)
+
             # Track trading activity for participation management
             agent_id = self._get_agent_id_from_source(signal.source)
             self._update_agent_activity(agent_id, "trading")
+
+            # Collect trading decision data
+            decision_data = {
+                "timestamp": signal.timestamp.isoformat(),
+                "agent_id": agent_id,
+                "symbol": signal.symbol,
+                "decision": signal.side,
+                "confidence": signal.confidence,
+                "strategy": getattr(signal, 'strategy', 'unknown'),
+                "indicators": getattr(signal, 'indicators', {}),
+                "market_context": getattr(signal, 'market_context', {}),
+                "reasoning": signal.rationale,
+                "position_size": getattr(signal, 'position_size', 1.0),
+                "risk_parameters": getattr(signal, 'risk_parameters', {}),
+                "correlation_id": correlation_id,
+            }
+            collect_trading_decision(decision_data)
+
+            # Log the trading signal
+            self.logger.log_trade_signal({
+                "symbol": signal.symbol,
+                "side": signal.side,
+                "confidence": signal.confidence,
+                "notional": signal.notional,
+                "price": signal.price,
+                "source": agent_id,
+                "rationale": signal.rationale,
+                "correlation_id": correlation_id,
+            })
 
             # Store signal
             self.active_signals[signal.symbol].append(signal)
@@ -288,6 +329,28 @@ class MCPCoordinator:
             """Set participation threshold for an agent."""
             self.set_participation_threshold(agent_id, threshold["threshold"])
             return {"status": "threshold_set", "agent_id": agent_id, "threshold": threshold["threshold"]}
+
+        @self.app.get("/system-status")
+        async def get_system_status():
+            """Get comprehensive system status."""
+            return self.resilience_manager.get_system_status()
+
+        @self.app.get("/health-metrics")
+        async def get_health_metrics():
+            """Get health metrics for monitoring."""
+            return {
+                "portfolio": self.portfolio_orchestrator.get_portfolio_status(),
+                "data_collection": {
+                    "market_data_collected": len(self.data_collector.market_data_buffer),
+                    "decisions_collected": len(self.data_collector.trading_decisions_buffer),
+                    "executions_collected": len(self.data_collector.trade_executions_buffer),
+                },
+                "communication": {
+                    "active_agents": len(self.agent_activity_levels),
+                    "throttled_agents": len(self.communication_throttles),
+                },
+                "timestamp": datetime.now().isoformat(),
+            }
 
         @self.app.get("/global-signals")
         async def get_global_signals():
