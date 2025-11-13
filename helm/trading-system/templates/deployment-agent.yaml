@@ -1,6 +1,6 @@
 {{- if .Values.agents.enabled }}
 {{- range $agentName, $agentConfig := .Values.agents }}
-{{- if and (default $agentConfig.enabled true) (ne $agentName "enabled") }}
+{{- if ne $agentName "enabled" }}
 ---
 apiVersion: apps/v1
 kind: Deployment
