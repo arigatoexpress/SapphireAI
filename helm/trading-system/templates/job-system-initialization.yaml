@@ -40,18 +40,10 @@ spec:
                 - |
                   #!/bin/sh
                   # Check if all required services are ready
-                  kubectl get pods -n trading --no-headers | grep -E "(cloud-trader|mcp-coordinator|deepseek-bot|qwen-bot)" | grep -c "Running" | xargs test 5 -le
+                  kubectl get pods -n trading --no-headers | grep -E "(cloud-trader|mcp-coordinator|trend-momentum-agent|strategy-optimization-agent|financial-sentiment-agent|market-prediction-agent|volume-microstructure-agent)" | grep -c "Running" | xargs test 7 -le
             initialDelaySeconds: 30
             periodSeconds: 10
             timeoutSeconds: 5
             successThreshold: 1
             failureThreshold: 60  # Wait up to 10 minutes for services
-      {{- with .Values.nodeSelector }}
-      nodeSelector:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.tolerations }}
-      tolerations:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
 {{- end }}

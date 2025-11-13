@@ -582,7 +582,7 @@ affinity:
 
 # System Initialization Job
 systemInitialization:
-  enabled: true
+  enabled: false  # Temporarily disabled to speed up deployment
   image:
     repository: cloud-run-source-deploy/cloud-trader
     tag: "latest"
