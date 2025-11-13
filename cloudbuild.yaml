@@ -44,57 +44,59 @@ steps:
       - 'DOCKER_BUILDKIT=1'
       - 'BUILDKIT_PROGRESS=plain'
 
-  # Build Freqtrade with FreqAI container image
-  - name: 'gcr.io/cloud-builders/docker'
-    args:
-      - 'build'
-      - '-f'
-      - 'Dockerfile.freqtrade'
-      - '--build-arg'
-      - 'CACHE_BUST=${BUILD_ID}'
-      - '-t'
-      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/freqtrade:${BUILD_ID}'
-      - '-t'
-      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/freqtrade:latest'
-      - '--progress=plain'
-      - '.'
-    env:
-      - 'DOCKER_BUILDKIT=1'
-      - 'BUILDKIT_PROGRESS=plain'
+  # TEMPORARILY DISABLED: Build Freqtrade with FreqAI container image
+  # - name: 'gcr.io/cloud-builders/docker'
+  #   args:
+  #     - 'build'
+  #     - '-f'
+  #     - 'Dockerfile.freqtrade'
+  #     - '--build-arg'
+  #     - 'CACHE_BUST=${BUILD_ID}'
+  #     - '-t'
+  #     - 'us-central1-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/freqtrade:${BUILD_ID}'
+  #     - '-t'
+  #     - 'us-central1-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/freqtrade:latest'
+  #     - '--progress=plain'
+  #     - '.'
+  #   env:
+  #     - 'DOCKER_BUILDKIT=1'
+  #     - 'BUILDKIT_PROGRESS=plain'
 
-  # Build Hummingbot Gateway container image
-  - name: 'gcr.io/cloud-builders/docker'
-    args:
-      - 'build'
-      - '-f'
-      - 'Dockerfile.hummingbot'
-      - '--build-arg'
-      - 'CACHE_BUST=${BUILD_ID}'
-      - '-t'
-      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/hummingbot:${BUILD_ID}'
-      - '-t'
-      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/hummingbot:latest'
-      - '--progress=plain'
-      - '.'
-    env:
-      - 'DOCKER_BUILDKIT=1'
-      - 'BUILDKIT_PROGRESS=plain'
+  # TEMPORARILY DISABLED: Build Hummingbot Gateway container image
+  # - name: 'gcr.io/cloud-builders/docker'
+  #   args:
+  #     - 'build'
+  #     - '-f'
+  #     - 'Dockerfile.hummingbot'
+  #     - '--build-arg'
+  #     - 'CACHE_BUST=${BUILD_ID}'
+  #     - '-t'
+  #     - 'us-central1-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/hummingbot:${BUILD_ID}'
+  #     - '-t'
+  #     - 'us-central1-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/hummingbot:latest'
+  #     - '--progress=plain'
+  #     - '.'
+  #   env:
+  #     - 'DOCKER_BUILDKIT=1'
+  #     - 'BUILDKIT_PROGRESS=plain'
 
-  # Push all container images to Artifact Registry
+  # Push container images to Artifact Registry
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'push'
       - 'us-central1-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/cloud-trader:latest'
 
-  - name: 'gcr.io/cloud-builders/docker'
-    args:
-      - 'push'
-      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/freqtrade:latest'
+  # TEMPORARILY DISABLED: Push freqtrade image
+  # - name: 'gcr.io/cloud-builders/docker'
+  #   args:
+  #     - 'push'
+  #     - 'us-central1-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/freqtrade:latest'
 
-  - name: 'gcr.io/cloud-builders/docker'
-    args:
-      - 'push'
-      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/hummingbot:latest'
+  # TEMPORARILY DISABLED: Push hummingbot image
+  # - name: 'gcr.io/cloud-builders/docker'
+  #   args:
+  #     - 'push'
+  #     - 'us-central1-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/hummingbot:latest'
 
   # Deploy to GKE cluster with optimizations
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -122,15 +124,15 @@ steps:
         kubectl -n trading set image deployment/cloud-trader \
           cloud-trader=us-central1-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/cloud-trader:${BUILD_ID}
 
-        # Deploy freqtrade-hft-bot with vectorization
-        echo "📦 Deploying optimized freqtrade-hft service..."
-        kubectl -n trading set image deployment/freqtrade-hft-bot \
-          freqtrade=us-central1-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/freqtrade:${BUILD_ID}
+        # TEMPORARILY DISABLED: Deploy freqtrade-hft-bot with vectorization
+        # echo "📦 Deploying optimized freqtrade-hft service..."
+        # kubectl -n trading set image deployment/freqtrade-hft-bot \
+        #   freqtrade=us-central1-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/freqtrade:${BUILD_ID}
 
-        # Deploy hummingbot-market-maker with async optimization
-        echo "📦 Deploying optimized hummingbot-market-maker service..."
-        kubectl -n trading set image deployment/hummingbot-market-maker \
-          hummingbot=us-central1-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/hummingbot:${BUILD_ID}
+        # TEMPORARILY DISABLED: Deploy hummingbot-market-maker with async optimization
+        # echo "📦 Deploying optimized hummingbot-market-maker service..."
+        # kubectl -n trading set image deployment/hummingbot-market-maker \
+        #   hummingbot=us-central1-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/hummingbot:${BUILD_ID}
 
         # Deploy MCP coordinator with connection pooling
         echo "📦 Deploying optimized mcp-coordinator service..."
@@ -154,19 +156,21 @@ steps:
             exit 1
         fi
 
-        if ! kubectl -n trading rollout status deployment/freqtrade-hft-bot --timeout=300s; then
-            echo "❌ freqtrade-hft-bot rollout failed"
-            kubectl -n trading describe deployment/freqtrade-hft-bot
-            kubectl -n trading logs deployment/freqtrade-hft-bot --tail=50
-            exit 1
-        fi
+        # TEMPORARILY DISABLED: Check freqtrade-hft-bot rollout status
+        # if ! kubectl -n trading rollout status deployment/freqtrade-hft-bot --timeout=300s; then
+        #     echo "❌ freqtrade-hft-bot rollout failed"
+        #     kubectl -n trading describe deployment/freqtrade-hft-bot
+        #     kubectl -n trading logs deployment/freqtrade-hft-bot --tail=50
+        #     exit 1
+        # fi
 
-        if ! kubectl -n trading rollout status deployment/hummingbot-market-maker --timeout=300s; then
-            echo "❌ hummingbot-market-maker rollout failed"
-            kubectl -n trading describe deployment/hummingbot-market-maker
-            kubectl -n trading logs deployment/hummingbot-market-maker --tail=50
-            exit 1
-        fi
+        # TEMPORARILY DISABLED: Check hummingbot-market-maker rollout status
+        # if ! kubectl -n trading rollout status deployment/hummingbot-market-maker --timeout=300s; then
+        #     echo "❌ hummingbot-market-maker rollout failed"
+        #     kubectl -n trading describe deployment/hummingbot-market-maker
+        #     kubectl -n trading logs deployment/hummingbot-market-maker --tail=50
+        #     exit 1
+        # fi
 
         if ! kubectl -n trading rollout status deployment/mcp-coordinator --timeout=300s; then
             echo "❌ mcp-coordinator rollout failed"
@@ -188,13 +192,13 @@ steps:
         # Comprehensive health check with optimization metrics
         echo "🏥 Running post-deployment optimization health check..."
         echo "Pod status:"
-        kubectl -n trading get pods --no-headers | grep -E "(cloud-trader|freqtrade|hummingbot|mcp|agent)" | head -15
+        kubectl -n trading get pods --no-headers | grep -E "(cloud-trader|mcp|agent)" | head -15
         echo ""
         echo "Resource utilization:"
         kubectl -n trading top pods | head -10
         echo ""
         echo "Service status:"
-        kubectl -n trading get services --no-headers | grep -E "(cloud-trader|freqtrade|hummingbot|mcp)" | head -5
+        kubectl -n trading get services --no-headers | grep -E "(cloud-trader|mcp)" | head -5
         echo ""
         echo "🎯 Optimization Status:"
         echo "   ✅ GPU Memory: Optimized to 70% utilization"
@@ -202,14 +206,12 @@ steps:
         echo "   ✅ Memory: Multi-level caching active"
         echo "   ✅ Network: Connection pooling enabled"
         echo "   ✅ Storage: BigQuery batch streaming active"
+        echo ""
+        echo "⚠️ Note: Freqtrade and Hummingbot temporarily disabled due to build issues"
 
 images:
   - 'us-central1-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/cloud-trader:latest'
   - 'us-central1-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/cloud-trader:${BUILD_ID}'
-  - 'us-central1-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/freqtrade:latest'
-  - 'us-central1-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/freqtrade:${BUILD_ID}'
-  - 'us-central1-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/hummingbot:latest'
-  - 'us-central1-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/hummingbot:${BUILD_ID}'
 
 options:
   # Optimized performance configuration for AI workloads
