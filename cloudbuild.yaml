@@ -99,44 +99,29 @@ steps:
   #     - 'us-central1-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/hummingbot:latest'
 
   # Deploy to GKE cluster with optimizations
-  - name: 'alpine/k8s:1.24.15'
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:alpine'
     entrypoint: sh
     args:
       - -c
       - |
         set -e  # Exit on any error
 
-        # Install required tools
-        apk add --no-cache curl bash openssl
-
-        # Install gcloud globally and set PATH for all subsequent commands
-        echo "📦 Installing gcloud..."
-        curl -sSL https://sdk.cloud.google.com | bash > /dev/null 2>&1
-
-        # Find where gcloud was installed
-        GCLOUD_PATH=$(find /root -name "gcloud" -type f 2>/dev/null | head -1)
-        if [ -z "$GCLOUD_PATH" ]; then
-            echo "❌ gcloud binary not found after installation"
-            exit 1
-        fi
-        GCLOUD_DIR=$(dirname "$GCLOUD_PATH")
-        export PATH="$GCLOUD_DIR:/usr/local/bin:/usr/bin:/bin:$PATH"
-
-        # Verify gcloud installation
-        echo "🔍 Verifying gcloud installation at: $GCLOUD_PATH"
-        which gcloud || (echo "❌ gcloud not found in PATH"; exit 1)
+        # Verify gcloud and kubectl are available
+        echo "🔍 Verifying gcloud installation..."
         gcloud --version
+        echo "🔍 Verifying kubectl installation..."
+        kubectl version --client
 
-        # Install Helm with checksum verification disabled
+        # Install Helm
         echo "📦 Installing Helm..."
-        VERIFY_CHECKSUM=false curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+        apk add --no-cache curl
+        curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
         chmod 700 get_helm.sh
         ./get_helm.sh --version v3.12.1
         rm get_helm.sh
 
         # Verify helm installation
         echo "🔍 Verifying Helm installation..."
-        which helm || (echo "❌ helm not found in PATH"; exit 1)
         helm version --short
 
         echo "🔐 Getting GKE credentials..."
