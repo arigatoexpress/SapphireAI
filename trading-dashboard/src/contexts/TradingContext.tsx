@@ -23,7 +23,7 @@ interface PortfolioData {
 
 interface AgentActivity {
   agent_id: string;
-  agent_type: 'deepseek' | 'qwen' | 'fingpt' | 'lagllama' | 'vpin' | 'freqtrade' | 'hummingbot';
+  agent_type: 'trend_momentum_agent' | 'strategy_optimization_agent' | 'financial_sentiment_agent' | 'market_prediction_agent' | 'volume_microstructure_agent' | 'freqtrade' | 'hummingbot';
   agent_name: string;
   activity_score: number;
   communication_count: number;
@@ -138,75 +138,75 @@ export const TradingProvider: React.FC<TradingProviderProps> = ({ children }) =>
       if (activities.length === 0) {
         const mockActivities: AgentActivity[] = [
           {
-            agent_id: 'deepseek-1',
-            agent_type: 'deepseek',
-            agent_name: 'DeepSeek Alpha',
+            agent_id: 'trend-momentum-1',
+            agent_type: 'trend_momentum_agent',
+            agent_name: 'Trend Momentum Agent',
             activity_score: 0.85,
             communication_count: 12,
             trading_count: 0, // Reset - no real trading yet
             last_activity: new Date(Date.now() - 180000).toISOString(),
             participation_threshold: 0.8,
-            specialization: 'Market Analysis & Sentiment Analysis',
+            specialization: 'Real-time momentum analysis and trend detection using PaLM 2 Chat',
             color: '#06b6d4',
             status: 'analyzing',
             gpu_utilization: 72,
             memory_usage: 2.1
           },
           {
-            agent_id: 'qwen-1',
-            agent_type: 'qwen',
-            agent_name: 'Qwen Omega',
+            agent_id: 'strategy-optimization-1',
+            agent_type: 'strategy_optimization_agent',
+            agent_name: 'Strategy Optimization Agent',
             activity_score: 0.82,
             communication_count: 8,
             trading_count: 0, // Reset - no real trading yet
             last_activity: new Date(Date.now() - 300000).toISOString(),
             participation_threshold: 0.7,
-            specialization: 'Risk Management & Portfolio Optimization',
+            specialization: 'Advanced trading strategy optimization and risk assessment using PaLM 2 Unicorn',
             color: '#8b5cf6',
             status: 'idle',
             gpu_utilization: 58,
             memory_usage: 1.8
           },
           {
-            agent_id: 'fingpt-1',
-            agent_type: 'fingpt',
-            agent_name: 'FinGPT Delta',
+            agent_id: 'financial-sentiment-1',
+            agent_type: 'financial_sentiment_agent',
+            agent_name: 'Financial Sentiment Agent',
             activity_score: 0.88,
             communication_count: 15,
             trading_count: 0, // Reset - no real trading yet
             last_activity: new Date(Date.now() - 120000).toISOString(),
             participation_threshold: 0.9,
-            specialization: 'Financial Analysis & News Processing',
+            specialization: 'Financial news and market sentiment analysis using BERT',
             color: '#ef4444',
             status: 'analyzing',
             gpu_utilization: 75,
             memory_usage: 2.4
           },
           {
-            agent_id: 'lagllama-1',
-            agent_type: 'lagllama',
-            agent_name: 'Lag-LLaMA Sigma',
+            agent_id: 'market-prediction-1',
+            agent_type: 'market_prediction_agent',
+            agent_name: 'Market Prediction Agent',
             activity_score: 0.80,
             communication_count: 6,
             trading_count: 0, // Reset - no real trading yet
             last_activity: new Date(Date.now() - 480000).toISOString(),
             participation_threshold: 0.6,
-            specialization: 'Time Series Forecasting & VPIN Analysis',
+            specialization: 'Time series forecasting and market prediction using PaLM 2 Text',
             color: '#f59e0b',
             status: 'idle',
             gpu_utilization: 42,
             memory_usage: 1.6
           },
           {
-            agent_id: 'vpin-agent-1',
-            agent_type: 'vpin',
-            agent_name: 'VPIN Sentinel',
+            agent_id: 'volume-microstructure-1',
+            agent_type: 'volume_microstructure_agent',
+            agent_name: 'Volume Microstructure Agent',
             activity_score: 0.86,
             communication_count: 10,
             trading_count: 0, // Reset - no real trading yet
             last_activity: new Date(Date.now() - 240000).toISOString(),
             participation_threshold: 0.85,
-            specialization: 'Volume-Synchronized Probability of Informed Trading',
+            specialization: 'Volume synchronized probability of informed trading using Codey',
             color: '#ec4899',
             status: 'analyzing',
             gpu_utilization: 68,
@@ -260,43 +260,69 @@ export const TradingProvider: React.FC<TradingProviderProps> = ({ children }) =>
         // Use enhanced mock data as fallback
         const fallbackActivities: AgentActivity[] = [
           {
-            agent_id: 'deepseek-1',
-            agent_type: 'deepseek',
-            agent_name: 'DeepSeek Alpha',
+            agent_id: 'trend-momentum-1',
+            agent_type: 'trend_momentum_agent',
+            agent_name: 'Trend Momentum Agent',
             activity_score: 0.92,
             communication_count: 47,
-            trading_count: 12,
+            trading_count: 0, // Reset - no real trading yet
             last_activity: new Date(Date.now() - 300000).toISOString(),
             participation_threshold: 0.8,
-            specialization: 'Market Analysis & Sentiment',
+            specialization: 'Real-time momentum analysis and trend detection using PaLM 2 Chat',
             color: '#00d4aa',
             status: 'analyzing'
           },
           {
-            agent_id: 'qwen-1',
-            agent_type: 'qwen',
-            agent_name: 'Qwen Omega',
+            agent_id: 'strategy-optimization-1',
+            agent_type: 'strategy_optimization_agent',
+            agent_name: 'Strategy Optimization Agent',
             activity_score: 0.88,
             communication_count: 39,
-            trading_count: 8,
+            trading_count: 0, // Reset - no real trading yet
             last_activity: new Date(Date.now() - 180000).toISOString(),
             participation_threshold: 0.7,
-            specialization: 'Risk Management',
+            specialization: 'Advanced trading strategy optimization and risk assessment using PaLM 2 Unicorn',
             color: '#8a2be2',
             status: 'active'
           },
           {
-            agent_id: 'fingpt-1',
-            agent_type: 'fingpt',
-            agent_name: 'FinGPT Delta',
+            agent_id: 'financial-sentiment-1',
+            agent_type: 'financial_sentiment_agent',
+            agent_name: 'Financial Sentiment Agent',
             activity_score: 0.95,
             communication_count: 52,
-            trading_count: 15,
+            trading_count: 0, // Reset - no real trading yet
             last_activity: new Date(Date.now() - 120000).toISOString(),
             participation_threshold: 0.9,
-            specialization: 'Financial Analysis',
+            specialization: 'Financial news and market sentiment analysis using BERT',
             color: '#ff6b6b',
-            status: 'trading'
+            status: 'analyzing'
+          },
+          {
+            agent_id: 'market-prediction-1',
+            agent_type: 'market_prediction_agent',
+            agent_name: 'Market Prediction Agent',
+            activity_score: 0.80,
+            communication_count: 28,
+            trading_count: 0, // Reset - no real trading yet
+            last_activity: new Date(Date.now() - 240000).toISOString(),
+            participation_threshold: 0.6,
+            specialization: 'Time series forecasting and market prediction using PaLM 2 Text',
+            color: '#f59e0b',
+            status: 'idle'
+          },
+          {
+            agent_id: 'volume-microstructure-1',
+            agent_type: 'volume_microstructure_agent',
+            agent_name: 'Volume Microstructure Agent',
+            activity_score: 0.89,
+            communication_count: 35,
+            trading_count: 0, // Reset - no real trading yet
+            last_activity: new Date(Date.now() - 180000).toISOString(),
+            participation_threshold: 0.85,
+            specialization: 'Volume synchronized probability of informed trading using Codey',
+            color: '#ec4899',
+            status: 'analyzing'
           }
         ];
         setAgentActivities(fallbackActivities);

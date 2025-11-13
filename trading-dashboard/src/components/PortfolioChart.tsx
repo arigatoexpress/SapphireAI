@@ -74,11 +74,11 @@ const PortfolioChart: React.FC = () => {
   // Generate agent trade data for visualization
   const generateAgentTradeData = () => {
     const agentColors = {
-      deepseek: '#06b6d4',
-      qwen: '#8b5cf6',
-      fingpt: '#ef4444',
-      lagllama: '#f59e0b',
-      vpin: '#ec4899',
+      trend_momentum_agent: '#06b6d4',
+      strategy_optimization_agent: '#8b5cf6',
+      financial_sentiment_agent: '#ef4444',
+      market_prediction_agent: '#f59e0b',
+      volume_microstructure_agent: '#ec4899',
       freqtrade: '#3b82f6',
       hummingbot: '#10b981'
     };

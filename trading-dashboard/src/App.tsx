@@ -14,22 +14,22 @@ import Analytics from './pages/Analytics';
 declare module '@mui/material/styles' {
   interface Theme {
     agent: {
-      deepseek: string;
-      qwen: string;
-      fingpt: string;
-      lagllama: string;
-      vpin: string;
+      trend_momentum_agent: string;
+      strategy_optimization_agent: string;
+      financial_sentiment_agent: string;
+      market_prediction_agent: string;
+      volume_microstructure_agent: string;
       freqtrade: string;
       hummingbot: string;
     };
   }
   interface ThemeOptions {
     agent?: {
-      deepseek: string;
-      qwen: string;
-      fingpt: string;
-      lagllama: string;
-      vpin: string;
+      trend_momentum_agent: string;
+      strategy_optimization_agent: string;
+      financial_sentiment_agent: string;
+      market_prediction_agent: string;
+      volume_microstructure_agent: string;
       freqtrade: string;
       hummingbot: string;
     };
@@ -73,11 +73,11 @@ const theme = createTheme({
   },
   // Custom agent colors - clean and distinct
   agent: {
-    deepseek: '#06b6d4', // Cyan - Market Analysis
-    qwen: '#8b5cf6', // Violet - Risk Management
-    fingpt: '#ef4444', // Red - Financial Analysis
-    lagllama: '#f59e0b', // Amber - Time Series
-    vpin: '#ec4899', // Pink - VPIN Analysis
+    trend_momentum_agent: '#06b6d4', // Cyan - Momentum Analysis
+    strategy_optimization_agent: '#8b5cf6', // Violet - Strategy Optimization
+    financial_sentiment_agent: '#ef4444', // Red - Sentiment Analysis
+    market_prediction_agent: '#f59e0b', // Amber - Market Prediction
+    volume_microstructure_agent: '#ec4899', // Pink - Volume Microstructure
     freqtrade: '#3b82f6', // Blue - Algorithmic Execution
     hummingbot: '#10b981', // Emerald - Market Making
   },

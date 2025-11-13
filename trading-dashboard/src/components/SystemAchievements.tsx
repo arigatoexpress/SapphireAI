@@ -253,7 +253,7 @@ const SystemAchievements: React.FC = () => {
               <Grid item xs={12} md={3}>
                 <Box sx={{ textAlign: 'center' }}>
                   <Typography variant="h3" sx={{ fontWeight: 900, color: '#06b6d4', mb: 1 }}>
-                    <100ms
+                    100ms
                   </Typography>
                   <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 600 }}>
                     P95 Latency

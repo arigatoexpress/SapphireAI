@@ -27,7 +27,7 @@ import { XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveCont
 interface AgentCardProps {
   agent: {
     agent_id: string;
-    agent_type: 'deepseek' | 'qwen' | 'fingpt' | 'lagllama' | 'vpin' | 'freqtrade' | 'hummingbot';
+    agent_type: 'trend_momentum_agent' | 'strategy_optimization_agent' | 'financial_sentiment_agent' | 'market_prediction_agent' | 'volume_microstructure_agent' | 'freqtrade' | 'hummingbot';
     agent_name: string;
     activity_score: number;
     communication_count: number;
@@ -82,11 +82,11 @@ const AgentCard: React.FC<AgentCardProps> = ({ agent }) => {
 
   const getAgentIcon = () => {
     switch (agent.agent_type) {
-      case 'deepseek': return '🧠'; // Brain for AI analysis
-      case 'qwen': return '🎯'; // Target for precision risk management
-      case 'fingpt': return '📊'; // Chart for financial analysis
-      case 'lagllama': return '📈'; // Trending chart for time series
-      case 'vpin': return '🔍'; // Magnifying glass for VPIN detection
+      case 'trend_momentum_agent': return '🧠'; // Brain for momentum analysis
+      case 'strategy_optimization_agent': return '🎯'; // Target for strategy optimization
+      case 'financial_sentiment_agent': return '📊'; // Chart for sentiment analysis
+      case 'market_prediction_agent': return '📈'; // Trending chart for prediction
+      case 'volume_microstructure_agent': return '🔍'; // Magnifying glass for microstructure
       case 'freqtrade': return '⚡'; // Lightning for algorithmic execution
       case 'hummingbot': return '🤖'; // Robot for market making
       default: return '🎯';
@@ -95,11 +95,11 @@ const AgentCard: React.FC<AgentCardProps> = ({ agent }) => {
 
   const getAgentTypeLabel = (type: string) => {
     switch (type) {
-      case 'deepseek': return 'DeepSeek AI';
-      case 'qwen': return 'Qwen AI';
-      case 'fingpt': return 'FinGPT AI';
-      case 'lagllama': return 'Lag-LLaMA';
-      case 'vpin': return 'VPIN Sentinel';
+      case 'trend_momentum_agent': return 'Trend Momentum Agent';
+      case 'strategy_optimization_agent': return 'Strategy Optimization Agent';
+      case 'financial_sentiment_agent': return 'Financial Sentiment Agent';
+      case 'market_prediction_agent': return 'Market Prediction Agent';
+      case 'volume_microstructure_agent': return 'Volume Microstructure Agent';
       case 'freqtrade': return 'FreqTrade';
       case 'hummingbot': return 'HummingBot';
       default: return type.toUpperCase();

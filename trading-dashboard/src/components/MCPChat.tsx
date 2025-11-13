@@ -27,7 +27,7 @@ interface MCPMessage {
   id: string;
   timestamp: string;
   agent: string;
-  agent_type: 'deepseek' | 'qwen' | 'fingpt' | 'lagllama' | 'vpin' | 'freqtrade' | 'hummingbot';
+  agent_type: 'trend_momentum_agent' | 'strategy_optimization_agent' | 'financial_sentiment_agent' | 'market_prediction_agent' | 'volume_microstructure_agent' | 'freqtrade' | 'hummingbot';
   type: 'trade_idea' | 'market_analysis' | 'strategy_discussion' | 'risk_update' | 'general';
   message: string;
   confidence?: number;
@@ -54,41 +54,50 @@ const MCPChat: React.FC = () => {
         {
           id: '1',
           timestamp: new Date(Date.now() - 300000).toISOString(),
-          agent: 'DeepSeek Alpha',
-          agent_type: 'deepseek',
+          agent: 'Trend Momentum Agent',
+          agent_type: 'trend_momentum_agent',
           type: 'market_analysis',
-          message: '🔍 Detected strong momentum in BTC/USDT - RSI breaking above 70, volume spike 3x average',
+          message: '🔍 Detected strong momentum in BTC/USDT - RSI breaking above 70, volume spike 3x average using Gemini 1.5 Flash analysis',
           confidence: 0.85
         },
         {
           id: '2',
           timestamp: new Date(Date.now() - 240000).toISOString(),
-          agent: 'Qwen Omega',
-          agent_type: 'qwen',
+          agent: 'Strategy Optimization Agent',
+          agent_type: 'strategy_optimization_agent',
           type: 'trade_idea',
-          message: '💡 Opportunity: Long position with 2:1 risk-reward, stop loss at 1.5% below entry',
+          message: '💡 Opportunity: Long position with 2:1 risk-reward, stop loss at 1.5% below entry - optimized via Gemini 1.5 Pro reasoning',
           confidence: 0.78
         },
         {
           id: '3',
           timestamp: new Date(Date.now() - 180000).toISOString(),
-          agent: 'FinGPT Delta',
-          agent_type: 'fingpt',
+          agent: 'Financial Sentiment Agent',
+          agent_type: 'financial_sentiment_agent',
           type: 'strategy_discussion',
-          message: '📊 Sentiment analysis shows 68% bullish news flow - confirming momentum signal',
+          message: '📊 Sentiment analysis shows 68% bullish news flow - confirming momentum signal using Gemini 1.5 Flash NLP processing',
           confidence: 0.82
         },
         {
           id: '4',
           timestamp: new Date(Date.now() - 120000).toISOString(),
-          agent: 'VPIN Sentinel',
-          agent_type: 'vpin',
+          agent: 'Volume Microstructure Agent',
+          agent_type: 'volume_microstructure_agent',
           type: 'risk_update',
-          message: '⚠️ VPIN spike detected - order flow toxicity increasing, consider reducing position size',
+          message: '⚠️ VPIN spike detected - order flow toxicity increasing, consider reducing position size using Codey mathematical analysis',
           confidence: 0.91
         },
         {
           id: '5',
+          timestamp: new Date(Date.now() - 60000).toISOString(),
+          agent: 'Market Prediction Agent',
+          agent_type: 'market_prediction_agent',
+          type: 'market_analysis',
+          message: '📈 Time series forecast: BTC/USDT showing 72% probability of upward continuation using Gemini 1.5 Flash predictive analytics',
+          confidence: 0.76
+        },
+        {
+          id: '6',
           timestamp: new Date(Date.now() - 60000).toISOString(),
           agent: 'FreqTrade Pro',
           agent_type: 'freqtrade',
@@ -105,14 +114,14 @@ const MCPChat: React.FC = () => {
 
     // Simulate real-time messages
     const interval = setInterval(() => {
-      const agents = ['deepseek', 'qwen', 'fingpt', 'lagllama', 'vpin', 'freqtrade', 'hummingbot'] as const;
+      const agents = ['trend_momentum_agent', 'strategy_optimization_agent', 'financial_sentiment_agent', 'market_prediction_agent', 'volume_microstructure_agent', 'freqtrade', 'hummingbot'] as const;
       const agent = agents[Math.floor(Math.random() * agents.length)];
       const agentNames = {
-        deepseek: 'DeepSeek Alpha',
-        qwen: 'Qwen Omega',
-        fingpt: 'FinGPT Delta',
-        lagllama: 'Lag-LLaMA Sigma',
-        vpin: 'VPIN Sentinel',
+        trend_momentum_agent: 'Trend Momentum Agent (Gemini 1.5 Flash)',
+        strategy_optimization_agent: 'Strategy Optimization Agent (Gemini 1.5 Pro)',
+        financial_sentiment_agent: 'Financial Sentiment Agent (Gemini 1.5 Flash)',
+        market_prediction_agent: 'Market Prediction Agent (Gemini 1.5 Flash)',
+        volume_microstructure_agent: 'Volume Microstructure Agent (Codey)',
         freqtrade: 'FreqTrade Pro',
         hummingbot: 'HummingBot Plus'
       };
@@ -166,7 +175,7 @@ const MCPChat: React.FC = () => {
       id: Date.now().toString(),
       timestamp: new Date().toISOString(),
       agent: 'Human Operator',
-      agent_type: 'deepseek', // Use deepseek color for human
+      agent_type: 'trend_momentum_agent', // Use trend momentum color for human
       type: 'general',
       message: newMessage,
     };
@@ -180,7 +189,7 @@ const MCPChat: React.FC = () => {
         id: (Date.now() + 1).toString(),
         timestamp: new Date().toISOString(),
         agent: 'MCP Coordinator',
-        agent_type: 'qwen',
+        agent_type: 'strategy_optimization_agent',
         type: 'general',
         message: '✅ Message received and forwarded to all trading agents. Agents will consider your guidance in their decision-making process.',
         confidence: 0.95
@@ -211,11 +220,11 @@ const MCPChat: React.FC = () => {
 
   const getAgentColor = (agentType: string) => {
     const agentColors: { [key: string]: string } = {
-      deepseek: '#06b6d4',
-      qwen: '#8b5cf6',
-      fingpt: '#ef4444',
-      lagllama: '#f59e0b',
-      vpin: '#ec4899',
+      trend_momentum_agent: '#06b6d4',
+      strategy_optimization_agent: '#8b5cf6',
+      financial_sentiment_agent: '#ef4444',
+      market_prediction_agent: '#f59e0b',
+      volume_microstructure_agent: '#ec4899',
       freqtrade: '#3b82f6',
       hummingbot: '#10b981'
     };
@@ -374,11 +383,11 @@ const MCPChat: React.FC = () => {
                           fontSize: '0.75rem',
                         }}
                       >
-                        {msg.agent_type === 'deepseek' ? '🧠' :
-                         msg.agent_type === 'qwen' ? '🎯' :
-                         msg.agent_type === 'fingpt' ? '📊' :
-                         msg.agent_type === 'lagllama' ? '📈' :
-                         msg.agent_type === 'vpin' ? '🔍' :
+                        {msg.agent_type === 'trend_momentum_agent' ? '🧠' :
+                         msg.agent_type === 'strategy_optimization_agent' ? '🎯' :
+                         msg.agent_type === 'financial_sentiment_agent' ? '📊' :
+                         msg.agent_type === 'market_prediction_agent' ? '📈' :
+                         msg.agent_type === 'volume_microstructure_agent' ? '🔍' :
                          msg.agent_type === 'freqtrade' ? '⚡' :
                          msg.agent_type === 'hummingbot' ? '🤖' : '🎯'}
                       </Avatar>

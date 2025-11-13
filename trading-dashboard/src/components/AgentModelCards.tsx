@@ -30,7 +30,7 @@ import { useTrading } from '../contexts/TradingContext';
 interface AgentModelCardProps {
   agent: {
     agent_id: string;
-    agent_type: 'deepseek' | 'qwen' | 'fingpt' | 'lagllama' | 'vpin' | 'freqtrade' | 'hummingbot';
+    agent_type: 'trend_momentum_agent' | 'strategy_optimization_agent' | 'financial_sentiment_agent' | 'market_prediction_agent' | 'volume_microstructure_agent' | 'freqtrade' | 'hummingbot';
     agent_name: string;
     activity_score: number;
     communication_count: number;
@@ -50,11 +50,11 @@ const AgentModelCard: React.FC<AgentModelCardProps> = ({ agent, onAgentClick }) 
 
   const getAgentIcon = () => {
     switch (agent.agent_type) {
-      case 'deepseek': return '🧠';
-      case 'qwen': return '🎯';
-      case 'fingpt': return '📊';
-      case 'lagllama': return '📈';
-      case 'vpin': return '🔍';
+      case 'trend_momentum_agent': return '🧠';
+      case 'strategy_optimization_agent': return '🎯';
+      case 'financial_sentiment_agent': return '📊';
+      case 'market_prediction_agent': return '📈';
+      case 'volume_microstructure_agent': return '🔍';
       case 'freqtrade': return '⚡';
       case 'hummingbot': return '🤖';
       default: return '🎯';
@@ -389,7 +389,9 @@ const AgentModelCards: React.FC = () => {
                 🤖 Neural Trading Matrix
               </Typography>
               <Typography variant="body1" sx={{ color: 'text.secondary', lineHeight: 1.6 }}>
-                Enterprise-grade AI ensemble with 5 specialized agents featuring DeepSeek, Qwen, FinGPT, Lag-LLaMA, and VPIN models.
+                Enterprise-grade AI ensemble with 5 specialized agents using Google Gemini models:
+                Trend Momentum Agent (Gemini 1.5 Flash), Strategy Optimization Agent (Gemini 1.5 Pro), Financial Sentiment Agent (Gemini 1.5 Flash),
+                Market Prediction Agent (Gemini 1.5 Flash), and Volume Microstructure Agent (Codey).
                 Advanced risk management, real-time coordination, and institutional-grade performance monitoring.
               </Typography>
             </Box>
