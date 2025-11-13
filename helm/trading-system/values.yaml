@@ -159,11 +159,13 @@ agents:
       - name: ENABLE_PAPER_TRADING
         value: "true"
       - name: ENABLED_AGENTS
-        value: '["qwen"]'
+        value: '["qwen-adaptive"]'
       - name: ENABLE_VERTEX_AI
         value: "true"
       - name: MCP_ENABLED
         value: "true"
+      - name: QWEN_VERTEX_ENDPOINT
+        value: "https://us-central1-aiplatform.googleapis.com/v1/projects/sapphireinfinite/locations/us-central1/endpoints/qwen-adaptive-endpoint"
       - name: MODEL_QUANTIZATION
         value: "4bit"
       - name: GPU_MEMORY_FRACTION
@@ -198,6 +200,9 @@ agents:
         value: "true"
       - name: MCP_ENABLED
         value: "true"
+      - name: FINGPT_VERTEX_ENDPOINT
+        value: "https://us-central1-aiplatform.googleapis.com/v1/projects/sapphireinfinite/locations/us-central1/endpoints/fingpt-alpha-endpoint"
+        value: "true"
       - name: MODEL_QUANTIZATION
         value: "4bit"
       - name: GPU_MEMORY_FRACTION
@@ -231,6 +236,46 @@ agents:
       - name: ENABLE_VERTEX_AI
         value: "true"
       - name: MCP_ENABLED
+        value: "true"
+      - name: LAGLLAMA_VERTEX_ENDPOINT
+        value: "https://us-central1-aiplatform.googleapis.com/v1/projects/sapphireinfinite/locations/us-central1/endpoints/lagllama-degen-endpoint"
+        value: "true"
+      - name: MODEL_QUANTIZATION
+        value: "4bit"
+      - name: GPU_MEMORY_FRACTION
+        value: "0.7"
+      - name: INFERENCE_BATCH_SIZE
+        value: "8"
+      - name: CUDA_LAUNCH_BLOCKING
+        value: "0"
+
+  # VPIN Agent
+  vpin:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: cloud-run-source-deploy/cloud-trader
+      tag: "latest"
+    resources:
+      requests:
+        cpu: 500m
+        memory: 2Gi
+        nvidia.com/gpu: 1
+      limits:
+        cpu: 2000m
+        memory: 8Gi
+        nvidia.com/gpu: 1
+    env:
+      - name: ENABLE_PAPER_TRADING
+        value: "true"
+      - name: ENABLED_AGENTS
+        value: '["vpin-hft"]'
+      - name: ENABLE_VERTEX_AI
+        value: "true"
+      - name: MCP_ENABLED
+        value: "true"
+      - name: VPIN_VERTEX_ENDPOINT
+        value: "https://us-central1-aiplatform.googleapis.com/v1/projects/sapphireinfinite/locations/us-central1/endpoints/vpin-hft-endpoint"
         value: "true"
       - name: MODEL_QUANTIZATION
         value: "4bit"
