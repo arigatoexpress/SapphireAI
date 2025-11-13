@@ -6,23 +6,15 @@ LABEL maintainer="sapphiretrading" \
       version="1.0" \
       description="Freqtrade with FreqAI for high-frequency trading on Aster DEX"
 
-# Install system build dependencies
+# Install system build dependencies and pre-built TA-Lib
 RUN apt-get update && apt-get install -y \
     build-essential \
     git \
     curl \
     wget \
     libssl-dev \
+    libta-dev \
     && rm -rf /var/lib/apt/lists/*
-
-# Install TA-Lib in builder stage
-RUN cd /tmp && \
-    wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz && \
-    tar -xzf ta-lib-0.4.0-src.tar.gz && \
-    cd ta-lib && \
-    ./configure --prefix=/usr && \
-    make -j$(nproc) && make install && \
-    cd .. && rm -rf ta-lib*
 
 # Create virtual environment for Python dependencies
 RUN python -m venv /opt/venv
@@ -56,7 +48,7 @@ RUN apt-get update && apt-get install -y \
 
 # Copy virtual environment from builder
 COPY --from=builder /opt/venv /opt/venv
-COPY --from=builder /usr/lib/libta_lib* /usr/lib/
+COPY --from=builder /usr/lib/x86_64-linux-gnu/libta_lib* /usr/lib/x86_64-linux-gnu/
 
 # Set environment
 ENV PATH="/opt/venv/bin:$PATH"
