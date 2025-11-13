@@ -1,12 +1,10 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
-import { CssBaseline, Box } from '@mui/material';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { CssBaseline, Box, Typography } from '@mui/material';
 import { TradingProvider } from './contexts/TradingContext';
 import Sidebar from './components/Sidebar';
 import Navbar from './components/Navbar';
 import AnimatedBackground from './components/AnimatedBackground';
-import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Portfolio from './pages/Portfolio';
 import Agents from './pages/Agents';
@@ -147,19 +145,6 @@ const theme = createTheme({
 
 
 function AppContent() {
-  const { user } = useAuth();
-
-  if (!user) {
-    return (
-      <Router>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="*" element={<Navigate to="/login" />} />
-        </Routes>
-      </Router>
-    );
-  }
-
   return (
     <Router>
       <AnimatedBackground />
@@ -184,6 +169,31 @@ function AppContent() {
               <Route path="/settings" element={<Settings />} />
               <Route path="*" element={<Navigate to="/" />} />
             </Routes>
+
+            {/* Aster DEX Footer */}
+            <Box
+              component="footer"
+              sx={{
+                mt: 'auto',
+                py: 2,
+                px: 3,
+                borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+                background: 'rgba(0, 0, 0, 0.3)',
+                backdropFilter: 'blur(10px)',
+                textAlign: 'center'
+              }}
+            >
+              <Typography
+                variant="body2"
+                sx={{
+                  color: 'rgba(255, 255, 255, 0.6)',
+                  fontSize: '0.875rem'
+                }}
+              >
+                🚀 <strong style={{ color: '#8a2be2' }}>Sapphire Trading</strong> is proudly built on{' '}
+                <strong style={{ color: '#00d4aa' }}>Aster DEX</strong> - The premier decentralized futures exchange
+              </Typography>
+            </Box>
           </Box>
         </Box>
       </Box>
@@ -195,11 +205,9 @@ function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <AuthProvider>
-        <TradingProvider>
-          <AppContent />
-        </TradingProvider>
-      </AuthProvider>
+      <TradingProvider>
+        <AppContent />
+      </TradingProvider>
     </ThemeProvider>
   );
 }

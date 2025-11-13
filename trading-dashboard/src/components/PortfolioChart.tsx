@@ -51,8 +51,8 @@ const PortfolioChart: React.FC = () => {
 
       data.push({
         time: timeRange === '1h' ? `${points - i}m ago` :
-              timeRange === '24h' ? `${points - i}h ago` :
-              timeRange === '7d' ? `Day ${points - i + 1}` :
+          timeRange === '24h' ? `${points - i}h ago` :
+            timeRange === '7d' ? `Day ${points - i + 1}` :
               `Day ${points - i + 1}`,
         value: Math.max(0, currentValue),
         pnl: currentValue - (portfolio?.portfolio_value || 10000),
@@ -138,8 +138,8 @@ const PortfolioChart: React.FC = () => {
           <AreaChart {...commonProps}>
             <defs>
               <linearGradient id="portfolioGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#00d4aa" stopOpacity={0.3}/>
-                <stop offset="95%" stopColor="#00d4aa" stopOpacity={0}/>
+                <stop offset="5%" stopColor="#00d4aa" stopOpacity={0.3} />
+                <stop offset="95%" stopColor="#00d4aa" stopOpacity={0} />
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="#333" />
@@ -176,8 +176,8 @@ const PortfolioChart: React.FC = () => {
           <AreaChart {...commonProps}>
             <defs>
               <linearGradient id="portfolioGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#00d4aa" stopOpacity={0.3}/>
-                <stop offset="95%" stopColor="#00d4aa" stopOpacity={0}/>
+                <stop offset="5%" stopColor="#00d4aa" stopOpacity={0.3} />
+                <stop offset="95%" stopColor="#00d4aa" stopOpacity={0} />
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="#333" />
@@ -216,9 +216,9 @@ const PortfolioChart: React.FC = () => {
           <Box>
             <Box display="flex" alignItems="center" gap={2} mb={1}>
               <Timeline sx={{ fontSize: 28, color: 'primary.main' }} />
-      <Typography variant="h5" sx={{ fontWeight: 600 }}>
-        Portfolio Value
-      </Typography>
+              <Typography variant="h5" sx={{ fontWeight: 600 }}>
+                Portfolio Value
+              </Typography>
             </Box>
             <Box display="flex" alignItems="center" gap={2}>
               <Typography variant="h3" sx={{ fontWeight: 700, color: 'primary.main' }}>

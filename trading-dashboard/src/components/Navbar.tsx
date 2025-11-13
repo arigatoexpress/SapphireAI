@@ -5,12 +5,12 @@ import {
   Typography,
   Button,
   Box,
-  Chip,
   IconButton,
   Menu,
   MenuItem,
   useMediaQuery,
   useTheme,
+  Chip,
 } from '@mui/material';
 import {
   Dashboard as DashboardIcon,
@@ -95,21 +95,37 @@ const Navbar: React.FC = () => {
           )}
 
           {/* Logo */}
-          <Typography
-            variant="h6"
-            component="div"
-            sx={{
-              flexGrow: { xs: 1, md: 0 },
-              fontWeight: 700,
-              fontSize: { xs: '1.1rem', md: '1.25rem' },
-              background: 'linear-gradient(45deg, #00d4aa 30%, #00f5d4 90%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              mr: { md: 4 },
-            }}
-          >
-            💎 Sapphire Trading
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography
+              variant="h6"
+              component="div"
+              sx={{
+                flexGrow: { xs: 1, md: 0 },
+                fontWeight: 700,
+                fontSize: { xs: '1.1rem', md: '1.25rem' },
+                background: 'linear-gradient(45deg, #00d4aa 30%, #00f5d4 90%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+              }}
+            >
+              💎 Sapphire Trading
+            </Typography>
+            <Chip
+              label="Powered by Aster DEX"
+              size="small"
+              sx={{
+                bgcolor: 'rgba(138, 43, 226, 0.2)',
+                color: '#8a2be2',
+                border: '1px solid #8a2be2',
+                fontWeight: 600,
+                fontSize: '0.7rem',
+                height: '20px',
+                '& .MuiChip-label': {
+                  px: 1,
+                },
+              }}
+            />
+          </Box>
 
           {/* Desktop Navigation */}
           {!isMobile && (

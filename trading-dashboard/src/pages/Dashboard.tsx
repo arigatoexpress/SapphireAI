@@ -75,9 +75,26 @@ const Dashboard: React.FC = () => {
             fontWeight: 400,
           }}
         >
-          Enterprise-grade autonomous trading system with real-time monitoring,
-          AI-driven decision making, and institutional-grade risk management.
+          Enterprise-grade autonomous trading system built on <strong style={{ color: '#8a2be2' }}>Aster DEX</strong>,
+          featuring real-time monitoring, AI-driven decision making, and institutional-grade risk management.
         </Typography>
+
+        {/* Aster DEX Branding Banner */}
+        <Box sx={{
+          mt: 3,
+          p: 2,
+          borderRadius: 2,
+          background: 'linear-gradient(135deg, rgba(138, 43, 226, 0.1) 0%, rgba(0, 212, 170, 0.1) 100%)',
+          border: '1px solid rgba(138, 43, 226, 0.3)',
+          textAlign: 'center'
+        }}>
+          <Typography variant="body1" sx={{ fontWeight: 600, color: '#8a2be2', mb: 1 }}>
+            🚀 Powered by Aster DEX - Decentralized Futures Trading
+          </Typography>
+          <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+            Direct access to 155+ USDT perpetual contracts with institutional-grade liquidity
+          </Typography>
+        </Box>
       </Box>
 
       {/* Key Performance Indicators */}
@@ -114,7 +131,11 @@ const Dashboard: React.FC = () => {
           </Box>
           <Box>
             <Typography variant="body2" color="text.secondary">AI Agents</Typography>
-            <Typography variant="body1" sx={{ fontWeight: 600 }}>6 Active</Typography>
+            <Typography variant="body1" sx={{ fontWeight: 600 }}>4 Core PvP</Typography>
+          </Box>
+          <Box>
+            <Typography variant="body2" color="text.secondary">Trading Venue</Typography>
+            <Typography variant="body1" sx={{ fontWeight: 600, color: '#8a2be2' }}>Aster DEX</Typography>
           </Box>
           <Box>
             <Typography variant="body2" color="text.secondary">Last Updated</Typography>
