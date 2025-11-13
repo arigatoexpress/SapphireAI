@@ -65,6 +65,10 @@ cloudTrader:
       value: "WARNING"
     - name: MCP_ENABLED
       value: "true"
+    - name: TELEGRAM_BOT_TOKEN
+      value: ""  # Will be overridden by secret
+    - name: TELEGRAM_CHAT_ID
+      value: ""  # Will be overridden by secret
 
 # MCP Coordinator Service
 mcpCoordinator:
