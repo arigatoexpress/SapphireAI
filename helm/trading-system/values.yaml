@@ -4,12 +4,14 @@ global:
   projectId: sapphireinfinite
   imagePullPolicy: Always
 
-# GPU configuration - enables GPU acceleration for AI agents
-# NOTE: GPU quota required - set to true after requesting GPU quota from GCP
-gpu:
-  enabled: false  # Set to true after GPU quota approval
-  type: "nvidia-l4"  # GCP AI-optimized L4 GPUs
-  machineType: "g2-standard-8"  # 8 vCPUs, 32GB RAM, 1 L4 GPU - optimal for AI trading
+# TPU configuration - enables TPU acceleration for AI agents (cost-effective alternative to GPUs)
+# NOTE: TPU quota required - more affordable than GPUs for AI workloads
+tpu:
+  enabled: false  # Set to true after TPU quota approval
+  type: "v5e-lite-podslice"  # Most cost-effective TPU for inference
+  machineType: "ct5lp-hightpu-1t"  # TPU v5e instance
+  # TPU v5e pricing: ~$1.20/hour vs L4 GPU ~$1.50/hour
+  # Performance: 197 TFLOPS optimized for transformer inference
 
 # Redis configuration
 redis:
@@ -272,7 +274,7 @@ agents:
       - name: PYTORCH_CUDA_ALLOC_CONF
         value: "max_split_size_mb:512"  # Optimize memory allocation
 
-  # VPIN Agent (GPU-accelerated with elastic scaling and fallback)
+  # VPIN Agent (TPU-accelerated with elastic scaling and fallback - cost-optimized)
   vpin:
     enabled: true
     replicaCount: 1
@@ -283,11 +285,11 @@ agents:
       requests:
         cpu: 1000m
         memory: 4Gi
-        nvidia.com/gpu: 1
+        google.com/tpu: "1"  # TPU resource instead of GPU
       limits:
         cpu: 3000m
         memory: 12Gi
-        nvidia.com/gpu: 1
+        google.com/tpu: "1"  # TPU resource instead of GPU
     env:
       - name: ENABLE_PAPER_TRADING
         value: "true"
@@ -301,18 +303,18 @@ agents:
         value: "https://us-central1-aiplatform.googleapis.com/v1/projects/sapphireinfinite/locations/us-central1/endpoints/vpin-hft-endpoint"
       - name: MODEL_QUANTIZATION
         value: "4bit"
-      - name: GPU_MEMORY_FRACTION
-        value: "0.8"  # Increased for L4 GPUs
+      - name: TPU_IP_ADDRESS
+        value: ""  # Will be set by TPU runtime
+      - name: TPU_NAME
+        value: "vpin-tpu"  # TPU instance name
+      - name: USE_TPU
+        value: "true"  # Enable TPU mode instead of GPU
+      - name: XRT_TPU_CONFIG
+        value: "localservice;0;localhost:51011"  # TPU runtime config
       - name: INFERENCE_BATCH_SIZE
-        value: "16"   # Optimized for L4 parallel processing
-      - name: CUDA_LAUNCH_BLOCKING
-        value: "0"
-      - name: TORCH_USE_CUDA_DSA
-        value: "1"    # Enable CUDA device-side assertions
-      - name: CUDA_VISIBLE_DEVICES
-        value: "0"    # Use first GPU
-      - name: PYTORCH_CUDA_ALLOC_CONF
-        value: "max_split_size_mb:512"  # Optimize memory allocation
+        value: "32"   # TPU optimized batch size (larger than GPU)
+      - name: TPU_PROFILER_PORT
+        value: "8466"  # TPU profiling port
       # Elastic scaling and fallback configuration
       - name: ELASTIC_SCALING_ENABLED
         value: "true"
@@ -448,14 +450,15 @@ securityContext:
   runAsUser: 1000
   fsGroup: 2000
 
-# Node Selector for GPU nodes (only used when gpu.enabled=true)
+# Node Selector for TPU nodes (only used when tpu.enabled=true)
 nodeSelector:
-  accelerator: nvidia-l4
-  instance-type: g2-standard-8
+  cloud.google.com/gke-tpu-accelerator: v5-lite-podslice
+  cloud.google.com/gke-tpu-topology: "1"
+  instance-type: ct5lp-hightpu-1t
 
-# Tolerations for GPU workloads (only used when gpu.enabled=true)
+# Tolerations for TPU workloads (only used when tpu.enabled=true)
 tolerations:
-  - key: "nvidia.com/gpu"
+  - key: "google.com/tpu"
     operator: "Exists"
     effect: "NoSchedule"
 

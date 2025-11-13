@@ -29,7 +29,7 @@ spec:
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-{{- if and $.Values.gpu.enabled (eq $agentName "vpin") }}
+{{- if and $.Values.tpu.enabled (eq $agentName "vpin") }}
 {{- with $.Values.nodeSelector }}
 nodeSelector:
   {{- toYaml . | nindent 8 }}
@@ -61,8 +61,8 @@ tolerations:
                 name: cloud-trader-secrets
           resources:
             {{- $resources := $agentConfig.resources }}
-            {{- if and $.Values.gpu.enabled (ne $agentName "vpin") }}
-              {{- $resources = omit $resources "limits" "requests" | merge (dict "limits" (omit $agentConfig.resources.limits "nvidia.com/gpu") "requests" (omit $agentConfig.resources.requests "nvidia.com/gpu")) }}
+            {{- if and $.Values.tpu.enabled (ne $agentName "vpin") }}
+              {{- $resources = omit $resources "limits" "requests" | merge (dict "limits" (omit $agentConfig.resources.limits "google.com/tpu") "requests" (omit $agentConfig.resources.requests "google.com/tpu")) }}
             {{- end }}
             {{- toYaml $resources | nindent 12 }}
           livenessProbe:

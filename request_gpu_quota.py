@@ -10,57 +10,58 @@ import json
 import time
 from datetime import datetime
 
-class GPUQuotaRequester:
+class TPUQuotaRequester:
     def __init__(self, project_id="sapphireinfinite"):
         self.project_id = project_id
         self.quota_request_url = f"https://console.cloud.google.com/iam-admin/quotas?project={project_id}"
 
     def check_current_quota(self):
-        """Check current GPU quota levels"""
-        print("🔍 Checking current GPU quota levels...")
+        """Check current TPU quota levels"""
+        print("🔍 Checking current TPU quota levels...")
 
         try:
-            # Run gcloud command to check quota
+            # Run gcloud command to check TPU quota
             result = subprocess.run([
                 'gcloud', 'compute', 'project-info', 'describe',
                 f'--project={self.project_id}',
-                '--format=value(quotas[quotas.metric=GPUS_ALL_REGIONS].limit)'
+                '--format=value(quotas[quotas.metric=TPUS_ALL_REGIONS].limit)'
             ], capture_output=True, text=True, timeout=30)
 
             if result.returncode == 0:
                 current_quota = result.stdout.strip()
-                print(f"📊 Current GPU quota: {current_quota}")
+                print(f"📊 Current TPU quota: {current_quota}")
                 return int(current_quota) if current_quota.isdigit() else 0
             else:
-                print(f"⚠️  Could not retrieve quota information: {result.stderr}")
+                print(f"⚠️  Could not retrieve TPU quota information: {result.stderr}")
+                print("   Note: TPU quota may not be visible until first requested")
                 return 0
 
         except Exception as e:
-            print(f"❌ Error checking quota: {e}")
+            print(f"❌ Error checking TPU quota: {e}")
             return 0
 
     def generate_quota_request_details(self):
         """Generate detailed quota request information"""
         quota_request = {
-            "quota_type": "GPUs (all regions)",
+            "quota_type": "TPUs (all regions)",
             "current_limit": "0",
-            "requested_limit": "2",  # Reduced from 8 to 2 GPUs for cost optimization
-            "reason": "Cost-optimized AI trading system with selective GPU acceleration for VPIN analysis",
+            "requested_limit": "1",  # Single TPU v5e for cost optimization
+            "reason": "Cost-effective TPU acceleration for VPIN informed trading analysis",
             "technical_details": {
                 "system": "Sapphire Trading System",
-                "purpose": "Selective GPU acceleration for VPIN informed trading analysis",
-                "gpu_type": "NVIDIA L4 GPUs on G2-standard instances",
-                "configuration": "1 GPU for VPIN trader + 4 CPU agents for cost optimization",
-                "performance_impact": "GPU acceleration only where critical (VPIN real-time analysis)",
-                "usage_pattern": "24/7 automated trading with intelligent resource allocation",
-                "cost_estimate": "$1.50-2.50/hour for 1-2 L4 GPUs",
-                "monthly_budget": "$1,000-2,000 for selective GPU usage"
+                "purpose": "TPU-accelerated VPIN volume analysis with CPU agents for optimal cost-performance",
+                "tpu_type": "TPU v5e lite podslice (most cost-effective)",
+                "configuration": "1 TPU v5e for VPIN trader + 4 CPU agents",
+                "performance_impact": "197 TFLOPS optimized for transformer inference at lower cost than GPUs",
+                "usage_pattern": "24/7 automated trading with elastic TPU scaling",
+                "cost_estimate": "$1.20/hour for TPU v5e (vs $1.50/hour L4 GPU)",
+                "monthly_budget": "$800-900 for TPU-optimized deployment"
             },
             "business_justification": {
-                "use_case": "Cost-optimized AI trading platform",
-                "competitive_advantage": "VPIN-informed trading with GPU precision at CPU cost efficiency",
-                "scalability": "Selective GPU allocation based on computational requirements",
-                "compliance": "Paper trading mode until production validation"
+                "use_case": "Cost-optimized AI trading with TPU acceleration",
+                "competitive_advantage": "TPU-powered VPIN analysis at 2-5x better cost-performance than GPUs",
+                "scalability": "Elastic TPU scaling based on trading volume and API throttling",
+                "compliance": "Paper trading mode with production-ready TPU infrastructure"
             }
         }
 
@@ -156,9 +157,9 @@ For technical questions about this request, please reference:
    - Go to: https://console.cloud.google.com/iam-admin/quotas
    - Ensure project 'sapphireinfinite' is selected
 
-### 2. Locate GPU Quota
-   - Use search/filter: "GPUs (all regions)"
-   - Find the quota line with Metric = "GPUS_ALL_REGIONS"
+### 2. Locate TPU Quota
+   - Use search/filter: "TPUs (all regions)"
+   - Find the quota line with Metric = "TPUS_ALL_REGIONS"
 
 ### 3. Submit Quota Request
    - Click on the quota line
@@ -166,10 +167,10 @@ For technical questions about this request, please reference:
    - Fill in request details:
 
      **Quota Details:**
-     - Name: GPUs (all regions)
+     - Name: TPUs (all regions)
      - Current limit: 0
-     - New limit: 2
-     - Reason: Cost-optimized AI trading with selective GPU acceleration
+     - New limit: 1
+     - Reason: Cost-effective TPU acceleration for AI trading
 
 ### 4. Provide Justification
    Copy and paste this justification:
@@ -193,7 +194,7 @@ For technical questions about this request, please reference:
 ### 7. Post-Approval Steps
    Once approved, run:
    ```bash
-   ./enable_gpu_acceleration.sh
+   ./enable_tpu_acceleration.sh
    ```
 
 ## Alternative Contact Methods:
@@ -211,10 +212,10 @@ For technical questions about this request, please reference:
 ## Verification
 After approval, verify with:
 ```bash
-gcloud compute project-info describe --project=sapphireinfinite --format="value(quotas[quotas.metric=GPUS_ALL_REGIONS].limit)"
+gcloud compute project-info describe --project=sapphireinfinite --format="value(quotas[quotas.metric=TPUS_ALL_REGIONS].limit)"
 ```
 
-Expected result: 2 (or higher)
+Expected result: 1 (or higher)
 """
 
         print(instructions)
@@ -233,12 +234,12 @@ Expected result: 2 (or higher)
         # Check current quota
         current_quota = self.check_current_quota()
 
-        if current_quota >= 2:
-            print("✅ GPU quota already sufficient! Proceeding with GPU enablement...")
-            print("Run: ./enable_gpu_acceleration.sh")
+        if current_quota >= 1:
+            print("✅ TPU quota already sufficient! Proceeding with TPU enablement...")
+            print("Run: ./enable_tpu_acceleration.sh")
             return True
 
-        print(f"📊 Current GPU quota: {current_quota} (need 2)")
+        print(f"📊 Current TPU quota: {current_quota} (need 1)")
 
         # Generate documentation
         print("\n📄 Generating request documentation...")
@@ -255,27 +256,27 @@ Expected result: 2 (or higher)
         self.provide_manual_instructions()
 
         print("\n" + "=" * 60)
-        print("🎯 GPU QUOTA REQUEST PROCESS COMPLETE")
+        print("🎯 TPU QUOTA REQUEST PROCESS COMPLETE")
         print("=" * 60)
         print("📧 Check email for approval notifications")
         print("⏱️  Expected approval time: 24-48 hours")
-        print("🚀 After approval: Run './enable_gpu_acceleration.sh'")
+        print("🚀 After approval: Run './enable_tpu_acceleration.sh'")
         print("=" * 60)
 
         return False  # Quota not yet approved
 
 def main():
-    requester = GPUQuotaRequester()
+    requester = TPUQuotaRequester()
     success = requester.run_quota_request_process()
 
     if success:
-        print("\n🎉 GPU QUOTA ALREADY APPROVED!")
-        print("🚀 Ready to enable GPU acceleration")
+        print("\n🎉 TPU QUOTA ALREADY APPROVED!")
+        print("🚀 Ready to enable TPU acceleration")
     else:
-        print("\n⏳ AWAITING GPU QUOTA APPROVAL")
+        print("\n⏳ AWAITING TPU QUOTA APPROVAL")
         print("📧 Monitor email for approval notification")
         print("🔄 Check quota status periodically with:")
-        print("   gcloud compute project-info describe --project=sapphireinfinite --format=\"value(quotas[quotas.metric=GPUS_ALL_REGIONS].limit)\"")
+        print("   gcloud compute project-info describe --project=sapphireinfinite --format=\"value(quotas[quotas.metric=TPUS_ALL_REGIONS].limit)\"")
 
 if __name__ == "__main__":
     main()
