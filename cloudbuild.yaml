@@ -99,11 +99,18 @@ steps:
   #     - 'us-central1-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/hummingbot:latest'
 
   # Deploy to GKE cluster with optimizations
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  - name: 'gcr.io/cloud-builders/gcloud'
     entrypoint: bash
     args:
       - -c
       - |
+        # Install Helm
+        echo "📦 Installing Helm..."
+        curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+        chmod 700 get_helm.sh
+        ./get_helm.sh --version v3.12.1
+        rm get_helm.sh
+
         echo "🔐 Getting GKE credentials..."
         gcloud container clusters get-credentials hft-trading-cluster --zone=us-central1-a --project=${PROJECT_ID}
 
