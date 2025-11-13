@@ -97,7 +97,7 @@ const Navbar: React.FC = () => {
                 WebkitTextFillColor: 'transparent',
               }}
             >
-              💎 Sapphire Trading
+              💎 Sapphire Trading ✨
             </Typography>
             <Chip
               label="Powered by Aster DEX"
