@@ -47,6 +47,10 @@ ARG CACHE_BUST
 RUN echo "Cache bust: $CACHE_BUST"
 COPY --chown=trader:trader cloud_trader ./cloud_trader
 COPY --chown=trader:trader pyproject.toml README.md ./
+
+# Copy system initialization and testing scripts
+COPY --chown=trader:trader system_initializer.py comprehensive_test.py deploy_system.py ./
+
 # Force rebuild marker with timestamp
 RUN echo "MCP endpoints included - $(date +%s)" > /tmp/build_marker && ls -la /app/cloud_trader/api.py
 

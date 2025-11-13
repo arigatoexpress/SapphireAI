@@ -410,3 +410,17 @@ affinity:
             - freqtrade-hft
             - hummingbot-mm
         topologyKey: kubernetes.io/hostname
+
+# System Initialization Job
+systemInitialization:
+  enabled: true
+  image:
+    repository: cloud-run-source-deploy/cloud-trader
+    tag: "latest"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
