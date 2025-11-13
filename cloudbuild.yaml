@@ -99,7 +99,7 @@ steps:
   #     - 'us-central1-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/hummingbot:latest'
 
   # Deploy to GKE cluster with optimizations
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:alpine'
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:latest'
     entrypoint: sh
     args:
       - -c
