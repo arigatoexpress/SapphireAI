@@ -141,6 +141,13 @@ steps:
 
         echo "🚀 Starting optimized GKE deployments..."
 
+        # Check if there's an ongoing Helm operation
+        echo "🔍 Checking for ongoing Helm operations..."
+        if helm list -n trading 2>/dev/null | grep -q "trading-system.*pending"; then
+            echo "⚠️  Found pending Helm operation, waiting..."
+            sleep 30
+        fi
+
         # Install/upgrade Helm chart with error handling
         echo "⚡ Building Helm chart dependencies..."
         helm dependency build ./helm/trading-system
