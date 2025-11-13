@@ -389,8 +389,8 @@ const AgentModelCards: React.FC = () => {
                 🤖 Neural Trading Matrix
               </Typography>
               <Typography variant="body1" sx={{ color: 'text.secondary', lineHeight: 1.6 }}>
-                Elite AI agents orchestrating sophisticated trading strategies with quantum-level precision.
-                Each agent specializes in unique market dynamics, creating a symphony of algorithmic excellence.
+                Enterprise-grade AI ensemble with 5 specialized agents featuring DeepSeek, Qwen, FinGPT, Lag-LLaMA, and VPIN models.
+                Advanced risk management, real-time coordination, and institutional-grade performance monitoring.
               </Typography>
             </Box>
           </Box>
