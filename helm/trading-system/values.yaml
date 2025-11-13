@@ -145,7 +145,7 @@ mcpCoordinator:
 
 # LLM Agent Services - Open Source Models on Vertex AI
 agents:
-  enabled: true
+  enabled: false  # Disabled for minimal deployment - enable after core services work
 
   # Trend Momentum Agent - Real-time market momentum analysis using PaLM 2 Chat
   trend-momentum-agent:
@@ -398,7 +398,7 @@ frameworks:
 
   # Freqtrade HFT
   freqtrade:
-    enabled: true
+    enabled: false  # Disabled for minimal deployment
     replicaCount: 1
     image:
       repository: cloud-run-source-deploy/freqtrade
@@ -428,7 +428,7 @@ frameworks:
 
   # Hummingbot Market Maker
   hummingbot:
-    enabled: true
+    enabled: false  # Disabled for minimal deployment
     replicaCount: 1
     image:
       repository: cloud-run-source-deploy/hummingbot
