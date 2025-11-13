@@ -125,6 +125,9 @@ steps:
         echo "🚀 Starting optimized GKE deployments..."
 
         # Install/upgrade Helm chart with error handling
+        echo "⚡ Building Helm chart dependencies..."
+        helm dependency build ./helm/trading-system
+
         echo "⚡ Installing/upgrading trading-system Helm chart..."
         if helm upgrade --install trading-system ./helm/trading-system \
             --namespace trading \
