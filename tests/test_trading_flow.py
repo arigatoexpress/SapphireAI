@@ -102,7 +102,7 @@ async def test_trading_loop_execution(mock_settings):
         stack.enter_context(patch("cloud_trader.service.TradingService._publish_portfolio_state", new=AsyncMock()))
 
         with patch.object(TradingService, "_run_loop", loop_mock):
-        service = TradingService(settings=mock_settings)
+            service = TradingService(settings=mock_settings)
             service._start_symbol_refresh = AsyncMock()
         
         await service.start()

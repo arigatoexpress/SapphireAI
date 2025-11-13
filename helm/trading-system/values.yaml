@@ -1,0 +1,363 @@
+# Default values for trading-system helm chart
+global:
+  imageRegistry: us-central1-docker.pkg.dev
+  projectId: sapphireinfinite
+  imagePullPolicy: Always
+
+# Redis configuration
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: false
+  master:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+  replica:
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 512Mi
+  metrics:
+    enabled: true
+  persistence:
+    enabled: true
+    size: 8Gi
+  redisConfig:
+    maxmemory: "512mb"
+    maxmemory-policy: "allkeys-lru"
+    tcp-keepalive: "60"
+    timeout: "300"
+    databases: "16"
+    appendonly: "yes"
+    appendfsync: "everysec"
+
+# Cloud Trader API Service
+cloudTrader:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: cloud-run-source-deploy/cloud-trader
+    tag: "latest"
+  service:
+    type: ClusterIP
+    port: 8080
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+  env:
+    - name: ENABLE_PAPER_TRADING
+      value: "true"
+    - name: LOG_LEVEL
+      value: "WARNING"
+    - name: MCP_ENABLED
+      value: "true"
+
+# MCP Coordinator Service
+mcpCoordinator:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: cloud-run-source-deploy/cloud-trader
+    tag: "latest"
+  service:
+    type: ClusterIP
+    port: 8081
+  resources:
+    requests:
+      cpu: 200m  # Optimized for message routing
+      memory: 512Mi  # Increased for message buffering
+    limits:
+      cpu: 1000m  # Higher CPU for concurrent processing
+      memory: 2Gi
+  env:
+    - name: LOG_LEVEL
+      value: "INFO"
+    - name: MCP_ENABLED
+      value: "true"
+    - name: MESSAGE_COMPRESSION
+      value: "true"  # Enable message compression
+    - name: CONNECTION_POOL_SIZE
+      value: "50"  # Larger connection pool
+    - name: MESSAGE_BATCH_SIZE
+      value: "100"  # Batch message processing
+    - name: ASYNC_WORKERS
+      value: "16"  # Concurrent message handlers
+    - name: MEMORY_CACHE_ENABLED
+      value: "true"  # Enable in-memory caching
+
+# LLM Agent Services
+agents:
+  enabled: true
+
+  # DeepSeek Agent
+  deepseek:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: cloud-run-source-deploy/cloud-trader
+      tag: "latest"
+    resources:
+      requests:
+        cpu: 500m
+        memory: 2Gi  # Optimized for quantized models
+        nvidia.com/gpu: 1
+      limits:
+        cpu: 2000m
+        memory: 8Gi  # Reduced from 4Gi with quantization
+        nvidia.com/gpu: 1
+    env:
+      - name: ENABLE_PAPER_TRADING
+        value: "true"
+      - name: ENABLED_AGENTS
+        value: '["deepseek-v3"]'
+      - name: ENABLE_VERTEX_AI
+        value: "true"
+      - name: MCP_ENABLED
+        value: "true"
+      - name: DEEPSEEK_VERTEX_ENDPOINT
+        value: "https://us-central1-aiplatform.googleapis.com/v1/projects/sapphireinfinite/locations/us-central1/endpoints/deepseek-momentum-endpoint"
+      - name: MODEL_QUANTIZATION
+        value: "4bit"  # Enable 4-bit quantization
+      - name: GPU_MEMORY_FRACTION
+        value: "0.7"  # Use 70% of GPU memory
+      - name: INFERENCE_BATCH_SIZE
+        value: "8"  # Batch processing for efficiency
+      - name: CUDA_LAUNCH_BLOCKING
+        value: "0"  # Async CUDA operations
+
+  # Qwen Agent
+  qwen:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: cloud-run-source-deploy/cloud-trader
+      tag: "latest"
+    resources:
+      requests:
+        cpu: 500m
+        memory: 2Gi  # Optimized for quantized models
+        nvidia.com/gpu: 1
+      limits:
+        cpu: 2000m
+        memory: 8Gi  # Reduced with quantization
+        nvidia.com/gpu: 1
+    env:
+      - name: ENABLE_PAPER_TRADING
+        value: "true"
+      - name: ENABLED_AGENTS
+        value: '["qwen"]'
+      - name: ENABLE_VERTEX_AI
+        value: "true"
+      - name: MCP_ENABLED
+        value: "true"
+      - name: MODEL_QUANTIZATION
+        value: "4bit"
+      - name: GPU_MEMORY_FRACTION
+        value: "0.7"
+      - name: INFERENCE_BATCH_SIZE
+        value: "8"
+      - name: CUDA_LAUNCH_BLOCKING
+        value: "0"
+
+  # FinGPT Agent
+  fingpt:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: cloud-run-source-deploy/cloud-trader
+      tag: "latest"
+    resources:
+      requests:
+        cpu: 500m
+        memory: 2Gi
+        nvidia.com/gpu: 1
+      limits:
+        cpu: 2000m
+        memory: 8Gi
+        nvidia.com/gpu: 1
+    env:
+      - name: ENABLE_PAPER_TRADING
+        value: "true"
+      - name: ENABLED_AGENTS
+        value: '["fingpt-alpha"]'
+      - name: ENABLE_VERTEX_AI
+        value: "true"
+      - name: MCP_ENABLED
+        value: "true"
+      - name: MODEL_QUANTIZATION
+        value: "4bit"
+      - name: GPU_MEMORY_FRACTION
+        value: "0.7"
+      - name: INFERENCE_BATCH_SIZE
+        value: "8"
+      - name: CUDA_LAUNCH_BLOCKING
+        value: "0"
+
+  # Lag-LLaMA Agent
+  lagllama:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: cloud-run-source-deploy/cloud-trader
+      tag: "latest"
+    resources:
+      requests:
+        cpu: 500m
+        memory: 2Gi
+        nvidia.com/gpu: 1
+      limits:
+        cpu: 2000m
+        memory: 8Gi
+        nvidia.com/gpu: 1
+    env:
+      - name: ENABLE_PAPER_TRADING
+        value: "true"
+      - name: ENABLED_AGENTS
+        value: '["lagllama-degen"]'
+      - name: ENABLE_VERTEX_AI
+        value: "true"
+      - name: MCP_ENABLED
+        value: "true"
+      - name: MODEL_QUANTIZATION
+        value: "4bit"
+      - name: GPU_MEMORY_FRACTION
+        value: "0.7"
+      - name: INFERENCE_BATCH_SIZE
+        value: "8"
+      - name: CUDA_LAUNCH_BLOCKING
+        value: "0"
+
+# Trading Framework Services
+frameworks:
+  enabled: true
+
+  # Freqtrade HFT
+  freqtrade:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: cloud-run-source-deploy/freqtrade
+      tag: "latest"
+    resources:
+      requests:
+        cpu: 750m  # Optimized for vectorized operations
+        memory: 1.5Gi  # Reduced with memory optimization
+      limits:
+        cpu: 3000m  # Increased for parallel processing
+        memory: 6Gi
+    env:
+      - name: ENABLE_PAPER_TRADING
+        value: "true"
+      - name: FREQTRADE__EXCHANGE__NAME
+        value: "asterdex"
+      - name: FREQTRADE__TELEGRAM__ENABLED
+        value: "true"
+      - name: NUMBA_THREADING_LAYER
+        value: "omp"  # Optimize Numba threading
+      - name: OMP_NUM_THREADS
+        value: "4"  # Parallel computation threads
+      - name: PYTHONOPTIMIZE
+        value: "1"  # Enable Python optimizations
+      - name: VECTORIZE_OPERATIONS
+        value: "true"  # Enable SIMD vectorization
+
+  # Hummingbot Market Maker
+  hummingbot:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: cloud-run-source-deploy/hummingbot
+      tag: "latest"
+    resources:
+      requests:
+        cpu: 500m  # Optimized resource usage
+        memory: 1Gi  # Increased for market data caching
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+    env:
+      - name: ENABLE_PAPER_TRADING
+        value: "true"
+      - name: HUMMINGBOT__TELEGRAM__ENABLED
+        value: "true"
+      - name: ASYNC_IO_WORKERS
+        value: "8"  # Optimize async I/O
+      - name: CONNECTION_POOL_SIZE
+        value: "20"  # Connection pooling
+      - name: MEMORY_CACHE_SIZE
+        value: "512MB"  # In-memory cache size
+      - name: NETWORK_TIMEOUT
+        value: "5"  # Reduced network timeout
+
+# Horizontal Pod Autoscaling
+hpa:
+  enabled: true
+
+  # Freqtrade HPA
+  freqtrade:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+  # Hummingbot HPA
+  hummingbot:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 2
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+# Service Account for GCP access
+serviceAccount:
+  create: true
+  name: trading-system-sa
+  annotations:
+    iam.gke.io/gcp-service-account: trading-system@sapphireinfinite.iam.gserviceaccount.com
+
+# Security Context
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 2000
+
+# Node Selector for GPU nodes
+nodeSelector:
+  accelerator: nvidia-tesla-l4
+
+# Tolerations for GPU workloads
+tolerations:
+  - key: "nvidia.com/gpu"
+    operator: "Exists"
+    effect: "NoSchedule"
+
+# Affinity rules
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+    - weight: 100
+      podAffinityTerm:
+        labelSelector:
+          matchExpressions:
+          - key: app
+            operator: In
+            values:
+            - cloud-trader
+            - freqtrade-hft
+            - hummingbot-mm
+        topologyKey: kubernetes.io/hostname

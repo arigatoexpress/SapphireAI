@@ -13,18 +13,20 @@ def mock_pubsub_client():
 
 @pytest.fixture
 def vpin_agent(mock_exchange_client, mock_pubsub_client):
-    return VpinHFTAgent(mock_exchange_client, mock_pubsub_client)
+    return VpinHFTAgent(mock_exchange_client, mock_pubsub_client, "sapphire-vpin-positions")
 
 def generate_mock_ticks(num_ticks: int, base_price: float, volume: float, direction: str = "buy"):
     ticks = []
+    prev_price = base_price
     for i in range(num_ticks):
         price_change = 0.01 if direction == "buy" else -0.01
         price = base_price + (i * price_change)
         ticks.append({
             "price": price,
-            "quantity": volume,
-            "is_buyer_maker": direction == "sell" # is_buyer_maker=True means sell order (taker sells to maker buy)
+            "prev_price": prev_price,
+            "volume": volume,
         })
+        prev_price = price
     return ticks
 
 @pytest.mark.asyncio
@@ -72,25 +74,25 @@ async def test_execute_trade_buy_signal(vpin_agent, mock_exchange_client, mock_p
     assert kwargs["symbol"] == "BTCUSDT"
     mock_pubsub_client.publish.assert_called_once()
     args, kwargs = mock_pubsub_client.publish.call_args
-    assert kwargs["topic"] == "vpin_position_updates"
-    assert kwargs["message"]["side"] == "BUY"
+    assert args[0] == "sapphire-vpin-positions"
+    assert args[1]["side"] == "BUY"
 
 @pytest.mark.asyncio
-async def test_execute_trade_sell_signal(vpin_agent, mock_exchange_client, mock_pubsub_client):
+async def test_execute_trade_high_vpin_signal(vpin_agent, mock_exchange_client, mock_pubsub_client):
     mock_exchange_client.get_ticker_price.return_value = {"price": 100.0}
-    mock_exchange_client.place_order.return_value = {"orderId": "test_order_sell"}
+    mock_exchange_client.place_order.return_value = {"orderId": "test_order_buy"}
 
-    await vpin_agent.execute_trade(-0.5, "BTCUSDT") # Negative VPIN signal
+    await vpin_agent.execute_trade(0.8, "BTCUSDT") # High VPIN signal (> 0.6)
 
     mock_exchange_client.get_ticker_price.assert_called_once_with("BTCUSDT")
     mock_exchange_client.place_order.assert_called_once()
     args, kwargs = mock_exchange_client.place_order.call_args
-    assert kwargs["side"] == "SELL"
+    assert kwargs["side"] == "BUY"
     assert kwargs["symbol"] == "BTCUSDT"
     mock_pubsub_client.publish.assert_called_once()
     args, kwargs = mock_pubsub_client.publish.call_args
-    assert kwargs["topic"] == "vpin_position_updates"
-    assert kwargs["message"]["side"] == "SELL"
+    assert args[0] == "sapphire-vpin-positions"
+    assert args[1]["side"] == "BUY"
 
 @pytest.mark.asyncio
 async def test_execute_trade_neutral_signal(vpin_agent, mock_exchange_client, mock_pubsub_client):

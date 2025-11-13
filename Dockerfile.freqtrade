@@ -1,34 +1,66 @@
 # Freqtrade with FreqAI for HFT Trading on Aster DEX
-FROM python:3.11-slim
+FROM python:3.11-slim as builder
 
-# Install system dependencies
+# Add metadata
+LABEL maintainer="sapphiretrading" \
+      version="1.0" \
+      description="Freqtrade with FreqAI for high-frequency trading on Aster DEX"
+
+# Install system build dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
     git \
     curl \
+    wget \
+    libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install TA-Lib
+# Install TA-Lib in builder stage
 RUN cd /tmp && \
     wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz && \
     tar -xzf ta-lib-0.4.0-src.tar.gz && \
     cd ta-lib && \
     ./configure --prefix=/usr && \
-    make && make install && \
+    make -j$(nproc) && make install && \
     cd .. && rm -rf ta-lib*
 
-# Set working directory
-WORKDIR /freqtrade
+# Create virtual environment for Python dependencies
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
 
-# Install Freqtrade with FreqAI
+# Install Python dependencies in virtual environment
 RUN pip install --upgrade pip
-RUN pip install freqtrade[plot]
-RUN pip install freqtrade[strategy_optimizer]
-RUN pip install scikit-learn
-RUN pip install xgboost
-RUN pip install lightgbm
-RUN pip install catboost
-RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+RUN pip install --no-cache-dir \
+    freqtrade[plot] \
+    freqtrade[strategy_optimizer] \
+    scikit-learn \
+    xgboost \
+    lightgbm \
+    catboost \
+    torch \
+    torchvision \
+    torchaudio \
+    --index-url https://download.pytorch.org/whl/cpu \
+    pandas \
+    numpy \
+    plotly \
+    hyperopt
+
+# Runtime stage
+FROM python:3.11-slim as runtime
+
+# Install only runtime dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy virtual environment from builder
+COPY --from=builder /opt/venv /opt/venv
+COPY --from=builder /usr/lib/libta_lib* /usr/lib/
+
+# Set environment
+ENV PATH="/opt/venv/bin:$PATH"
+ENV PYTHONUNBUFFERED=1
 
 # Create user data directory
 RUN mkdir -p /freqtrade/user_data/strategies

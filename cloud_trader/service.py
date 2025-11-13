@@ -359,6 +359,7 @@ class TradingService:
             self._vpin_agent = VpinHFTAgent(
                 exchange_client=self._exchange,
                 pubsub_client=self._streams,
+                risk_manager_topic="sapphire-vpin-positions",
             )
 
         self._rate_limit_manager = RateLimitManager(limits={'second': 10, 'minute': 1200})
@@ -1108,6 +1109,13 @@ class TradingService:
             logger.info("Starting VPIN processing task...")
             self._vpin_processing_task = asyncio.create_task(self._process_vpin_batches())
 
+        # Start RiskManager VPIN listener
+        try:
+            await self._risk.start_vpin_listener()
+            logger.info("RiskManager VPIN listener started.")
+        except Exception as e:
+            logger.error(f"Failed to start RiskManager VPIN listener: {e}")
+
 
     async def stop(self) -> None:
         self._stop_event.set()
@@ -1590,6 +1598,12 @@ class TradingService:
 
         while not self._stop_event.is_set():
             try:
+                # Check rate limits before processing VPIN (highest priority throttling)
+                if self._rate_limit_manager.should_throttle_agent("vpin-hft"):
+                    logger.debug("VPIN agent throttled due to rate limits, skipping batch processing")
+                    await asyncio.sleep(1)  # Brief pause before checking again
+                    continue
+
                 batch_data = await self._vpin_tick_batch_queue.get()
                 symbol = batch_data.get("symbol")
                 batch = batch_data.get("batch")

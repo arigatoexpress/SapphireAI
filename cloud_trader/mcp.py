@@ -26,6 +26,15 @@ class MCPMessageType(str, Enum):
     ORDER_EXECUTION = "order_execution"
     RISK_UPDATE = "risk_update"
     STRATEGY_ADJUSTMENT = "strategy_adjustment"
+    # Trading framework specific types
+    FREQTRADE_PROPOSAL = "freqtrade_proposal"
+    HUMMINGBOT_PROPOSAL = "hummingbot_proposal"
+    FREQTRADE_EXECUTION = "freqtrade_execution"
+    HUMMINGBOT_EXECUTION = "hummingbot_execution"
+    LIQUIDITY_UPDATE = "liquidity_update"
+    MARKET_MAKING_STATUS = "market_making_status"
+    PORTFOLIO_REBALANCE = "portfolio_rebalance"
+    STRATEGY_PERFORMANCE = "strategy_performance"
 
 
 class MCPProposalPayload(BaseModel):
@@ -101,6 +110,111 @@ class MCPStrategyAdjustmentPayload(BaseModel):
     reason: str
     source: str  # "freqtrade", "hummingbot", "coordinator"
     timestamp: str
+
+
+class MCPFreqtradeProposalPayload(BaseModel):
+    """Freqtrade strategy proposal."""
+    symbol: str
+    strategy: str
+    timeframe: str
+    signal: str  # "buy", "sell", "hold"
+    confidence: float
+    indicators: Dict[str, Any]
+    entry_price: Optional[float] = None
+    stop_loss: Optional[float] = None
+    take_profit: Optional[float] = None
+    rationale: str
+    freqai_prediction: Optional[Dict[str, Any]] = None
+
+
+class MCRHummingbotProposalPayload(BaseModel):
+    """Hummingbot market making proposal."""
+    symbol: str
+    strategy: str
+    spread_percentage: float
+    order_amount: float
+    inventory_skew: Optional[float] = None
+    market_depth: Optional[Dict[str, Any]] = None
+    rationale: str
+    expected_pnl: Optional[float] = None
+
+
+class MCPFreqtradeExecutionPayload(BaseModel):
+    """Freqtrade order execution details."""
+    symbol: str
+    strategy: str
+    order_id: str
+    side: str
+    amount: float
+    price: float
+    fee: float
+    timestamp: str
+    status: str
+    pnl: Optional[float] = None
+    roi: Optional[float] = None
+
+
+class MCRHummingbotExecutionPayload(BaseModel):
+    """Hummingbot order execution details."""
+    symbol: str
+    strategy: str
+    order_id: str
+    side: str
+    amount: float
+    price: float
+    fee: float
+    timestamp: str
+    status: str
+    spread_earned: Optional[float] = None
+
+
+class MCPLiquidityUpdatePayload(BaseModel):
+    """Liquidity provision updates."""
+    symbol: str
+    bid_orders: List[Dict[str, Any]]
+    ask_orders: List[Dict[str, Any]]
+    total_liquidity: float
+    imbalance_ratio: float
+    timestamp: str
+    source: str
+
+
+class MCPMarketMakingStatusPayload(BaseModel):
+    """Market making operational status."""
+    symbol: str
+    active: bool
+    spread_bps: float
+    inventory_ratio: float
+    pnl_24h: float
+    order_count: int
+    last_update: str
+    issues: Optional[List[str]] = None
+
+
+class MCPPortfolioRebalancePayload(BaseModel):
+    """Portfolio rebalancing instructions."""
+    target_allocations: Dict[str, float]
+    current_allocations: Dict[str, float]
+    rebalance_trades: List[Dict[str, Any]]
+    reason: str
+    expected_impact: Dict[str, float]
+    timestamp: str
+
+
+class MCPStrategyPerformancePayload(BaseModel):
+    """Strategy performance metrics."""
+    strategy_name: str
+    symbol: str
+    timeframe: str
+    total_trades: int
+    win_rate: float
+    profit_factor: float
+    max_drawdown: float
+    sharpe_ratio: Optional[float] = None
+    sortino_ratio: Optional[float] = None
+    calmar_ratio: Optional[float] = None
+    period_start: str
+    period_end: str
 
 
 logger = logging.getLogger(__name__)
