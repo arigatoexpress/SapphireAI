@@ -4,7 +4,8 @@ global:
   projectId: sapphireinfinite
   imagePullPolicy: Always
 
-# GPU configuration - set to false for CPU-only operation
+# GPU configuration - enables GPU acceleration for AI agents
+# NOTE: GPU quota required - set to true after requesting GPU quota from GCP
 gpu:
   enabled: false
 
@@ -192,11 +193,9 @@ agents:
       requests:
         cpu: 500m
         memory: 2Gi
-        nvidia.com/gpu: 1
       limits:
         cpu: 2000m
         memory: 8Gi
-        nvidia.com/gpu: 1
     env:
       - name: ENABLE_PAPER_TRADING
         value: "true"
@@ -229,11 +228,9 @@ agents:
       requests:
         cpu: 500m
         memory: 2Gi
-        nvidia.com/gpu: 1
       limits:
         cpu: 2000m
         memory: 8Gi
-        nvidia.com/gpu: 1
     env:
       - name: ENABLE_PAPER_TRADING
         value: "true"
@@ -266,11 +263,9 @@ agents:
       requests:
         cpu: 500m
         memory: 2Gi
-        nvidia.com/gpu: 1
       limits:
         cpu: 2000m
         memory: 8Gi
-        nvidia.com/gpu: 1
     env:
       - name: ENABLE_PAPER_TRADING
         value: "true"
@@ -390,7 +385,7 @@ securityContext:
 # Node Selector for GPU nodes (only used when gpu.enabled=true)
 {{- if .Values.gpu.enabled }}
 nodeSelector:
-  accelerator: nvidia-tesla-l4
+  accelerator: nvidia-l4
 
 # Tolerations for GPU workloads (only used when gpu.enabled=true)
 tolerations:

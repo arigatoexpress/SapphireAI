@@ -150,7 +150,7 @@ steps:
             --namespace trading \
             --create-namespace \
             --wait \
-                    --timeout=300s \
+                    --timeout=600s \
             --set global.imageRegistry=us-central1-docker.pkg.dev \
             --set global.projectId=${PROJECT_ID} \
             --set cloudTrader.image.tag=${BUILD_ID} \
@@ -159,7 +159,7 @@ steps:
                 --namespace trading \
                 --create-namespace \
                 --wait \
-                    --timeout=300s \
+                    --timeout=600s \
                 --set global.imageRegistry=us-central1-docker.pkg.dev \
                 --set global.projectId=${PROJECT_ID} \
                 --set cloudTrader.image.tag=${BUILD_ID}
@@ -176,7 +176,7 @@ steps:
                 deployments="trading-system-cloud-trader trading-system-mcp-coordinator trading-system-deepseek-bot trading-system-qwen-bot trading-system-fingpt-bot trading-system-lagllama-bot trading-system-vpin-bot"
 
                 for deployment in $deployments; do
-                  if ! kubectl -n trading rollout status deployment/$deployment --timeout=180s; then
+                  if ! kubectl -n trading rollout status deployment/$deployment --timeout=300s; then
               echo "❌ $deployment rollout failed"
               kubectl -n trading describe deployment/$deployment
               kubectl -n trading logs deployment/$deployment --tail=50 || true
