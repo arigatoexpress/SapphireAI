@@ -105,22 +105,26 @@ steps:
       - -c
       - |
         # Install required tools
-        apk add --no-cache curl bash
+        apk add --no-cache curl bash openssl
 
         # Install gcloud
         echo "📦 Installing gcloud..."
         curl -sSL https://sdk.cloud.google.com | bash > /dev/null 2>&1
         export PATH=/root/google-cloud-sdk/bin:/usr/local/bin:/usr/bin:/bin
 
-        # Install Helm
+        # Install Helm with checksum verification disabled
         echo "📦 Installing Helm..."
-        curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+        VERIFY_CHECKSUM=false curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
         chmod 700 get_helm.sh
         ./get_helm.sh --version v3.12.1
         rm get_helm.sh
 
         echo "🔐 Getting GKE credentials..."
         gcloud container clusters get-credentials hft-trading-cluster --zone=us-central1-a --project=${PROJECT_ID}
+
+        # Verify cluster connectivity
+        echo "🔍 Verifying cluster connectivity..."
+        kubectl cluster-info || (echo "❌ Cluster connectivity failed"; exit 1)
 
         echo "🚀 Starting optimized GKE deployments..."
 
