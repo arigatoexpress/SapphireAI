@@ -1,0 +1,34 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: trading-system-ingress
+  namespace: trading-system
+  annotations:
+    kubernetes.io/ingress.class: "gce"
+    kubernetes.io/ingress.global-static-ip-name: "cloud-trader-ip"
+    networking.gke.io/managed-certificates: "sapphire-trading-cert"
+    kubernetes.io/ingress.allow-http: "false"
+spec:
+  tls:
+  - secretName: sapphire-trading-tls
+  rules:
+  - host: api.sapphiretrade.xyz
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: coordinator-service
+            port:
+              number: 8080
+  - host: trader.sapphiretrade.xyz
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: trend-momentum-agent-service
+            port:
+              number: 8080

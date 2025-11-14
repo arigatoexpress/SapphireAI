@@ -1161,7 +1161,7 @@ class TradingService:
         async def check_exchange_api():
             try:
                 # Try to get ticker data
-                ticker = await self._exchange.get_ticker("BTCUSDT")
+                ticker = await self._exchange.get_ticker_price("BTCUSDT")
                 return ticker is not None
             except Exception:
                 return False
@@ -1292,6 +1292,7 @@ class TradingService:
             await self._register_agents_with_coordinator()
         except Exception as exc:
             logger.warning(f"Failed to register agents with coordinator: {exc}")
+            logger.info("Continuing without coordinator registration - agents will operate independently")
             # Don't fail startup if registration fails
 
         # Initialize the Aster client with credentials

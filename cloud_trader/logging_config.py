@@ -27,23 +27,23 @@ class TradingLogger:
         self.request_context = threading.local()
 
         # Configure structlog
-        structlog.configure(
-            processors=[
+    structlog.configure(
+        processors=[
                 structlog.contextvars.merge_contextvars,
-                structlog.processors.add_log_level,
+            structlog.processors.add_log_level,
                 structlog.processors.TimeStamper(fmt="iso"),
                 self._add_service_info,
                 self._add_correlation_id,
                 self._add_request_context,
-                structlog.processors.JSONRenderer(),
-            ],
+            structlog.processors.JSONRenderer(),
+        ],
             wrapper_class=structlog.make_filtering_bound_logger(
                 self._get_log_level(log_level)
             ),
-            context_class=dict,
+        context_class=dict,
             logger_factory=structlog.WriteLoggerFactory(),
-            cache_logger_on_first_use=True,
-        )
+        cache_logger_on_first_use=True,
+    )
 
         # Configure standard logging
         self._configure_standard_logging(log_level)
