@@ -365,3 +365,5 @@ yarl==1.22.0
     # via aiohttp
 zipp==3.23.0
     # via importlib-metadata
+python-json-logger==2.0.7
+    # via cloud-trader (pyproject.toml)
