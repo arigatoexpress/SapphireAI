@@ -126,7 +126,7 @@ class TradingSafeguards:
         
         # Drawdown tracking
         self._portfolio_peak = 0.0
-        self._max_drawdown_threshold = 0.05  # 5% max drawdown
+        self._max_drawdown_threshold = 0.10  # 10% max drawdown
         self._daily_loss_threshold = 0.03    # 3% daily loss limit
         
         # Rate limiting
