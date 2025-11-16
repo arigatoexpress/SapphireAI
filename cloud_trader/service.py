@@ -542,6 +542,7 @@ class TradingService:
 
     async def _initialize_agents(self) -> None:
         """Initialize agents with dynamic symbol assignment based on available markets."""
+        logger.info("Fetching available symbols for agent initialization...")
         # Fetch all available symbols
         try:
             self._available_symbols = await self._fetch_available_symbols()
@@ -620,8 +621,10 @@ class TradingService:
                 state.name,
                 coverage_count,
             )
-        
+
         logger.info(f"Total agents initialized: {len(self._agent_states)}/{len(AGENT_DEFINITIONS)}")
+        for agent_id in self._agent_states.keys():
+            logger.info(f"Agent {agent_id} initialized with {len(self._agent_states[agent_id].symbols)} symbols")
 
         # Register agents with performance auto-adjuster
         if hasattr(self, '_performance_adjuster') and self._performance_adjuster:
@@ -1396,7 +1399,9 @@ class TradingService:
             self._bigquery_ready = False
             
         # Initialize agents with dynamic symbol discovery
+        logger.info("Starting agent initialization...")
         await self._initialize_agents()
+        logger.info(f"Agents initialized: {len(self._agent_states)} agents created")
         logger.info("Agents initialized, now registering with coordinator...")
 
         # Register agents with MCP coordinator for inter-agent communication
