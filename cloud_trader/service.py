@@ -1158,33 +1158,8 @@ class TradingService:
         """Setup self-healing health checks for system resilience."""
         from .self_healing import HealthCheck
 
-        # Database connectivity check
-        async def check_database():
-            try:
-                storage = await get_storage()
-                if storage and storage.is_ready():
-                    # Try a simple SQL query that doesn't depend on existing tables
-                    from sqlalchemy import text
-                    async with storage._session_factory() as session:
-                        await session.execute(text("SELECT 1"))
-                    return True
-                return False
-            except Exception:
-                return False
-
-        # Redis connectivity check
-        async def check_redis():
-            try:
-                cache = await get_cache()
-                if cache and cache.is_connected():
-                    # Try a simple set/get operation
-                    test_key = "health_check_test"
-                    await cache.set(test_key, "test", ttl=10)
-                    result = await cache.get(test_key)
-                    return result == "test"
-                return False
-            except Exception:
-                return False
+        # Import the standalone health check functions
+        from .health_checks import check_database_health, check_redis_health
 
         # Vertex AI connectivity check
         async def check_vertex_ai():
@@ -1209,7 +1184,7 @@ class TradingService:
         # Register health checks with recovery functions
         self._healing_manager.register_health_check(HealthCheck(
             name="database",
-            check_func=check_database,
+            check_func=check_database_health,
             recovery_func=recover_database_connection,
             interval=60.0,  # Check every minute
             max_failures=3
@@ -1217,7 +1192,7 @@ class TradingService:
 
         self._healing_manager.register_health_check(HealthCheck(
             name="redis",
-            check_func=check_redis,
+            check_func=check_redis_health,
             recovery_func=recover_redis_connection,
             interval=30.0,  # Check every 30 seconds
             max_failures=3
