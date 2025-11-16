@@ -27,6 +27,7 @@ from .pubsub import PubSubClient
 from .logging_config import get_trading_logger, correlation_context, log_performance
 from .data_collector import get_data_collector, collect_market_data, collect_trading_decision, collect_trade_execution
 from .resilience import get_resilience_manager, circuit_breaker, health_check
+from .chat_logger import get_chat_logger
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +59,7 @@ class CoordinatorMessage(BaseModel):
     component_id: str
     component_type: ComponentType
     payload: Dict[str, Any]
-    timestamp: datetime
+    timestamp: str
 
 
 class MCPCoordinator:
@@ -70,10 +71,26 @@ class MCPCoordinator:
         self.app = FastAPI(title="MCP Coordinator", version="1.0.0")
 
         # Initialize core systems
-        self.portfolio_orchestrator = get_portfolio_orchestrator()
-        self.data_collector = get_data_collector()
-        self.resilience_manager = get_resilience_manager()
+        try:
+            self.portfolio_orchestrator = get_portfolio_orchestrator()
+        except Exception as e:
+            logger.warning(f"Failed to initialize portfolio orchestrator: {e}")
+            self.portfolio_orchestrator = None
+
+        try:
+            self.data_collector = get_data_collector()
+        except Exception as e:
+            logger.warning(f"Failed to initialize data collector: {e}")
+            self.data_collector = None
+
+        try:
+            self.resilience_manager = get_resilience_manager()
+        except Exception as e:
+            logger.warning(f"Failed to initialize resilience manager: {e}")
+            self.resilience_manager = None
+
         self.logger = get_trading_logger("mcp-coordinator")
+        self.chat_logger = get_chat_logger()
 
         # Communication management
         self.agent_activity_levels: Dict[str, Dict[str, Any]] = {}
@@ -277,6 +294,69 @@ class MCPCoordinator:
                 }
                 for agent_id, personality in self.portfolio_orchestrator.agent_personalities.items()
             }
+
+        @self.app.post("/chat/log")
+        async def log_chat_message(message: Dict[str, Any]):
+            """Log a chat message from an agent or user."""
+            try:
+                success = await self.chat_logger.log_message(
+                    agent_id=message.get("agent_id", "unknown"),
+                    agent_name=message.get("agent_name", "Unknown"),
+                    agent_type=message.get("agent_type", "unknown"),
+                    message=message.get("message", ""),
+                    message_type=message.get("message_type", "general"),
+                    confidence=message.get("confidence"),
+                    metadata=message.get("metadata"),
+                )
+                if success:
+                    return {"status": "logged", "message_id": message.get("id")}
+                else:
+                    raise HTTPException(status_code=500, detail="Failed to log message")
+            except Exception as e:
+                logger.error(f"Failed to log chat message: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.app.get("/chat/history")
+        async def get_chat_history(
+            limit: int = 100,
+            agent_type: Optional[str] = None,
+            start_time: Optional[str] = None,
+            end_time: Optional[str] = None,
+        ):
+            """Get chat message history."""
+            try:
+                start_dt = datetime.fromisoformat(start_time.replace("Z", "+00:00")) if start_time else None
+                end_dt = datetime.fromisoformat(end_time.replace("Z", "+00:00")) if end_time else None
+                
+                messages = await self.chat_logger.get_recent_messages(
+                    limit=min(limit, 1000),  # Max 1000
+                    agent_type=agent_type,
+                    start_time=start_dt,
+                    end_time=end_dt,
+                )
+                return {"messages": messages, "count": len(messages)}
+            except Exception as e:
+                logger.error(f"Failed to retrieve chat history: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.app.get("/chat/statistics")
+        async def get_chat_statistics(
+            start_time: Optional[str] = None,
+            end_time: Optional[str] = None,
+        ):
+            """Get chat message statistics."""
+            try:
+                start_dt = datetime.fromisoformat(start_time.replace("Z", "+00:00")) if start_time else None
+                end_dt = datetime.fromisoformat(end_time.replace("Z", "+00:00")) if end_time else None
+                
+                stats = await self.chat_logger.get_message_statistics(
+                    start_time=start_dt,
+                    end_time=end_dt,
+                )
+                return stats
+            except Exception as e:
+                logger.error(f"Failed to get chat statistics: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail=str(e))
 
         @self.app.get("/agent/{agent_id}/guidance")
         async def get_agent_guidance(agent_id: str):
@@ -588,6 +668,17 @@ class MCPCoordinator:
                 })
                 self.update_communication_throttle(component_id)
 
+        # Log chat message for trade thesis
+        await self.chat_logger.log_message(
+            agent_id=thesis.get("agent_id", thesis.get("agent", "unknown")),
+            agent_name=thesis.get("agent", "Unknown Agent"),
+            agent_type=thesis.get("agent_type", "unknown"),
+            message=f"Trade thesis for {thesis['symbol']}: {thesis['thesis']}",
+            message_type="trade_idea",
+            confidence=thesis.get("risk_reward_ratio", 0.5),
+            metadata=thesis_data,
+        )
+
         # Publish to BigQuery for analysis
         if hasattr(self, 'bigquery_exporter') and self.bigquery_exporter:
             await self.bigquery_exporter.export_trade_thesis(thesis_data)
@@ -672,6 +763,16 @@ class MCPCoordinator:
                     "timestamp": datetime.now()
                 })
 
+        # Log chat message for question
+        await self.chat_logger.log_message(
+            agent_id=asking_agent,
+            agent_name=asking_agent,
+            agent_type=question.get("agent_type", "unknown"),
+            message=f"Question: {question_content}",
+            message_type="strategy_discussion",
+            metadata=question,
+        )
+
         logger.info(f"Agent {asking_agent} asked: {question_content}")
 
     async def receive_agent_insight(self, insight: Dict[str, Any]):
@@ -691,6 +792,16 @@ class MCPCoordinator:
                         "insight": insight,
                         "timestamp": datetime.now()
                     })
+
+        # Log chat message for insight
+        await self.chat_logger.log_message(
+            agent_id=insight.get("agent_id", agent),
+            agent_name=agent,
+            agent_type=insight.get("agent_type", "unknown"),
+            message=f"Insight on {symbol}: {insight_content}",
+            message_type="market_analysis",
+            metadata=insight,
+        )
 
         logger.info(f"Agent {agent} shared insight about {symbol}: {insight_content}")
 

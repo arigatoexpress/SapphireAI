@@ -1,0 +1,19 @@
+{{- if .Values.coordinator.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "sapphire-trading-system.fullname" . }}-coordinator
+  labels:
+    {{- include "sapphire-trading-system.labels" . | nindent 4 }}
+    app.kubernetes.io/component: coordinator
+spec:
+  type: {{ .Values.coordinator.service.type }}
+  ports:
+    - port: {{ .Values.coordinator.service.port }}
+      targetPort: {{ .Values.coordinator.service.targetPort }}
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "sapphire-trading-system.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: coordinator
+{{- end }}

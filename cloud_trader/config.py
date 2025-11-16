@@ -118,6 +118,10 @@ class Settings(BaseSettings):
     vertex_ai_region: str = Field(default="us-central1", validation_alias="VERTEX_AI_REGION")
     vertex_ai_project: str | None = Field(default=None, validation_alias="VERTEX_AI_PROJECT")
 
+    # Prompt Engineering Configuration
+    prompt_version: str = Field(default="v1.0", validation_alias="PROMPT_VERSION")
+    prompt_ab_test_split: float = Field(default=0.0, ge=0.0, le=1.0, validation_alias="PROMPT_AB_TEST_SPLIT", description="Percentage (0-1) of requests to route to new prompt version for A/B testing")
+
     # Agent-specific Vertex AI endpoints removed - now using unified Google Cloud AI
 
     # LLM Configuration (fallback)

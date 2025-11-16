@@ -158,10 +158,10 @@ class PortfolioOrchestrator:
         # For now, we'll define the standard agent set
         standard_agents = {
             "trend-momentum-agent": AgentRole.MOMENTUM_TRADER,
-            "strategy-optimization-agent": AgentRole.STRATEGY_OPTIMIZER,
+            "strategy-optimization-agent": AgentRole.PORTFOLIO_OPTIMIZER,
             "financial-sentiment-agent": AgentRole.SENTIMENT_ANALYST,
-            "market-prediction-agent": AgentRole.MARKET_PREDICTOR,
-            "volume-microstructure-agent": AgentRole.VOLUME_ANALYST,
+            "market-prediction-agent": AgentRole.TECHNICAL_ANALYST,
+            "volume-microstructure-agent": AgentRole.TECHNICAL_ANALYST,
             "vpin-hft": AgentRole.VOLATILITY_SPECIALIST,
         }
 

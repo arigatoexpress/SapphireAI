@@ -1,0 +1,268 @@
+# Default values for Sapphire Trading System
+# This file contains configuration for all components
+
+# Global settings
+global:
+  imageRegistry: us-central1-docker.pkg.dev
+  projectId: sapphireinfinite
+  environment: production
+  imagePullPolicy: Always
+
+# Trading System Configuration
+trading:
+  enabled: true
+  image:
+    repository: cloud-run-source-deploy/cloud-trader
+    tag: "latest"
+    pullPolicy: Always
+
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 8080
+    targetPort: 8080
+    annotations: {}
+
+  # Resource limits
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+
+  # Environment variables
+  env:
+    - name: LOG_LEVEL
+      value: "INFO"
+    - name: ENABLE_PAPER_TRADING
+      value: "false"
+    - name: MCP_URL
+      value: "http://sapphire-coordinator:8080"
+
+  # Health checks
+  healthCheck:
+    enabled: true
+    path: /health
+    initialDelaySeconds: 60
+    periodSeconds: 30
+    timeoutSeconds: 10
+    failureThreshold: 3
+
+  # Autoscaling
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+# MCP Coordinator Configuration
+coordinator:
+  enabled: true
+  image:
+    repository: cloud-run-source-deploy/cloud-trader
+    tag: "latest"
+
+  service:
+    type: ClusterIP
+    port: 8080
+    targetPort: 8080
+
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+  env:
+    - name: LOG_LEVEL
+      value: "INFO"
+
+# Redis Configuration
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: false
+
+  master:
+    persistence:
+      enabled: false
+
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 200m
+        memory: 512Mi
+
+# Agent Configuration
+agents:
+  enabled: true
+
+  # Common agent settings
+  common:
+    image:
+      repository: cloud-run-source-deploy/cloud-trader
+      tag: "latest"
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+
+  # Individual agent configurations
+  trendMomentumAgent:
+    enabled: true
+    env:
+      - name: AGENT_ID
+        value: "trend-momentum-agent"
+      - name: CAPITAL_ALLOCATION
+        value: "500"
+
+  strategyOptimizationAgent:
+    enabled: true
+    env:
+      - name: AGENT_ID
+        value: "strategy-optimization-agent"
+      - name: CAPITAL_ALLOCATION
+        value: "500"
+
+  financialSentimentAgent:
+    enabled: true
+    env:
+      - name: AGENT_ID
+        value: "financial-sentiment-agent"
+      - name: CAPITAL_ALLOCATION
+        value: "500"
+
+  marketPredictionAgent:
+    enabled: true
+    env:
+      - name: AGENT_ID
+        value: "market-prediction-agent"
+      - name: CAPITAL_ALLOCATION
+        value: "500"
+
+  volumeMicrostructureAgent:
+    enabled: true
+    env:
+      - name: AGENT_ID
+        value: "volume-microstructure-agent"
+      - name: CAPITAL_ALLOCATION
+        value: "500"
+
+  vpinHftAgent:
+    enabled: true
+    env:
+      - name: AGENT_ID
+        value: "vpin-hft"
+      - name: CAPITAL_ALLOCATION
+        value: "500"
+
+# Secrets Configuration
+secrets:
+  asterDex:
+    enabled: true
+    apiKey: ""
+    apiSecret: ""
+    # These should be set via --set secrets.asterDex.apiKey=xxx
+
+  telegram:
+    enabled: true
+    botToken: ""
+    chatId: ""
+
+  vertexAi:
+    enabled: true
+    projectId: ""
+    location: "us-central1"
+
+# Monitoring Configuration
+monitoring:
+  enabled: true
+
+  prometheus:
+    enabled: true
+    config: |
+      global:
+        scrape_interval: 15s
+      scrape_configs:
+        - job_name: 'sapphire-trading'
+          kubernetes_sd_configs:
+            - role: pod
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_pod_label_app]
+              regex: sapphire-trading
+              action: keep
+          metrics_path: '/metrics'
+
+  grafana:
+    enabled: false
+    dashboards:
+      enabled: true
+
+# Ingress Configuration
+ingress:
+  enabled: true
+  className: "gce"
+  hosts:
+    - host: api.sapphiretrade.xyz
+      paths:
+        - path: /
+          pathType: Prefix
+    - host: trader.sapphiretrade.xyz
+      paths:
+        - path: /
+          pathType: Prefix
+
+  tls:
+    - secretName: sapphire-trading-cert
+      hosts:
+        - api.sapphiretrade.xyz
+        - trader.sapphiretrade.xyz
+
+# Network Policies
+networkPolicy:
+  enabled: true
+  # Allow traffic between trading components
+  allowInternalTraffic: true
+  # Deny all external traffic except through ingress
+  denyExternalTraffic: true
+
+# Security Context
+securityContext:
+  enabled: true
+  runAsNonRoot: true
+  runAsUser: 1001
+  runAsGroup: 1001
+  fsGroup: 1001
+
+# Node Selector and Tolerations
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Additional labels and annotations
+commonLabels: {}
+commonAnnotations: {}
+
+# Development overrides
+development:
+  trading:
+    env:
+      - name: LOG_LEVEL
+        value: "DEBUG"
+      - name: ENABLE_PAPER_TRADING
+        value: "true"
+  coordinator:
+    env:
+      - name: LOG_LEVEL
+        value: "DEBUG"

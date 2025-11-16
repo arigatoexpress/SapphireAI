@@ -1,0 +1,75 @@
+# Development values for Sapphire Trading System
+# These override the defaults for development deployment
+
+global:
+  environment: development
+  imagePullPolicy: Always
+
+# Development trading settings - PAPER TRADING ENABLED
+trading:
+  enabled: true
+  env:
+    - name: ENABLE_PAPER_TRADING
+      value: "true"  # PAPER TRADING FOR DEVELOPMENT
+    - name: LOG_LEVEL
+      value: "DEBUG"
+
+  autoscaling:
+    enabled: false
+
+# Selective agents for development (faster startup)
+agents:
+  enabled: true
+  trendMomentumAgent:
+    enabled: true
+  strategyOptimizationAgent:
+    enabled: true
+  financialSentimentAgent:
+    enabled: false  # Disabled for faster dev startup
+  marketPredictionAgent:
+    enabled: false  # Disabled for faster dev startup
+  volumeMicrostructureAgent:
+    enabled: false  # Disabled for faster dev startup
+  vpinHftAgent:
+    enabled: false   # Disabled for faster dev startup
+
+# Minimal monitoring for development
+monitoring:
+  enabled: false
+
+# No ingress for development (use port-forwarding)
+ingress:
+  enabled: false
+
+# Relaxed security for development
+securityContext:
+  enabled: false
+
+# Reduced resource limits for development
+trading:
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+coordinator:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 200m
+      memory: 512Mi
+
+agents:
+  common:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 200m
+        memory: 512Mi

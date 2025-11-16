@@ -236,7 +236,21 @@ class TradingStorage:
     def is_ready(self) -> bool:
         """Return True if storage backend is initialized and ready."""
         return self._initialized and self._engine is not None and self._session_factory is not None
-    
+
+    async def health_check(self) -> None:
+        """Perform a simple health check by executing a basic query."""
+        if not self.is_ready():
+            raise RuntimeError("Storage not initialized")
+
+        try:
+            async with self._session_factory() as session:
+                # Simple query to test connectivity
+                result = await session.execute(text("SELECT 1"))
+                # Don't commit for read-only queries
+        except Exception as e:
+            logger.error(f"Database health check failed: {e}")
+            raise
+
     async def insert_trade(
         self,
         timestamp: datetime,

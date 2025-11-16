@@ -1,4 +1,4 @@
-import { Container, Box, Typography, Button, Grid, Alert } from "@mui/material";
+import { Container, Box, Typography, Button, Grid, Alert, Avatar, Chip, Card, CardContent } from "@mui/material";
 import React from 'react';
 import { useTrading } from '../contexts/TradingContext';
 import RegulatoryDisclaimer from '../components/RegulatoryDisclaimer';
@@ -7,12 +7,16 @@ import PortfolioChart from '../components/PortfolioChart';
 import MCPChat from '../components/MCPChat';
 import AgentModelCards from '../components/AgentModelCards';
 import MarketAnalysis from '../components/MarketAnalysis';
+import LiveTrades from '../components/LiveTrades';
+import AgentPerformanceComparison from '../components/AgentPerformanceComparison';
 import { AdvancedAnalytics } from '../components/AdvancedAnalytics';
 import { MarketMicrostructure } from '../components/MarketMicrostructure';
 import { SentimentAnalysis } from '../components/SentimentAnalysis';
 import { RiskManagement } from '../components/RiskManagement';
 import SystemAchievements from '../components/SystemAchievements';
 import SystemStatus from '../components/SystemStatus';
+import OptimizedCard from '../components/OptimizedCard';
+import { gradientTextStyles, commonBackgroundGradient } from '../utils/themeUtils';
 
 const Dashboard: React.FC = () => {
   const { error, refreshData } = useTrading();
@@ -60,8 +64,8 @@ const Dashboard: React.FC = () => {
               Backend Connection
             </Typography>
             <Typography variant="body2">
-              {error.includes('backend not available') 
-                ? 'Connecting to trading system...' 
+              {error.includes('backend not available')
+                ? 'Connecting to trading system...'
                 : error} - Click retry to refresh data.
             </Typography>
           </Box>
@@ -72,7 +76,7 @@ const Dashboard: React.FC = () => {
       <Box sx={{
         mb: 4,
         textAlign: 'center',
-        background: 'linear-gradient(135deg, rgba(138, 43, 226, 0.1), rgba(0, 212, 170, 0.1))',
+        background: commonBackgroundGradient,
         border: '1px solid rgba(138, 43, 226, 0.2)',
         borderRadius: 4,
         p: 4,
@@ -96,11 +100,8 @@ const Dashboard: React.FC = () => {
               mb: 2,
               fontWeight: 900,
               fontSize: { xs: '2rem', md: '2.75rem' },
-              background: 'linear-gradient(135deg, #0EA5E9 0%, #8B5CF6 50%, #0EA5E9 100%)',
+              ...gradientTextStyles('#0EA5E9', '#8B5CF6'),
               backgroundSize: '200% 200%',
-              backgroundClip: 'text',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
               animation: 'gradientShift 3s ease infinite',
               '@keyframes gradientShift': {
                 '0%, 100%': { backgroundPosition: '0% 50%' },
@@ -134,7 +135,7 @@ const Dashboard: React.FC = () => {
               fontSize: '1.1rem',
             }}
           >
-            Advanced AI trading platform powered by <strong style={{ color: '#8b5cf6' }}>6 specialized Gemini AI agents</strong> with 
+            Advanced AI trading platform powered by <strong style={{ color: '#8b5cf6' }}>6 specialized Gemini AI agents</strong> with
             <strong style={{ color: '#06b6d4' }}> real-time market analysis</strong> and <strong style={{ color: '#10b981' }}>institutional-grade risk management</strong>.
             Optimized for <strong style={{ color: '#ec4899' }}>Aster DEX perpetual futures</strong> with sub-second decision latency and automated position management.
           </Typography>
@@ -267,12 +268,12 @@ const Dashboard: React.FC = () => {
                     minWidth: 160,
                     background: activeView === view.id
                       ? `linear-gradient(135deg, ${view.id === 'analytics' ? '#8b5cf6' :
-                                                   view.id === 'microstructure' ? '#06b6d4' :
-                                                   view.id === 'sentiment' ? '#ec4899' :
-                                                   view.id === 'risk' ? '#ef4444' : '#00d4aa'}, ${view.id === 'analytics' ? '#ec4899' :
-                                                   view.id === 'microstructure' ? '#10b981' :
-                                                   view.id === 'sentiment' ? '#8b5cf6' :
-                                                   view.id === 'risk' ? '#f59e0b' : '#06b6d4'})`
+                        view.id === 'microstructure' ? '#06b6d4' :
+                          view.id === 'sentiment' ? '#ec4899' :
+                            view.id === 'risk' ? '#ef4444' : '#00d4aa'}, ${view.id === 'analytics' ? '#ec4899' :
+                              view.id === 'microstructure' ? '#10b981' :
+                                view.id === 'sentiment' ? '#8b5cf6' :
+                                  view.id === 'risk' ? '#f59e0b' : '#06b6d4'})`
                       : 'rgba(255, 255, 255, 0.05)',
                     color: activeView === view.id ? 'white' : 'text.secondary',
                     border: `1px solid ${activeView === view.id ? 'transparent' : 'rgba(148, 163, 184, 0.2)'}`,
@@ -280,12 +281,12 @@ const Dashboard: React.FC = () => {
                     '&:hover': {
                       background: activeView === view.id
                         ? `linear-gradient(135deg, ${view.id === 'analytics' ? '#8b5cf6' :
-                                                     view.id === 'microstructure' ? '#06b6d4' :
-                                                     view.id === 'sentiment' ? '#ec4899' :
-                                                     view.id === 'risk' ? '#ef4444' : '#00d4aa'}, ${view.id === 'analytics' ? '#ec4899' :
-                                                     view.id === 'microstructure' ? '#10b981' :
-                                                     view.id === 'sentiment' ? '#8b5cf6' :
-                                                     view.id === 'risk' ? '#f59e0b' : '#06b6d4'})`
+                          view.id === 'microstructure' ? '#06b6d4' :
+                            view.id === 'sentiment' ? '#ec4899' :
+                              view.id === 'risk' ? '#ef4444' : '#00d4aa'}, ${view.id === 'analytics' ? '#ec4899' :
+                                view.id === 'microstructure' ? '#10b981' :
+                                  view.id === 'sentiment' ? '#8b5cf6' :
+                                    view.id === 'risk' ? '#f59e0b' : '#06b6d4'})`
                         : 'rgba(255, 255, 255, 0.08)',
                       transform: 'translateY(-2px)',
                       boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
@@ -307,8 +308,14 @@ const Dashboard: React.FC = () => {
           {/* Market Analysis & Sentiment - Front & Center */}
           <MarketAnalysis />
 
+          {/* Live Trade Executions - Real-time Trading Activity */}
+          <LiveTrades />
+
           {/* AI Agent Model Cards - Featured Front Page */}
           <AgentModelCards />
+
+          {/* Agent Performance Comparison - Compare Agent Performance */}
+          <AgentPerformanceComparison />
 
           {/* AI Agent Balances - Bot Trading Capital */}
           <Box sx={{ mb: 4 }}>
@@ -365,10 +372,10 @@ const Dashboard: React.FC = () => {
                           }}
                         >
                           {agent.agent === 'Trend Momentum Agent' ? '🎯' :
-                           agent.agent === 'Strategy Optimization Agent' ? '🧠' :
-                           agent.agent === 'Financial Sentiment Agent' ? '💭' :
-                           agent.agent === 'Market Prediction Agent' ? '🔮' :
-                           agent.agent === 'Volume Microstructure Agent' ? '📊' : '⚡'}
+                            agent.agent === 'Strategy Optimization Agent' ? '🧠' :
+                              agent.agent === 'Financial Sentiment Agent' ? '💭' :
+                                agent.agent === 'Market Prediction Agent' ? '🔮' :
+                                  agent.agent === 'Volume Microstructure Agent' ? '📊' : '⚡'}
                         </Avatar>
                         <Box>
                           <Typography variant="h6" sx={{ fontWeight: 600, fontSize: '0.9rem' }}>

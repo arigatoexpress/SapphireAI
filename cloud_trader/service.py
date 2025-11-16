@@ -32,6 +32,7 @@ from .arbitrage import ArbitrageEngine
 from .cache import get_cache, close_cache, BaseCache
 from .safeguards import TradingSafeguards, handle_kill_switch_command
 from .enhanced_telegram import EnhancedTelegramService, create_enhanced_telegram_service
+# telegram.py kept for backward compatibility but not actively used - enhanced_telegram is preferred
 from .ai_analyzer import AITradingAnalyzer
 from .market_sentiment import MarketSentimentAnalyzer
 from .risk_analyzer import RiskAnalyzer
@@ -622,6 +623,17 @@ class TradingService:
         
         logger.info(f"Total agents initialized: {len(self._agent_states)}/{len(AGENT_DEFINITIONS)}")
 
+        # Register agents with performance auto-adjuster
+        if hasattr(self, '_performance_adjuster') and self._performance_adjuster:
+            for agent_id, agent_state in self._agent_states.items():
+                try:
+                    from .agent_performance_auto_adjust import AgentState as AdjusterAgentState
+                    adjuster_state = AdjusterAgentState(agent_id=agent_id)
+                    self._performance_adjuster.register_agent(agent_id, adjuster_state)
+                    logger.info(f"Registered agent {agent_id} with performance auto-adjuster")
+                except Exception as e:
+                    logger.warning(f"Failed to register agent {agent_id} with performance adjuster: {e}")
+
     async def _register_agents_with_coordinator(self) -> None:
         """Register all initialized agents with the MCP coordinator for inter-agent communication."""
         logger.info("Starting agent registration process...")
@@ -656,16 +668,34 @@ class TradingService:
                             "model": agent_state.model,
                             "specialization": getattr(agent_state, 'specialization', 'general'),
                             "personality": agent_state.personality,
-                            "margin_allocation": agent_state.margin_allocation,
+                            "margin_allocation": float(agent_state.margin_allocation),
                             "symbol_count": len(agent_state.symbols),
                         },
-                        timestamp=datetime.utcnow()
+                        timestamp=datetime.utcnow().isoformat()
                     )
+
+                    # Convert to dict and handle datetime serialization
+                    message_dict = registration_message.model_dump()
+                    logger.info(f"Raw message dict before conversion: {message_dict}")
+
+                    # Ensure all datetime objects are converted to ISO strings
+                    def convert_datetimes(obj):
+                        if isinstance(obj, dict):
+                            return {k: convert_datetimes(v) for k, v in obj.items()}
+                        elif isinstance(obj, list):
+                            return [convert_datetimes(item) for item in obj]
+                        elif hasattr(obj, 'isoformat'):  # datetime object
+                            return obj.isoformat()
+                        else:
+                            return obj
+
+                    message_dict = convert_datetimes(message_dict)
+                    logger.info(f"Message dict after datetime conversion: {message_dict}")
 
                     # Send HTTP POST request to coordinator's /register endpoint
                     response = await client.post(
                         f"{coordinator_url}/register",
-                        json=registration_message.model_dump(),
+                        json=message_dict,
                         headers={"Content-Type": "application/json"}
                     )
 
@@ -918,23 +948,29 @@ class TradingService:
             return
 
         try:
-            # Initialize AI analyzers
-            self._ai_analyzer = AITradingAnalyzer()
-            self._sentiment_analyzer = MarketSentimentAnalyzer()
-            self._risk_analyzer = RiskAnalyzer()
+            # Try to initialize enhanced Telegram service first
+            try:
+                # Initialize AI analyzers
+                self._ai_analyzer = AITradingAnalyzer()
+                self._sentiment_analyzer = MarketSentimentAnalyzer()
+                self._risk_analyzer = RiskAnalyzer()
 
-            # Initialize enhanced Telegram service
-            self._telegram = await create_enhanced_telegram_service(
-                self._settings,
-                ai_analyzer=self._ai_analyzer,
-                sentiment_analyzer=self._sentiment_analyzer,
-                risk_analyzer=self._risk_analyzer
-            )
+                # Initialize enhanced Telegram service
+                self._telegram = await create_enhanced_telegram_service(
+                    self._settings,
+                    ai_analyzer=self._ai_analyzer,
+                    sentiment_analyzer=self._sentiment_analyzer,
+                    risk_analyzer=self._risk_analyzer
+                )
 
-            # Start the enhanced Telegram bot if initialized
-            if self._telegram:
-                await self._telegram.start()
-                logger.info("Enhanced Telegram AI bot started successfully")
+                # Start the enhanced Telegram bot if initialized
+                if self._telegram:
+                    await self._telegram.start()
+                    logger.info("Enhanced Telegram AI bot started successfully")
+            except Exception as enhanced_exc:
+                logger.warning(f"Failed to initialize enhanced Telegram service: {enhanced_exc}")
+                # Fallback removed - enhanced_telegram is required for full functionality
+                self._telegram = None
         except Exception as exc:
             logger.warning(f"Failed to initialize Telegram service: {exc}")
             self._telegram = None
@@ -1231,6 +1267,103 @@ class TradingService:
             self._setup_self_healing_checks()
         except Exception as e:
             logger.warning(f"Failed to setup self-healing checks: {e}, continuing without it")
+
+        # Initialize precision time synchronization
+        try:
+            from .time_sync import get_precision_clock
+            self._precision_clock = await get_precision_clock()
+            logger.info("Precision time synchronization initialized")
+        except Exception as e:
+            logger.warning(f"Failed to initialize precision clock: {e}, using system time")
+
+        # Initialize distributed agent coordination
+        try:
+            from .vector_clock import get_agent_coordinator
+            self._agent_coordinator = await get_agent_coordinator(self._settings.bot_id)
+            logger.info("Distributed agent coordination initialized")
+        except Exception as e:
+            logger.warning(f"Failed to initialize agent coordinator: {e}, continuing without coordination")
+
+        # Initialize anomaly detection engine
+        try:
+            from .anomaly_detection import get_anomaly_detection_engine
+            self._anomaly_engine = await get_anomaly_detection_engine()
+            logger.info("Anomaly detection engine initialized")
+        except Exception as e:
+            logger.warning(f"Failed to initialize anomaly detection: {e}, continuing without anomaly monitoring")
+
+        # Initialize market regime detector
+        try:
+            from .market_regime import get_market_regime_detector
+            self._regime_detector = await get_market_regime_detector()
+            logger.info("Market regime detector initialized")
+        except Exception as e:
+            logger.warning(f"Failed to initialize market regime detector: {e}, continuing without regime detection")
+
+        # Initialize adaptive position sizer
+        try:
+            from .adaptive_position_sizing import get_adaptive_position_sizer
+            self._position_sizer = await get_adaptive_position_sizer()
+            logger.info("Adaptive position sizer initialized")
+        except Exception as e:
+            logger.warning(f"Failed to initialize position sizer: {e}, continuing without adaptive sizing")
+
+        # Initialize trade correlation analyzer
+        try:
+            from .trade_correlation import get_correlation_analyzer
+            self._correlation_analyzer = await get_correlation_analyzer()
+            logger.info("Trade correlation analyzer initialized")
+        except Exception as e:
+            logger.warning(f"Failed to initialize correlation analyzer: {e}, continuing without correlation analysis")
+
+        # Initialize agent consensus engine
+        try:
+            from .agent_consensus import get_agent_consensus_engine
+            self._consensus_engine = await get_agent_consensus_engine()
+            logger.info("Agent consensus engine initialized")
+        except Exception as e:
+            logger.warning(f"Failed to initialize consensus engine: {e}, continuing without consensus voting")
+
+        # Initialize performance auto-adjuster
+        try:
+            from .agent_performance_auto_adjust import get_performance_auto_adjuster
+            self._performance_adjuster = await get_performance_auto_adjuster(self._consensus_engine)
+            self._performance_adjuster.start_monitoring()
+            logger.info("Agent performance auto-adjuster initialized and monitoring started")
+        except Exception as e:
+            logger.warning(f"Failed to initialize performance auto-adjuster: {e}, continuing without auto-adjustment")
+
+        # Initialize agent memory manager
+        try:
+            from .agent_memory import get_agent_memory_manager
+            self._memory_manager = await get_agent_memory_manager()
+            logger.info("Agent memory manager initialized")
+        except Exception as e:
+            logger.warning(f"Failed to initialize memory manager: {e}, continuing without memory sharing")
+
+        # Initialize request batching manager
+        try:
+            from .request_batching import get_request_batch_manager
+            self._batch_manager = await get_request_batch_manager()
+            logger.info("Request batching manager initialized")
+        except Exception as e:
+            logger.warning(f"Failed to initialize batch manager: {e}, continuing without request batching")
+
+        # Initialize WebSocket manager
+        try:
+            from .websocket_manager import get_websocket_manager
+            self._websocket_manager = await get_websocket_manager()
+            logger.info("WebSocket manager initialized")
+        except Exception as e:
+            logger.warning(f"Failed to initialize WebSocket manager: {e}, continuing without real-time updates")
+
+        # Initialize multi-timeframe analyzer
+        try:
+            from .multi_timeframe import get_multi_timeframe_analyzer
+            self._mtf_analyzer = await get_multi_timeframe_analyzer()
+            logger.info("Multi-timeframe analyzer initialized")
+        except Exception as e:
+            logger.warning(f"Failed to initialize multi-timeframe analyzer: {e}, continuing without MTF analysis")
 
         credentials = self._credential_manager.get_credentials()
         if not (credentials.api_key and credentials.api_secret) and not self._settings.enable_paper_trading:
@@ -1776,24 +1909,17 @@ class TradingService:
                                 )
                                 ai_analysis = analysis_result.get('rationale', '')
 
-                            # Create enhanced trade notification
-                            from .enhanced_telegram import TradeNotification, NotificationPriority
-                            trade_notification = TradeNotification(
+                            # Create trade notification (paper trading)
+                            # Use simple notification format
+                            await TELEGRAM_BREAKER.call(
+                                self._telegram.send_trade_notification,
                                 symbol=symbol,
                                 side=decision,
                                 price=snapshot.price,
                                 quantity=paper_quantity,
                                 notional=notional,
                                 take_profit=take_profit,
-                                stop_loss=stop_loss,
-                                confidence=self._settings.expected_win_rate,
-                                ai_analysis=ai_analysis
-                            )
-
-                            await TELEGRAM_BREAKER.call(
-                                self._telegram.send_trade_notification,
-                                trade_notification,
-                                priority=NotificationPriority.MEDIUM
+                                stop_loss=stop_loss
                             )
                             TELEGRAM_NOTIFICATIONS_SENT.labels(category="trade", status="success").inc()
                         except Exception as exc:
@@ -2556,23 +2682,16 @@ The output should be a JSON object with these keys.
                         )
                         ai_analysis = f"{analysis_result.get('rationale', '')}\n\nTrade Thesis: {trade_thesis}"
 
-                    # Create enhanced trade notification
-                    from .enhanced_telegram import TradeNotification, NotificationPriority
-                    trade_notification = TradeNotification(
+                    # Send trade notification
+                    # Simple service works with kwargs, enhanced service also supports kwargs
+                    await self._telegram.send_trade_notification(
                         symbol=symbol,
                         side=side,
                         price=execution_price,
                         quantity=quantity,
                         notional=notional,
                         take_profit=take_profit,
-                        stop_loss=stop_loss,
-                        confidence=self._settings.expected_win_rate,
-                        ai_analysis=ai_analysis
-                    )
-
-                    await self._telegram.send_trade_notification(
-                        trade_notification,
-                        priority=NotificationPriority.HIGH if notional > 1000 else NotificationPriority.MEDIUM
+                        stop_loss=stop_loss
                     )
                     TELEGRAM_NOTIFICATIONS_SENT.labels(category="trade", status="success").inc()
                 except Exception as exc:
@@ -3743,6 +3862,65 @@ The output should be a JSON object with these keys.
                     # Find which strategy opened this position
                     strategy_name = getattr(position, 'strategy', 'momentum')
                     self._strategy_selector.update_performance(strategy_name, pnl_pct / 100)
+
+                # Update performance auto-adjuster
+                if hasattr(self, '_performance_adjuster') and self._performance_adjuster:
+                    try:
+                        # Determine which agent/bot handled this trade
+                        agent_id = getattr(position, 'agent_id', None)
+                        if not agent_id and hasattr(self, '_symbol_to_agent'):
+                            agent_id = self._symbol_to_agent.get(symbol)
+
+                        if agent_id:
+                            # Record trade outcome for performance tracking
+                            pnl_decimal = pnl_pct / 100.0  # Convert percentage to decimal
+                            win = pnl_decimal > 0
+                            confidence = getattr(position, 'confidence', 0.5)  # Default confidence if not available
+
+                            self._performance_adjuster.record_trade_outcome(
+                                agent_id=agent_id,
+                                pnl=pnl_decimal,
+                                win=win,
+                                confidence=confidence
+                            )
+                            logger.debug(f"Recorded trade outcome for agent {agent_id}: P&L={pnl_decimal:.4f}, win={win}")
+                    except Exception as e:
+                        logger.warning(f"Failed to record trade outcome with performance adjuster: {e}")
+
+                # Create agent memory of trade outcome
+                if hasattr(self, '_memory_manager') and self._memory_manager:
+                    try:
+                        agent_id = getattr(position, 'agent_id', None)
+                        if not agent_id and hasattr(self, '_symbol_to_agent'):
+                            agent_id = self._symbol_to_agent.get(symbol)
+
+                        if agent_id:
+                            from .agent_memory import AgentMemory, MemoryType, MemoryImportance
+
+                            trade_memory = AgentMemory(
+                                memory_id=f"trade_{symbol}_{get_timestamp_us()}",
+                                agent_id=agent_id,
+                                memory_type=MemoryType.TRADE_OUTCOME,
+                                content={
+                                    "symbol": symbol,
+                                    "pnl_pct": pnl_pct,
+                                    "reason": reason,
+                                    "position_size": abs(position.notional),
+                                    "entry_price": getattr(position, 'entry_price', 0),
+                                    "exit_price": result.get("price", 0) if result else 0,
+                                    "duration_ms": getattr(position, 'duration_ms', 0),
+                                    "strategy": getattr(position, 'strategy', 'unknown')
+                                },
+                                importance=MemoryImportance.HIGH if abs(pnl_pct) > 2.0 else MemoryImportance.MEDIUM,
+                                confidence=getattr(position, 'confidence', 0.5),
+                                timestamp_us=get_timestamp_us(),
+                                tags={"trade", symbol, reason, "outcome"}
+                            )
+
+                            await self._memory_manager.store_memory(trade_memory)
+                            logger.debug(f"Stored trade memory for agent {agent_id}: {pnl_pct:.2f}% P&L")
+                    except Exception as e:
+                        logger.warning(f"Failed to store trade memory: {e}")
                     
                     # Update RL models with reward if applicable
                     if self._strategy_selector.rl_manager and strategy_name in ['ml_dqn', 'ml_ppo']:
@@ -3794,6 +3972,24 @@ The output should be a JSON object with these keys.
                     quantity=close_quantity,
                     metadata={"source": "auto_close", "reason": reason},
                 )
+
+                # Broadcast trade update via WebSocket
+                if hasattr(self, '_websocket_manager') and self._websocket_manager:
+                    try:
+                        from .websocket_manager import broadcast_trade_update
+                        trade_data = {
+                            "symbol": symbol,
+                            "side": close_side,
+                            "price": result.get("price", 0.0),
+                            "quantity": close_quantity,
+                            "notional": abs(position.notional),
+                            "pnl_pct": pnl_pct,
+                            "reason": reason,
+                            "timestamp_us": get_timestamp_us()
+                        }
+                        await broadcast_trade_update(trade_data, priority=2)
+                    except Exception as e:
+                        logger.warning(f"Failed to broadcast trade update: {e}")
         except Exception as e:
             logger.error(f"Failed to close position for {symbol}: {e}")
 

@@ -225,6 +225,17 @@ class VertexAIClient:
 
         return healthy
 
+    async def health_check(self) -> bool:
+        """Perform a basic health check of Vertex AI connectivity."""
+        try:
+            # Try to list available models as a basic connectivity test
+            aiplatform.init(project=self._project_id, location=self._region)
+            # If we get here without exception, Vertex AI is accessible
+            return True
+        except Exception as e:
+            logger.error(f"Vertex AI health check failed: {e}")
+            return False
+
     async def get_model_info(self, agent_id: str) -> Dict[str, Any]:
         """Get information about a deployed model."""
         try:

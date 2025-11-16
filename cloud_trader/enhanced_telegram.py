@@ -125,34 +125,52 @@ class EnhancedTelegramService:
         """Start the enhanced Telegram bot."""
         logger.info("Starting enhanced Telegram AI bot...")
 
-        # Setup scheduled jobs
+        # Setup scheduled jobs if JobQueue is available
         job_queue = self.application.job_queue
+        
+        # Only setup jobs if job_queue is available (requires python-telegram-bot[job-queue])
+        if job_queue is not None:
+            try:
+                # Daily performance summary at 8 AM UTC
+                job_queue.run_daily(
+                    self._send_daily_summary,
+                    time=datetime.strptime("08:00", "%H:%M").time()
+                )
 
-        # Daily performance summary at 8 AM UTC
-        job_queue.run_daily(
-            self._send_daily_summary,
-            time=datetime.strptime("08:00", "%H:%M").time()
-        )
+                # Market analysis every 4 hours
+                job_queue.run_repeating(
+                    self._send_market_analysis,
+                    interval=timedelta(hours=4),
+                    first=10
+                )
 
-        # Market analysis every 4 hours
-        job_queue.run_repeating(
-            self._send_market_analysis,
-            interval=timedelta(hours=4),
-            first=10
-        )
+                # Risk alerts every 30 minutes
+                job_queue.run_repeating(
+                    self._check_risk_alerts,
+                    interval=timedelta(minutes=30),
+                    first=5
+                )
+                logger.info("Telegram scheduled jobs configured")
+            except Exception as exc:
+                logger.warning(f"Failed to setup Telegram scheduled jobs: {exc}")
+        else:
+            logger.info("JobQueue not available, skipping scheduled jobs (notification functionality still works)")
 
-        # Risk alerts every 30 minutes
-        job_queue.run_repeating(
-            self._check_risk_alerts,
-            interval=timedelta(minutes=30),
-            first=5
-        )
+        # Don't block on polling - start polling in background task if needed
+        # For now, just initialize without blocking polling (we'll send notifications via API)
+        try:
+            await self.application.initialize()
+            await self.application.start()
+            # Don't start polling here as it's blocking - we only need to send messages
+            logger.info("Telegram bot initialized (notification-only mode)")
+        except Exception as exc:
+            logger.warning(f"Failed to initialize Telegram application (notifications may still work): {exc}")
 
-        # Start the bot with polling
-        await self.application.run_polling()
-
-        # Send startup notification
-        await self.send_startup_notification()
+        # Send startup notification (non-blocking)
+        try:
+            await self.send_startup_notification()
+        except Exception as exc:
+            logger.warning(f"Failed to send startup notification: {exc}")
 
     async def send_startup_notification(self):
         """Send startup notification with system status."""
@@ -168,10 +186,31 @@ class EnhancedTelegramService:
 
     async def send_trade_notification(
         self,
-        trade: TradeNotification,
-        priority: NotificationPriority = NotificationPriority.MEDIUM
+        trade: Optional[TradeNotification] = None,
+        priority: NotificationPriority = NotificationPriority.MEDIUM,
+        **kwargs
     ):
         """Send enhanced AI-powered trade notification."""
+        # Support both TradeNotification object and kwargs
+        if trade is None and kwargs:
+            # Create TradeNotification from kwargs
+            trade = TradeNotification(
+                symbol=kwargs.get('symbol', 'N/A'),
+                side=kwargs.get('side', 'HOLD'),
+                price=kwargs.get('price', 0.0),
+                quantity=kwargs.get('quantity', 0.0),
+                notional=kwargs.get('notional', 0.0),
+                take_profit=kwargs.get('take_profit', 0.0),
+                stop_loss=kwargs.get('stop_loss', 0.0),
+                pnl=kwargs.get('pnl'),
+                confidence=kwargs.get('confidence'),
+                ai_analysis=kwargs.get('ai_analysis')
+            )
+        
+        if trade is None:
+            logger.warning("No trade data provided to send_trade_notification")
+            return
+
         # Update daily stats
         self.daily_stats['trades'] += 1
         self.daily_stats['volume'] += trade.notional

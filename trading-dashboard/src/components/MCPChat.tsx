@@ -63,6 +63,36 @@ const MCPChat: React.FC = () => {
     }
   }, [messages.length]); // Only trigger on message count change, not on every render
 
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ||
+    (typeof window !== 'undefined' && window.location.hostname === 'localhost'
+      ? 'http://localhost:8080'
+      : 'https://api.sapphiretrade.xyz');
+
+  // Log message to backend
+  const logMessageToBackend = async (msg: MCPMessage) => {
+    try {
+      await fetch(`${API_BASE_URL}/chat/log`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: msg.id,
+          agent_id: msg.agent_type,
+          agent_name: msg.agent,
+          agent_type: msg.agent_type,
+          message: msg.message,
+          message_type: msg.type,
+          confidence: msg.confidence,
+          timestamp: msg.timestamp,
+        }),
+      });
+    } catch (err) {
+      console.error('Failed to log message to backend:', err);
+      // Silently fail - logging is best effort
+    }
+  };
+
   // Simulate MCP communication between agents
   useEffect(() => {
     const generateMCPMessages = () => {
@@ -125,6 +155,9 @@ const MCPChat: React.FC = () => {
       ];
 
       setMessages(sampleMessages);
+      
+      // Log initial sample messages to backend
+      sampleMessages.forEach(msg => logMessageToBackend(msg));
     };
 
     generateMCPMessages();
@@ -324,17 +357,27 @@ const MCPChat: React.FC = () => {
         }
       };
 
+      // Get messages for this type and agent
+      const typeTexts = sampleTexts[type] as Record<string, string[]>;
+      const agentMessages = typeTexts[agent] || [];
+      const randomMessage = agentMessages.length > 0
+        ? agentMessages[Math.floor(Math.random() * agentMessages.length)]
+        : 'Agent communication message';
+
       const newMessage: MCPMessage = {
         id: Date.now().toString(),
         timestamp: new Date().toISOString(),
         agent: agentNames[agent],
         agent_type: agent,
         type,
-        message: sampleTexts[type][Math.floor(Math.random() * sampleTexts[type].length)],
+        message: randomMessage,
         confidence: Math.random() * 0.3 + 0.7 // 0.7-1.0
       };
 
       setMessages(prev => [...prev.slice(-9), newMessage]); // Keep last 10 messages
+      
+      // Log new message to backend
+      logMessageToBackend(newMessage);
     }, 15000); // New message every 15 seconds
 
     return () => clearInterval(interval);
@@ -354,6 +397,9 @@ const MCPChat: React.FC = () => {
 
     setMessages(prev => [...prev, userMessage]);
     setNewMessage('');
+    
+    // Log user message to backend
+    logMessageToBackend(userMessage);
 
     // Simulate AI response after 2-3 seconds
     setTimeout(() => {
@@ -375,6 +421,9 @@ const MCPChat: React.FC = () => {
         confidence: 0.95
       };
       setMessages(prev => [...prev, aiResponse]);
+      
+      // Log AI response to backend
+      logMessageToBackend(aiResponse);
     }, 2000 + Math.random() * 1000);
   };
 

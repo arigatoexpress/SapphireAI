@@ -34,6 +34,33 @@ LLM_CONFIDENCE = Histogram(
     buckets=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
 )
 
+# AI Prompt Engineering metrics
+AI_PROMPT_GENERATION_DURATION_SECONDS = Histogram(
+    "ai_prompt_generation_duration_seconds",
+    "Time taken to generate AI prompts",
+    buckets=[0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5],
+)
+AI_RESPONSE_PARSE_ERRORS_TOTAL = Counter(
+    "ai_response_parse_errors_total",
+    "Total number of AI response parsing errors",
+    ["error_type"],
+)
+AI_RESPONSE_VALIDATION_ERRORS_TOTAL = Counter(
+    "ai_response_validation_errors_total",
+    "Total number of AI response validation errors",
+    ["error_type"],
+)
+AI_PROMPT_VERSION_USAGE_TOTAL = Counter(
+    "ai_prompt_version_usage_total",
+    "Total usage of each prompt version",
+    ["version"],
+)
+AI_CONFIDENCE_DISTRIBUTION = Histogram(
+    "ai_confidence_distribution",
+    "Distribution of AI confidence scores",
+    buckets=[0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
+)
+
 # Per-agent performance metrics
 AGENT_INFERENCE_TIME = Histogram(
     "agent_inference_time_seconds",

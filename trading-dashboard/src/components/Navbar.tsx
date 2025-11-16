@@ -33,7 +33,6 @@ import {
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTrading } from '../contexts/TradingContext';
-import EasterEgg from './EasterEgg';
 
 const drawerWidth = 280;
 
@@ -44,8 +43,6 @@ const Navbar: React.FC = () => {
   const { portfolio, agentActivities } = useTrading();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [logoClickCount, setLogoClickCount] = useState(0);
-  const [showEasterEgg, setShowEasterEgg] = useState(false);
 
   const handleMenu = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -56,11 +53,12 @@ const Navbar: React.FC = () => {
   };
 
   const navItems = [
-    { path: '/', label: 'AI Network', icon: <AnalyticsIcon />, description: 'Neural network visualization' },
-    { path: '/dashboard', label: 'Dashboard', icon: <DashboardIcon />, description: 'System overview' },
-    { path: '/portfolio', label: 'Portfolio', icon: <PortfolioIcon />, description: 'Asset allocation' },
-    { path: '/agents', label: 'Agents', icon: <AgentsIcon />, description: 'AI trading agents' },
-    { path: '/mission-control', label: 'Mission Control', icon: <MissionControlIcon />, description: 'Infrastructure & metrics' },
+    { path: '/', label: 'Neural Network', icon: <AnalyticsIcon />, description: 'Multi-agent consensus visualization' },
+    { path: '/dashboard', label: 'Command Center', icon: <DashboardIcon />, description: 'Real-time trading operations' },
+    { path: '/portfolio', label: 'Portfolio Matrix', icon: <PortfolioIcon />, description: 'Dynamic capital allocation' },
+    { path: '/agents', label: 'Agent Council', icon: <AgentsIcon />, description: '6 specialized AI traders' },
+    { path: '/mission-control', label: 'Mission Control', icon: <MissionControlIcon />, description: 'System health & performance' },
+    { path: '/workflow', label: 'Architecture', icon: <SettingsIcon />, description: 'Enterprise infrastructure' },
   ];
 
   const handleDrawerToggle = () => {
@@ -102,16 +100,17 @@ const Navbar: React.FC = () => {
             sx={{
               fontWeight: 700,
               fontSize: '1.1rem',
-              background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+              background: `linear-gradient(135deg, #00d4aa 0%, #00f5d4 50%, #8a2be2 100%)`,
               backgroundClip: 'text',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
+              letterSpacing: '0.5px',
             }}
           >
-            Sapphire Trade
+            Sapphire AI
           </Typography>
-          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>
-            AI Trading System
+          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, fontSize: '0.75rem' }}>
+            INSTITUTIONAL TRADING
           </Typography>
         </Box>
       </Box>
@@ -233,14 +232,15 @@ const Navbar: React.FC = () => {
               borderRadius: '50%',
               bgcolor: 'success.main',
               boxShadow: '0 0 8px rgba(76, 175, 80, 0.5)',
+              animation: 'pulse 2s infinite',
             }}
           />
           <Typography variant="caption" sx={{ fontWeight: 600, color: 'success.main' }}>
-            System Online
+            SYSTEMS OPERATIONAL
           </Typography>
         </Box>
-        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
-          Autonomous AI Trading
+        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem', fontWeight: 500 }}>
+          Enterprise AI Trading Protocol Active
         </Typography>
       </Box>
     </Box>
@@ -248,7 +248,6 @@ const Navbar: React.FC = () => {
 
   return (
     <>
-      <EasterEgg trigger={showEasterEgg} onClose={() => setShowEasterEgg(false)} />
       <AppBar
         position="static"
         sx={{
@@ -269,25 +268,12 @@ const Navbar: React.FC = () => {
           </IconButton>
 
           {/* Logo */}
-          <Box 
-            sx={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: 1, 
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
               flexGrow: 1,
-              cursor: 'pointer',
-              '&:hover': {
-                opacity: 0.8,
-              },
-              transition: 'opacity 0.2s ease',
-            }}
-            onClick={() => {
-              const newCount = logoClickCount + 1;
-              setLogoClickCount(newCount);
-              if (newCount >= 5) {
-                setShowEasterEgg(true);
-                setLogoClickCount(0);
-              }
             }}
           >
             <Typography
@@ -296,41 +282,42 @@ const Navbar: React.FC = () => {
               sx={{
                 fontWeight: 700,
                 fontSize: { xs: '1rem', sm: '1.1rem', md: '1.25rem' },
-                background: 'linear-gradient(45deg, #00d4aa 30%, #00f5d4 90%)',
+                background: 'linear-gradient(135deg, #00d4aa 0%, #00f5d4 50%, #8a2be2 100%)',
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
+                letterSpacing: '0.5px',
               }}
             >
-              💎 Sapphire Trade
+              🔷 Sapphire AI
             </Typography>
             <Box sx={{ display: { xs: 'none', sm: 'flex' }, flexDirection: 'column', gap: 0.5, alignItems: 'flex-start' }}>
               <Chip
-                label="🏆 Competition Entry"
+                label="⚡ INSTITUTIONAL GRADE"
                 size="small"
                 sx={{
-                  bgcolor: 'rgba(255, 215, 0, 0.2)',
-                  color: '#ffd700',
-                  border: '1px solid #ffd700',
-                  fontWeight: 700,
-                  fontSize: '0.6rem',
-                  height: '18px',
+                  bgcolor: 'rgba(0, 212, 170, 0.15)',
+                  color: '#00d4aa',
+                  border: '1px solid rgba(0, 212, 170, 0.3)',
+                  fontWeight: 600,
+                  fontSize: '0.65rem',
+                  height: '20px',
                   '& .MuiChip-label': {
-                    px: 0.75,
+                    px: 1,
                   },
                 }}
               />
               <Chip
-                label="🚀 Aster DEX"
+                label="🤖 MULTI-AGENT AI"
                 size="small"
                 sx={{
-                  bgcolor: 'rgba(138, 43, 226, 0.2)',
+                  bgcolor: 'rgba(138, 43, 226, 0.15)',
                   color: '#8a2be2',
-                  border: '1px solid #8a2be2',
+                  border: '1px solid rgba(138, 43, 226, 0.3)',
                   fontWeight: 600,
                   fontSize: '0.65rem',
-                  height: '18px',
+                  height: '20px',
                   '& .MuiChip-label': {
-                    px: 0.75,
+                    px: 1,
                   },
                 }}
               />

@@ -25,15 +25,27 @@ class TelegramService:
                 except Exception as fallback_exc:
                     logger.error(f"Fallback Telegram send failed: {fallback_exc}")
 
-    async def send_trade_notification(self, **kwargs):
+    async def send_trade_notification(self, trade=None, **kwargs):
         """Send concise trade notifications only."""
-        side = kwargs.get('side', 'N/A').upper()
-        symbol = kwargs.get('symbol', 'N/A')
-        price = kwargs.get('price', 0.0)
-        notional = kwargs.get('notional', 0.0)
-        pnl = kwargs.get('pnl')
-        take_profit = kwargs.get('take_profit', 0.0)
-        stop_loss = kwargs.get('stop_loss', 0.0)
+        # Support both TradeNotification object and kwargs
+        if trade is not None:
+            # Handle TradeNotification object
+            side = getattr(trade, 'side', 'N/A').upper()
+            symbol = getattr(trade, 'symbol', 'N/A')
+            price = getattr(trade, 'price', 0.0)
+            notional = getattr(trade, 'notional', 0.0)
+            pnl = getattr(trade, 'pnl', None)
+            take_profit = getattr(trade, 'take_profit', 0.0)
+            stop_loss = getattr(trade, 'stop_loss', 0.0)
+        else:
+            # Handle kwargs
+            side = kwargs.get('side', 'N/A').upper()
+            symbol = kwargs.get('symbol', 'N/A')
+            price = kwargs.get('price', 0.0)
+            notional = kwargs.get('notional', 0.0)
+            pnl = kwargs.get('pnl')
+            take_profit = kwargs.get('take_profit', 0.0)
+            stop_loss = kwargs.get('stop_loss', 0.0)
 
         # Escape for MarkdownV2
         symbol_md = self._escape_markdown(symbol)

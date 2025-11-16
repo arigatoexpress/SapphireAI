@@ -9,6 +9,7 @@ import Portfolio from './pages/Portfolio';
 import Agents from './pages/Agents';
 import Analytics from './pages/Analytics';
 import MissionControl from './pages/MissionControl';
+import Workflow from './pages/Workflow';
 import { mobileTheme } from './theme/mobileOptimizedTheme';
 
 // Using enhanced futuristic theme with optimal readability and contrast
@@ -37,19 +38,20 @@ function AppContent() {
               <Route path="/agents" element={<Agents />} />
               <Route path="/analytics" element={<Analytics />} />
               <Route path="/mission-control" element={<MissionControl />} />
+              <Route path="/workflow" element={<Workflow />} />
               <Route path="*" element={<Navigate to="/" />} />
             </Routes>
 
-            {/* Competition & DEX Footer */}
+            {/* Professional System Footer */}
             <Box
               component="footer"
               sx={{
                 mt: 'auto',
                 py: { xs: 2, sm: 3 },
                 px: { xs: 2, sm: 3 },
-                borderTop: '2px solid rgba(255, 215, 0, 0.3)',
-                background: 'linear-gradient(135deg, rgba(0, 0, 0, 0.4) 0%, rgba(138, 43, 226, 0.1) 100%)',
-                backdropFilter: 'blur(15px)',
+                borderTop: '1px solid rgba(0, 212, 170, 0.2)',
+                background: 'linear-gradient(135deg, rgba(0, 0, 0, 0.6) 0%, rgba(26, 26, 26, 0.8) 100%)',
+                backdropFilter: 'blur(20px)',
                 textAlign: 'center'
               }}
             >
@@ -58,52 +60,62 @@ function AppContent() {
                   variant="h6"
                   sx={{
                     fontWeight: 700,
-                    fontSize: { xs: '1rem', sm: '1.1rem' },
-                    background: 'linear-gradient(45deg, #ffd700 0%, #ffed4e 100%)',
+                    fontSize: { xs: '1rem', sm: '1.2rem' },
+                    background: 'linear-gradient(135deg, #00d4aa 0%, #00f5d4 50%, #8a2be2 100%)',
                     WebkitBackgroundClip: 'text',
                     WebkitTextFillColor: 'transparent',
-                    mb: 1,
-                    display: { xs: 'none', sm: 'block' }
+                    mb: 1.5,
+                    letterSpacing: '0.5px'
                   }}
                 >
-                  🏆 Vibe Coding Competition Entry 🏆
+                  🤖 INSTITUTIONAL-GRADE AI TRADING
                 </Typography>
                 <Typography
                   variant="body2"
                   sx={{
-                    color: 'rgba(255, 255, 255, 0.8)',
-                    fontSize: { xs: '0.9rem', sm: '0.95rem' },
-                    fontWeight: 600,
-                    mb: { xs: 1, sm: 2 }
+                    color: 'rgba(255, 255, 255, 0.85)',
+                    fontSize: { xs: '0.85rem', sm: '0.9rem' },
+                    fontWeight: 500,
+                    mb: 1.5,
+                    lineHeight: 1.4
                   }}
                 >
-                  Advanced AI-Powered Trading System
+                  Multi-Agent Consensus Intelligence • Sub-2μs Latency • Enterprise Risk Management
+                </Typography>
+              </Box>
+
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 1 }}>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: 'rgba(255, 255, 255, 0.9)',
+                    fontSize: { xs: '0.85rem', sm: '0.95rem' },
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 0.5
+                  }}
+                >
+                  <span style={{ color: '#00d4aa' }}>⚡</span>
+                  <strong style={{ color: '#00d4aa' }}>Sapphire AI</strong>
+                  <span style={{ color: 'rgba(255, 255, 255, 0.6)' }}>on</span>
+                  <strong style={{ color: '#8a2be2' }}>Aster DEX</strong>
+                  <span style={{ color: '#8a2be2' }}>🔷</span>
                 </Typography>
               </Box>
 
               <Typography
-                variant="body2"
-                sx={{
-                  color: 'rgba(255, 255, 255, 0.9)',
-                  fontSize: { xs: '0.9rem', sm: '1rem' },
-                  fontWeight: 500,
-                  mb: 1
-                }}
-              >
-                🚀 <strong style={{ color: '#8a2be2' }}>Sapphire Trade</strong> on{' '}
-                <strong style={{ color: '#00d4aa' }}>Aster DEX</strong>
-              </Typography>
-
-              <Typography
                 variant="caption"
                 sx={{
-                  color: 'rgba(255, 255, 255, 0.7)',
-                  fontSize: { xs: '0.75rem', sm: '0.85rem' },
+                  color: 'rgba(255, 255, 255, 0.65)',
+                  fontSize: { xs: '0.7rem', sm: '0.75rem' },
+                  fontWeight: 400,
                   fontStyle: 'italic',
-                  display: { xs: 'none', sm: 'block' }
+                  display: { xs: 'none', sm: 'block' },
+                  letterSpacing: '0.3px'
                 }}
               >
-                Premier decentralized futures exchange for automated algorithmic trading
+                Advanced Multi-Agent Coordination Protocol • Neural Network Signal Processing • Real-time Anomaly Detection
               </Typography>
             </Box>
           </Box>

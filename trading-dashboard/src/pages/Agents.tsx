@@ -2,6 +2,9 @@ import React from 'react';
 import { Box, Typography, Card, CardContent, Grid, Chip, Avatar, Tabs, Tab, Container } from '@mui/material';
 import AgentActivityGrid from '../components/AgentActivityGrid';
 import AgentPerformanceMetrics from '../components/AgentPerformanceMetrics';
+import AgentModelCards from '../components/AgentModelCards';
+import BotAlerts from '../components/BotAlerts';
+import ChatHistory from '../components/ChatHistory';
 import RegulatoryDisclaimer from '../components/RegulatoryDisclaimer';
 import AgentExplanation from '../components/AgentExplanation';
 import { useTrading } from '../contexts/TradingContext';
@@ -56,6 +59,14 @@ const Agents: React.FC = () => {
       {/* Regulatory Disclaimer */}
       <RegulatoryDisclaimer />
 
+      {/* AI Agent Model Cards */}
+      <Box sx={{ mb: 4 }}>
+        <AgentModelCards />
+      </Box>
+
+      {/* Bot Alerts - Live below AI model information */}
+      <BotAlerts />
+
       {/* Agent Explanations */}
       <Box sx={{ mb: 4 }}>
         <Typography 
@@ -99,6 +110,7 @@ const Agents: React.FC = () => {
       >
         <Tab label="Agent Activity" />
         <Tab label="Performance Metrics" />
+        <Tab label="Chat History" />
       </Tabs>
 
       {tabValue === 0 && (
@@ -107,6 +119,10 @@ const Agents: React.FC = () => {
 
       {tabValue === 1 && (
         <AgentPerformanceMetrics />
+      )}
+
+      {tabValue === 2 && (
+        <ChatHistory />
       )}
     </Container>
   );

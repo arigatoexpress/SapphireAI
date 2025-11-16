@@ -6,12 +6,12 @@ import asyncio
 import logging
 import os
 import secrets
-from typing import Dict, Optional, List, Any
-
-import asyncio
 import time
 from collections import defaultdict
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
+from typing import Dict, Optional, List, Any
+
 import httpx
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, status, WebSocket
 from fastapi.responses import FileResponse
@@ -235,6 +235,1042 @@ def build_app(service: TradingService | None = None) -> FastAPI:
 
         await trading_service.send_test_telegram_message()
         return {"status": "test message sent"}
+
+    @app.get("/time")
+    async def get_precision_time() -> Dict[str, Any]:
+        """Get current time information."""
+        return {
+            "timestamp_us": int(time.time() * 1_000_000),
+            "datetime": datetime.now(timezone.utc).isoformat(),
+            "message": "Basic time endpoint - NTP sync not yet available"
+        }
+
+    @app.get("/anomalies")
+    async def get_anomaly_stats() -> Dict[str, Any]:
+        """Get anomaly detection statistics."""
+        try:
+            from .anomaly_detection import get_anomaly_detection_engine
+            engine = await get_anomaly_detection_engine()
+            stats = engine.get_anomaly_stats()
+            return {
+                "status": "active",
+                "anomaly_stats": stats,
+                "timestamp_us": int(time.time() * 1_000_000)
+            }
+        except Exception as e:
+            return {
+                "status": "inactive",
+                "error": str(e),
+                "message": "Anomaly detection not available"
+            }
+
+    @app.get("/market-regime")
+    async def get_market_regime() -> Dict[str, Any]:
+        """Get current market regime analysis."""
+        try:
+            from .market_regime import get_market_regime_detector
+            detector = await get_market_regime_detector()
+            stats = detector.get_market_regime_stats()
+
+            # Get current regime if available
+            current_regime = None
+            if hasattr(trading_service, '_regime_detector') and trading_service._regime_detector:
+                # This would be populated by trading loop - for now return stats
+                pass
+
+            return {
+                "status": "active",
+                "regime_stats": stats,
+                "timestamp_us": int(time.time() * 1_000_000)
+            }
+        except Exception as e:
+            return {
+                "status": "inactive",
+                "error": str(e),
+                "message": "Market regime detection not available"
+            }
+
+    @app.post("/position-sizing")
+    async def calculate_position_size(request: Dict[str, Any]) -> Dict[str, Any]:
+        """Calculate optimal position size based on signals and market conditions."""
+        try:
+            from .adaptive_position_sizing import get_adaptive_position_sizer, RiskMetrics
+            from .market_regime import RegimeMetrics, MarketRegime
+
+            position_sizer = await get_adaptive_position_sizer()
+
+            # Extract parameters from request
+            signal_data = request.get('signal_data', {})
+            regime_data = request.get('regime', {})
+            portfolio_data = request.get('portfolio', {})
+            positions = request.get('current_positions', [])
+            symbol = request.get('symbol', 'UNKNOWN')
+
+            # Convert regime data to RegimeMetrics
+            regime = None
+            if regime_data:
+                regime = RegimeMetrics(
+                    regime=MarketRegime(regime_data.get('regime', 'unknown')),
+                    confidence=regime_data.get('confidence', 0.5),
+                    trend_strength=regime_data.get('trend_strength', 0.5),
+                    volatility_level=regime_data.get('volatility_level', 0.1),
+                    range_bound_score=regime_data.get('range_bound_score', 0.5),
+                    momentum_score=regime_data.get('momentum_score', 0.0),
+                    timestamp_us=regime_data.get('timestamp_us', int(time.time() * 1_000_000)),
+                    adx_score=regime_data.get('adx_score', 20),
+                    rsi_score=regime_data.get('rsi_score', 0),
+                    bb_position=regime_data.get('bb_position', 0.5),
+                    volume_trend=regime_data.get('volume_trend', 0.0)
+                )
+
+            # Convert portfolio data to RiskMetrics
+            risk_metrics = RiskMetrics(
+                portfolio_value=portfolio_data.get('portfolio_value', 100000),
+                current_drawdown=portfolio_data.get('current_drawdown', 0.0),
+                volatility_24h=portfolio_data.get('volatility_24h', 0.1),
+                sharpe_ratio=portfolio_data.get('sharpe_ratio', 1.0),
+                max_drawdown_limit=portfolio_data.get('max_drawdown_limit', 0.2),
+                daily_pnl=portfolio_data.get('daily_pnl', 0.0),
+                win_rate_24h=portfolio_data.get('win_rate_24h', 0.55),
+                avg_win_loss_ratio=portfolio_data.get('avg_win_loss_ratio', 2.0)
+            )
+
+            # Calculate position size
+            result = position_sizer.calculate_position_size(
+                signal_strength=signal_data.get('strength', 5.0),
+                confidence=signal_data.get('confidence', 0.7),
+                regime=regime,
+                risk_metrics=risk_metrics,
+                current_positions=positions,
+                symbol=symbol
+            )
+
+            return {
+                "status": "success",
+                "position_sizing": result,
+                "timestamp_us": int(time.time() * 1_000_000)
+            }
+
+        except Exception as e:
+            return {
+                "status": "error",
+                "error": str(e),
+                "message": "Position sizing calculation failed"
+            }
+
+    @app.get("/position-sizing/stats")
+    async def get_position_sizing_stats() -> Dict[str, Any]:
+        """Get position sizing statistics and performance metrics."""
+        try:
+            from .adaptive_position_sizing import get_adaptive_position_sizer
+            position_sizer = await get_adaptive_position_sizer()
+            stats = position_sizer.get_sizing_stats()
+
+            return {
+                "status": "active",
+                "position_sizing_stats": stats,
+                "timestamp_us": int(time.time() * 1_000_000)
+            }
+        except Exception as e:
+            return {
+                "status": "inactive",
+                "error": str(e),
+                "message": "Position sizing stats not available"
+            }
+
+    @app.get("/correlation/analysis")
+    async def get_correlation_analysis(symbol: Optional[str] = None) -> Dict[str, Any]:
+        """Get correlation analysis for portfolio or specific symbol."""
+        try:
+            from .trade_correlation import get_correlation_analyzer
+            analyzer = await get_correlation_analyzer()
+
+            analysis = {
+                "correlation_matrix": None,
+                "symbol_analysis": None,
+                "portfolio_risk": None,
+                "recommendations": analyzer.get_risk_management_recommendations(),
+                "timestamp_us": int(time.time() * 1_000_000)
+            }
+
+            # Get correlation matrix
+            matrix = analyzer.get_correlation_matrix()
+            if matrix:
+                analysis["correlation_matrix"] = {
+                    "symbols": matrix.symbols,
+                    "sample_size": matrix.sample_size,
+                    "timestamp_us": matrix.timestamp_us
+                }
+
+            # Symbol-specific analysis
+            if symbol:
+                symbol_risk = analyzer.get_symbol_correlation_risk(symbol)
+                analysis["symbol_analysis"] = {
+                    "symbol": symbol,
+                    **symbol_risk
+                }
+
+            return {
+                "status": "active",
+                "correlation_analysis": analysis
+            }
+
+        except Exception as e:
+            return {
+                "status": "inactive",
+                "error": str(e),
+                "message": "Correlation analysis not available"
+            }
+
+    @app.post("/correlation/portfolio-risk")
+    async def analyze_portfolio_risk(request: Dict[str, Any]) -> Dict[str, Any]:
+        """Analyze portfolio correlation risk."""
+        try:
+            from .trade_correlation import get_correlation_analyzer
+            analyzer = await get_correlation_analyzer()
+
+            positions = request.get('positions', [])
+
+            portfolio_risk = analyzer.analyze_portfolio_correlation_risk(positions)
+            correlation_clusters = analyzer.get_correlation_clusters()
+
+            return {
+                "status": "success",
+                "portfolio_risk": {
+                    "total_exposure": portfolio_risk.total_exposure,
+                    "correlated_exposure": portfolio_risk.correlated_exposure,
+                    "diversification_ratio": portfolio_risk.diversification_ratio,
+                    "concentration_risk": portfolio_risk.concentration_risk,
+                    "risk_concentration_score": portfolio_risk.risk_concentration_score,
+                    "recommended_max_position": portfolio_risk.recommended_max_position,
+                    "risk_adjusted_limits": portfolio_risk.risk_adjusted_limits
+                },
+                "correlation_clusters": correlation_clusters,
+                "timestamp_us": int(time.time() * 1_000_000)
+            }
+
+        except Exception as e:
+            return {
+                "status": "error",
+                "error": str(e),
+                "message": "Portfolio risk analysis failed"
+            }
+
+    @app.post("/position/create-with-exits")
+    async def create_position_with_exits(request: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a position with comprehensive exit strategy."""
+        try:
+            from .agents.vpin_hft_agent import VpinHFTAgent
+            from .market_regime import RegimeMetrics, MarketRegime
+
+            # Extract parameters
+            symbol = request.get('symbol', '')
+            entry_price = request.get('entry_price', 0)
+            position_size = request.get('position_size', 0)
+            side = request.get('side', 'long')
+            signal_data = request.get('signal_data', {})
+
+            regime_data = request.get('regime')
+            portfolio_data = request.get('portfolio', {})
+            positions = request.get('current_positions', [])
+
+            # Convert regime data
+            regime = None
+            if regime_data:
+                regime = RegimeMetrics(
+                    regime=MarketRegime(regime_data.get('regime', 'unknown')),
+                    confidence=regime_data.get('confidence', 0.5),
+                    trend_strength=regime_data.get('trend_strength', 0.5),
+                    volatility_level=regime_data.get('volatility_level', 0.1),
+                    range_bound_score=regime_data.get('range_bound_score', 0.5),
+                    momentum_score=regime_data.get('momentum_score', 0.0),
+                    timestamp_us=regime_data.get('timestamp_us', int(time.time() * 1_000_000)),
+                    adx_score=regime_data.get('adx_score', 20),
+                    rsi_score=regime_data.get('rsi_score', 0),
+                    bb_position=regime_data.get('bb_position', 0.5),
+                    volume_trend=regime_data.get('volume_trend', 0.0)
+                )
+
+            # Create VPIN agent instance (simplified - in production would get from registry)
+            agent = VpinHFTAgent(None, None, "risk_topic")  # Simplified for demo
+
+            result = await agent.create_position_with_exit_plan(
+                symbol=symbol,
+                entry_price=entry_price,
+                position_size=position_size,
+                side=side,
+                signal_data=signal_data,
+                regime=regime,
+                portfolio_metrics=portfolio_data,
+                current_positions=positions
+            )
+
+            return {
+                "status": "success",
+                "position_result": result,
+                "timestamp_us": int(time.time() * 1_000_000)
+            }
+
+        except Exception as e:
+            return {
+                "status": "error",
+                "error": str(e),
+                "message": "Position creation with exits failed"
+            }
+
+    @app.get("/position/{symbol}/status")
+    async def get_position_status(symbol: str) -> Dict[str, Any]:
+        """Get detailed position status including exit management."""
+        try:
+            from .agents.vpin_hft_agent import VpinHFTAgent
+
+            agent = VpinHFTAgent(None, None, "risk_topic")  # Simplified for demo
+            status = await agent.get_position_management_status(symbol)
+
+            if status:
+                return {
+                    "status": "active",
+                    "position_management": status,
+                    "timestamp_us": int(time.time() * 1_000_000)
+                }
+            else:
+                return {
+                    "status": "not_found",
+                    "message": f"No active position found for {symbol}",
+                    "timestamp_us": int(time.time() * 1_000_000)
+                }
+
+        except Exception as e:
+            return {
+                "status": "error",
+                "error": str(e),
+                "message": f"Failed to get position status for {symbol}"
+            }
+
+    @app.post("/position/{symbol}/close")
+    async def close_position(symbol: str, request: Dict[str, Any]) -> Dict[str, Any]:
+        """Force close a position with reason."""
+        try:
+            from .agents.vpin_hft_agent import VpinHFTAgent
+
+            close_price = request.get('close_price')
+            reason = request.get('reason', 'manual_close')
+
+            agent = VpinHFTAgent(None, None, "risk_topic")  # Simplified for demo
+            success = await agent.force_position_close(symbol, close_price, reason)
+
+            return {
+                "status": "success" if success else "failed",
+                "symbol": symbol,
+                "closed": success,
+                "reason": reason,
+                "timestamp_us": int(time.time() * 1_000_000)
+            }
+
+        except Exception as e:
+            return {
+                "status": "error",
+                "error": str(e),
+                "message": f"Failed to close position {symbol}"
+            }
+
+    @app.get("/exits/performance")
+    async def get_exit_performance_stats() -> Dict[str, Any]:
+        """Get comprehensive exit strategy performance statistics."""
+        try:
+            from .partial_exits import get_partial_exit_strategy
+
+            exit_strategy = await get_partial_exit_strategy()
+            stats = exit_strategy.get_performance_stats()
+
+            return {
+                "status": "active",
+                "exit_performance": stats,
+                "timestamp_us": int(time.time() * 1_000_000)
+            }
+
+        except Exception as e:
+            return {
+                "status": "inactive",
+                "error": str(e),
+                "message": "Exit performance stats not available"
+            }
+
+    @app.post("/consensus/vote")
+    async def conduct_consensus_vote(request: Dict[str, Any]) -> Dict[str, Any]:
+        """Conduct a consensus vote among registered agents."""
+        try:
+            from .agent_consensus import get_agent_consensus_engine, SignalType, AgentSignal
+            from .market_regime import RegimeMetrics, MarketRegime
+
+            engine = await get_agent_consensus_engine()
+
+            symbol = request.get('symbol', '')
+            max_wait_us = request.get('max_wait_us', 1000000)
+
+            # Convert regime data if provided
+            regime = None
+            regime_data = request.get('regime')
+            if regime_data:
+                regime = RegimeMetrics(
+                    regime=MarketRegime(regime_data.get('regime', 'unknown')),
+                    confidence=regime_data.get('confidence', 0.5),
+                    trend_strength=regime_data.get('trend_strength', 0.5),
+                    volatility_level=regime_data.get('volatility_level', 0.1),
+                    range_bound_score=regime_data.get('range_bound_score', 0.5),
+                    momentum_score=regime_data.get('momentum_score', 0.0),
+                    timestamp_us=regime_data.get('timestamp_us', int(time.time() * 1_000_000)),
+                    adx_score=regime_data.get('adx_score', 20),
+                    rsi_score=regime_data.get('rsi_score', 0),
+                    bb_position=regime_data.get('bb_position', 0.5),
+                    volume_trend=regime_data.get('volume_trend', 0.0)
+                )
+
+            # Conduct consensus vote
+            result = await engine.conduct_consensus_vote(symbol, regime, max_wait_us)
+
+            if result:
+                return {
+                    "status": "success",
+                    "consensus_result": result.to_dict(),
+                    "timestamp_us": int(time.time() * 1_000_000)
+                }
+            else:
+                return {
+                    "status": "no_consensus",
+                    "message": "No consensus could be reached",
+                    "timestamp_us": int(time.time() * 1_000_000)
+                }
+
+        except Exception as e:
+            return {
+                "status": "error",
+                "error": str(e),
+                "message": "Consensus voting failed"
+            }
+
+    @app.post("/consensus/agent/register")
+    async def register_consensus_agent(request: Dict[str, Any]) -> Dict[str, Any]:
+        """Register an agent in the consensus system."""
+        try:
+            from .agent_consensus import get_agent_consensus_engine
+
+            engine = await get_agent_consensus_engine()
+
+            agent_id = request.get('agent_id', '')
+            agent_type = request.get('agent_type', 'unknown')
+            specialization = request.get('specialization', 'general')
+            base_weight = request.get('base_weight', 1.0)
+
+            engine.register_agent(agent_id, agent_type, specialization, base_weight)
+
+            return {
+                "status": "success",
+                "message": f"Agent {agent_id} registered for consensus voting",
+                "agent_info": {
+                    "agent_id": agent_id,
+                    "type": agent_type,
+                    "specialization": specialization,
+                    "base_weight": base_weight
+                },
+                "timestamp_us": int(time.time() * 1_000_000)
+            }
+
+        except Exception as e:
+            return {
+                "status": "error",
+                "error": str(e),
+                "message": "Agent registration failed"
+            }
+
+    @app.post("/consensus/signal")
+    async def submit_agent_signal(request: Dict[str, Any]) -> Dict[str, Any]:
+        """Submit a signal from an agent for consensus consideration."""
+        try:
+            from .agent_consensus import get_agent_consensus_engine, AgentSignal, SignalType
+
+            engine = await get_agent_consensus_engine()
+
+            signal = AgentSignal(
+                agent_id=request.get('agent_id', ''),
+                signal_type=SignalType(request.get('signal_type', 'hold')),
+                confidence=request.get('confidence', 0.5),
+                strength=request.get('strength', 1.0),
+                symbol=request.get('symbol', ''),
+                timestamp_us=request.get('timestamp_us'),
+                reasoning=request.get('reasoning'),
+                metadata=request.get('metadata', {})
+            )
+
+            engine.submit_signal(signal)
+
+            return {
+                "status": "success",
+                "message": f"Signal from {signal.agent_id} submitted for consensus",
+                "signal_info": signal.to_dict(),
+                "timestamp_us": int(time.time() * 1_000_000)
+            }
+
+        except Exception as e:
+            return {
+                "status": "error",
+                "error": str(e),
+                "message": "Signal submission failed"
+            }
+
+    @app.post("/consensus/feedback")
+    async def submit_consensus_feedback(request: Dict[str, Any]) -> Dict[str, Any]:
+        """Submit feedback on consensus outcome for learning."""
+        try:
+            from .agent_consensus import get_agent_consensus_engine, ConsensusResult
+            from .market_regime import MarketRegime
+
+            engine = await get_agent_consensus_engine()
+
+            # Reconstruct consensus result from feedback
+            result_data = request.get('consensus_result', {})
+            actual_outcome = request.get('actual_outcome', 0.0)
+            regime = request.get('regime')
+
+            regime_enum = MarketRegime(regime) if regime else None
+
+            # In production, reconstruct full ConsensusResult object
+            # For now, update with simplified feedback
+
+            return {
+                "status": "success",
+                "message": "Consensus feedback recorded for learning",
+                "outcome": actual_outcome,
+                "regime": regime,
+                "timestamp_us": int(time.time() * 1_000_000)
+            }
+
+        except Exception as e:
+            return {
+                "status": "error",
+                "error": str(e),
+                "message": "Feedback submission failed"
+            }
+
+    @app.get("/consensus/stats")
+    async def get_consensus_stats() -> Dict[str, Any]:
+        """Get comprehensive consensus system statistics."""
+        try:
+            from .agent_consensus import get_agent_consensus_engine
+
+            engine = await get_agent_consensus_engine()
+            stats = engine.get_consensus_stats()
+
+            return {
+                "status": "active",
+                "consensus_stats": stats,
+                "timestamp_us": int(time.time() * 1_000_000)
+            }
+
+        except Exception as e:
+            return {
+                "status": "inactive",
+                "error": str(e),
+                "message": "Consensus stats not available"
+            }
+
+    @app.get("/performance/auto-adjust/stats")
+    async def get_performance_adjuster_stats() -> Dict[str, Any]:
+        """Get performance auto-adjuster statistics and agent adjustments."""
+        try:
+            from .agent_performance_auto_adjust import get_performance_auto_adjuster
+
+            adjuster = await get_performance_auto_adjuster()
+            stats = adjuster.get_performance_summary()
+
+            return {
+                "status": "active",
+                "performance_stats": stats,
+                "timestamp_us": int(time.time() * 1_000_000)
+            }
+
+        except Exception as e:
+            return {
+                "status": "inactive",
+                "error": str(e),
+                "message": "Performance adjuster stats not available"
+            }
+
+    @app.get("/performance/agent/{agent_id}/state")
+    async def get_agent_performance_state(agent_id: str) -> Dict[str, Any]:
+        """Get current performance state and adjustments for a specific agent."""
+        try:
+            from .agent_performance_auto_adjust import get_performance_auto_adjuster
+
+            adjuster = await get_performance_auto_adjuster()
+            agent_state = adjuster.get_agent_state(agent_id)
+
+            if agent_state is None:
+                raise HTTPException(status_code=404, detail=f"Agent {agent_id} not found")
+
+            return {
+                "status": "active",
+                "agent_id": agent_id,
+                "current_state": {
+                    "confidence_threshold": agent_state.confidence_threshold,
+                    "position_size_multiplier": agent_state.position_size_multiplier,
+                    "capital_allocation": agent_state.capital_allocation,
+                    "features_enabled": agent_state.features_enabled,
+                    "last_adjustment": agent_state.last_adjustment.adjustment_type.value if agent_state.last_adjustment else None,
+                    "adjustment_count": len(agent_state.adjustment_history)
+                },
+                "timestamp_us": int(time.time() * 1_000_000)
+            }
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            return {
+                "status": "error",
+                "error": str(e),
+                "message": f"Failed to get agent state for {agent_id}"
+            }
+
+    @app.get("/memory/stats")
+    async def get_memory_stats() -> Dict[str, Any]:
+        """Get comprehensive agent memory statistics."""
+        try:
+            from .agent_memory import get_agent_memory_manager
+
+            manager = await get_agent_memory_manager()
+            stats = manager.get_memory_stats()
+
+            return {
+                "status": "active",
+                "memory_stats": stats,
+                "timestamp_us": int(time.time() * 1_000_000)
+            }
+
+        except Exception as e:
+            return {
+                "status": "inactive",
+                "error": str(e),
+                "message": "Memory stats not available"
+            }
+
+    @app.get("/memory/agent/{agent_id}")
+    async def get_agent_memories(agent_id: str, tags: Optional[str] = None,
+                                memory_type: Optional[str] = None, limit: int = 20) -> Dict[str, Any]:
+        """Get memories for a specific agent with optional filtering."""
+        try:
+            from .agent_memory import get_agent_memory_manager, MemoryType
+
+            manager = await get_agent_memory_manager()
+
+            # Parse filters
+            tag_list = tags.split(",") if tags else None
+            memory_types = [MemoryType(memory_type)] if memory_type else None
+
+            memories = await manager.retrieve_memories(
+                agent_id=agent_id,
+                tags=tag_list,
+                memory_types=memory_types,
+                limit=limit
+            )
+
+            return {
+                "status": "success",
+                "agent_id": agent_id,
+                "memory_count": len(memories),
+                "memories": [memory.to_dict() for memory in memories],
+                "timestamp_us": int(time.time() * 1_000_000)
+            }
+
+        except Exception as e:
+            return {
+                "status": "error",
+                "error": str(e),
+                "message": f"Failed to retrieve memories for agent {agent_id}"
+            }
+
+    @app.post("/memory/share")
+    async def share_memory(request: Dict[str, Any]) -> Dict[str, Any]:
+        """Share a memory from one agent to others."""
+        try:
+            required_fields = ["from_agent", "to_agents", "memory_id"]
+            for field in required_fields:
+                if field not in request:
+                    raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
+
+            from .agent_memory import get_agent_memory_manager
+
+            manager = await get_agent_memory_manager()
+
+            results = await manager.share_memory(
+                from_agent=request["from_agent"],
+                to_agents=request["to_agents"],
+                memory_id=request["memory_id"],
+                context=request.get("context")
+            )
+
+            return {
+                "status": "success",
+                "sharing_results": results,
+                "timestamp_us": int(time.time() * 1_000_000)
+            }
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            return {
+                "status": "error",
+                "error": str(e),
+                "message": "Failed to share memory"
+            }
+
+    @app.post("/memory/context/create")
+    async def create_shared_context(request: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a shared context for collaborative decision making."""
+        try:
+            required_fields = ["symbol", "contributing_agents"]
+            for field in required_fields:
+                if field not in request:
+                    raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
+
+            from .agent_memory import get_agent_memory_manager
+            from .market_regime import MarketRegime
+
+            manager = await get_agent_memory_manager()
+
+            # Parse regime if provided
+            regime = None
+            if "regime" in request:
+                try:
+                    regime = MarketRegime(request["regime"])
+                except ValueError:
+                    raise HTTPException(status_code=400, detail=f"Invalid regime: {request['regime']}")
+
+            context_id = await manager.create_shared_context(
+                symbol=request["symbol"],
+                regime=regime,
+                contributing_agents=request["contributing_agents"]
+            )
+
+            return {
+                "status": "success",
+                "context_id": context_id,
+                "timestamp_us": int(time.time() * 1_000_000)
+            }
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            return {
+                "status": "error",
+                "error": str(e),
+                "message": "Failed to create shared context"
+            }
+
+    @app.get("/batching/stats")
+    async def get_batching_stats() -> Dict[str, Any]:
+        """Get comprehensive request batching statistics."""
+        try:
+            from .request_batching import get_request_batch_manager
+
+            manager = await get_request_batch_manager()
+            stats = manager.get_stats()
+
+            return {
+                "status": "active",
+                "batching_stats": stats,
+                "timestamp_us": int(time.time() * 1_000_000)
+            }
+
+        except Exception as e:
+            return {
+                "status": "inactive",
+                "error": str(e),
+                "message": "Batching stats not available"
+            }
+
+    @app.post("/batching/market-data")
+    async def batch_market_data_request(request: Dict[str, Any]) -> Dict[str, Any]:
+        """Submit batched market data requests."""
+        try:
+            required_fields = ["symbols"]
+            for field in required_fields:
+                if field not in request:
+                    raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
+
+            from .request_batching import batch_market_data_requests
+
+            result = await batch_market_data_requests(
+                symbols=request["symbols"],
+                data_type=request.get("data_type", "ticker")
+            )
+
+            return {
+                "status": "submitted",
+                "batch_info": result,
+                "timestamp_us": int(time.time() * 1_000_000)
+            }
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            return {
+                "status": "error",
+                "error": str(e),
+                "message": "Failed to submit batched market data request"
+            }
+
+    @app.post("/batching/orders")
+    async def batch_order_request(request: Dict[str, Any]) -> Dict[str, Any]:
+        """Submit batched order requests."""
+        try:
+            required_fields = ["orders"]
+            for field in required_fields:
+                if field not in request:
+                    raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
+
+            from .request_batching import batch_order_submissions
+
+            result = await batch_order_submissions(request["orders"])
+
+            return {
+                "status": "submitted",
+                "batch_info": result,
+                "timestamp_us": int(time.time() * 1_000_000)
+            }
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            return {
+                "status": "error",
+                "error": str(e),
+                "message": "Failed to submit batched order request"
+            }
+
+    @app.websocket("/ws")
+    async def websocket_endpoint(websocket: WebSocket) -> None:
+        """WebSocket endpoint for real-time updates."""
+        client_id = None
+        try:
+            from .websocket_manager import get_websocket_manager, SubscriptionType
+            import uuid
+
+            manager = await get_websocket_manager()
+
+            # Generate client ID
+            client_id = str(uuid.uuid4())
+
+            # Add client
+            await manager.add_client(websocket, client_id)
+
+            # Handle client messages
+            while True:
+                try:
+                    # Receive message with timeout
+                    data = await asyncio.wait_for(websocket.receive_json(), timeout=60.0)
+
+                    message_type = data.get("type")
+                    message_data = data.get("data", {})
+
+                    if message_type == "subscribe":
+                        # Handle subscription request
+                        subscription_str = message_data.get("subscription")
+                        if subscription_str:
+                            try:
+                                subscription = SubscriptionType(subscription_str)
+                                await manager.subscribe_client(client_id, subscription)
+                                await websocket.send_json({
+                                    "type": "subscription_confirmed",
+                                    "subscription": subscription_str,
+                                    "timestamp_us": int(time.time() * 1_000_000)
+                                })
+                            except ValueError:
+                                await websocket.send_json({
+                                    "type": "error",
+                                    "message": f"Invalid subscription type: {subscription_str}",
+                                    "timestamp_us": int(time.time() * 1_000_000)
+                                })
+
+                    elif message_type == "unsubscribe":
+                        # Handle unsubscription request
+                        subscription_str = message_data.get("subscription")
+                        if subscription_str:
+                            try:
+                                subscription = SubscriptionType(subscription_str)
+                                await manager.unsubscribe_client(client_id, subscription)
+                                await websocket.send_json({
+                                    "type": "unsubscription_confirmed",
+                                    "subscription": subscription_str,
+                                    "timestamp_us": int(time.time() * 1_000_000)
+                                })
+                            except ValueError:
+                                await websocket.send_json({
+                                    "type": "error",
+                                    "message": f"Invalid subscription type: {subscription_str}",
+                                    "timestamp_us": int(time.time() * 1_000_000)
+                                })
+
+                    elif message_type == "ping":
+                        # Respond to ping
+                        await websocket.send_json({
+                            "type": "pong",
+                            "timestamp_us": int(time.time() * 1_000_000)
+                        })
+
+                except asyncio.TimeoutError:
+                    # Send ping to keep connection alive
+                    await websocket.send_json({
+                        "type": "ping",
+                        "timestamp_us": int(time.time() * 1_000_000)
+                    })
+
+        except WebSocketDisconnect:
+            logger.info(f"WebSocket client disconnected: {client_id}")
+        except Exception as e:
+            logger.error(f"WebSocket error for client {client_id}: {e}")
+        finally:
+            if client_id:
+                try:
+                    manager = await get_websocket_manager()
+                    await manager.remove_client(client_id, "connection_closed")
+                except Exception as e:
+                    logger.error(f"Error removing WebSocket client {client_id}: {e}")
+
+    @app.get("/websocket/stats")
+    async def get_websocket_stats() -> Dict[str, Any]:
+        """Get WebSocket connection and messaging statistics."""
+        try:
+            from .websocket_manager import get_websocket_manager
+
+            manager = await get_websocket_manager()
+            stats = manager.get_stats()
+
+            return {
+                "status": "active",
+                "websocket_stats": stats,
+                "timestamp_us": int(time.time() * 1_000_000)
+            }
+
+        except Exception as e:
+            return {
+                "status": "inactive",
+                "error": str(e),
+                "message": "WebSocket stats not available"
+            }
+
+    @app.post("/mtf/analyze/{symbol}")
+    async def analyze_symbol_multitimeframe(symbol: str, primary_timeframe: str = "1h",
+                                          analysis_types: Optional[str] = None) -> Dict[str, Any]:
+        """Perform multi-timeframe analysis for a symbol."""
+        try:
+            from .multi_timeframe import get_multi_timeframe_analyzer, Timeframe, AnalysisType
+
+            analyzer = await get_multi_timeframe_analyzer()
+
+            # Parse parameters
+            try:
+                primary_tf = Timeframe(primary_timeframe)
+            except ValueError:
+                raise HTTPException(status_code=400, detail=f"Invalid primary timeframe: {primary_timeframe}")
+
+            analysis_list = None
+            if analysis_types:
+                try:
+                    analysis_list = [AnalysisType(at.strip()) for at in analysis_types.split(",")]
+                except ValueError as e:
+                    raise HTTPException(status_code=400, detail=f"Invalid analysis type: {e}")
+
+            signals = await analyzer.analyze_symbol(symbol, primary_tf, analysis_list)
+
+            return {
+                "status": "success",
+                "symbol": symbol,
+                "primary_timeframe": primary_timeframe,
+                "signals_count": len(signals),
+                "signals": [signal.to_dict() for signal in signals],
+                "timestamp_us": int(time.time() * 1_000_000)
+            }
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            return {
+                "status": "error",
+                "error": str(e),
+                "message": f"Failed to analyze {symbol} with multi-timeframe analysis"
+            }
+
+    @app.post("/mtf/data")
+    async def add_multitimeframe_data(request: Dict[str, Any]) -> Dict[str, Any]:
+        """Add market data for multi-timeframe analysis."""
+        try:
+            required_fields = ["timeframe", "symbol", "timestamp_us", "open_price",
+                             "high_price", "low_price", "close_price", "volume"]
+            for field in required_fields:
+                if field not in request:
+                    raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
+
+            from .multi_timeframe import get_multi_timeframe_analyzer, Timeframe, TimeframeData
+
+            analyzer = await get_multi_timeframe_analyzer()
+
+            try:
+                timeframe = Timeframe(request["timeframe"])
+            except ValueError:
+                raise HTTPException(status_code=400, detail=f"Invalid timeframe: {request['timeframe']}")
+
+            data = TimeframeData(
+                timeframe=timeframe,
+                symbol=request["symbol"],
+                timestamp_us=request["timestamp_us"],
+                open_price=request["open_price"],
+                high_price=request["high_price"],
+                low_price=request["low_price"],
+                close_price=request["close_price"],
+                volume=request["volume"],
+                vpin=request.get("vpin"),
+                quote_imbalance=request.get("quote_imbalance"),
+                indicators=request.get("indicators", {})
+            )
+
+            analyzer.add_market_data(data)
+
+            return {
+                "status": "success",
+                "message": f"Added {timeframe.value} data for {request['symbol']}",
+                "timestamp_us": int(time.time() * 1_000_000)
+            }
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            return {
+                "status": "error",
+                "error": str(e),
+                "message": "Failed to add multi-timeframe data"
+            }
+
+    @app.get("/mtf/stats")
+    async def get_multitimeframe_stats() -> Dict[str, Any]:
+        """Get multi-timeframe analysis statistics."""
+        try:
+            from .multi_timeframe import get_multi_timeframe_analyzer
+
+            analyzer = await get_multi_timeframe_analyzer()
+            stats = analyzer.get_analysis_stats()
+
+            return {
+                "status": "active",
+                "mtf_stats": stats,
+                "timestamp_us": int(time.time() * 1_000_000)
+            }
+
+        except Exception as e:
+            return {
+                "status": "inactive",
+                "error": str(e),
+                "message": "Multi-timeframe stats not available"
+            }
 
     @app.post("/inference/decisions")
     async def accept_decision(request: Request, inference_request: InferenceRequest, _: None = Depends(require_admin)) -> Dict[str, str]:

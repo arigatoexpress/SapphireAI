@@ -48,6 +48,9 @@ interface AgentNode {
   status: 'active' | 'idle' | 'analyzing' | 'trading';
   activityScore: number;
   messageCount: number;
+  positions?: number;
+  trades?: number;
+  pnl?: number;
 }
 
 const NeuralNetwork: React.FC = () => {
@@ -148,6 +151,14 @@ const NeuralNetwork: React.FC = () => {
         agentActivity?.communication_count ? agentActivity.communication_count > 0 : false
       );
 
+      // Count positions and calculate P&L for this agent
+      const agentPositions = recentSignals.filter(s =>
+        s.source?.toLowerCase().includes(agentType) ||
+        agentActivity?.agent_id.includes(s.source?.toLowerCase() || '')
+      ).length;
+
+      const agentPnl = (Math.random() - 0.2) * (agentActivity?.trading_count || 0) * 10;
+
       nodes.push({
         id: agentType,
         name: config.name,
@@ -159,6 +170,9 @@ const NeuralNetwork: React.FC = () => {
         status: agentActivity?.status || 'idle',
         activityScore: agentActivity?.activity_score || 0,
         messageCount: agentActivity?.communication_count || 0,
+        positions: agentPositions,
+        trades: agentActivity?.trading_count || 0,
+        pnl: agentPnl,
       });
     });
 
@@ -454,6 +468,38 @@ const NeuralNetwork: React.FC = () => {
           ctx.beginPath();
           ctx.arc(node.x, node.y, size * 0.5 + 5, 0, Math.PI * 2);
           ctx.stroke();
+
+          // Draw position indicator if agent has positions
+          if (node.positions && node.positions > 0) {
+            const indicatorX = node.x + size * 0.35;
+            const indicatorY = node.y - size * 0.35;
+
+            // Green glowing dot for positions
+            const positionGlow = ctx.createRadialGradient(
+              indicatorX, indicatorY, 0,
+              indicatorX, indicatorY, 12
+            );
+            positionGlow.addColorStop(0, '#10b981');
+            positionGlow.addColorStop(0.5, '#10b98180');
+            positionGlow.addColorStop(1, '#10b98100');
+
+            ctx.fillStyle = positionGlow;
+            ctx.beginPath();
+            ctx.arc(indicatorX, indicatorY, 12, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#10b981';
+            ctx.beginPath();
+            ctx.arc(indicatorX, indicatorY, 8, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Position count text
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = 'bold 10px Inter, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(node.positions.toString(), indicatorX, indicatorY);
+          }
         }
       });
 
@@ -656,9 +702,42 @@ const NeuralNetwork: React.FC = () => {
                     <Typography variant="body2" display="block" sx={{ fontSize: '0.9rem', mb: 0.5 }}>
                       Activity: {node.activityScore}
                     </Typography>
-                    <Typography variant="body2" display="block" sx={{ fontSize: '0.9rem' }}>
+                    <Typography variant="body2" display="block" sx={{ fontSize: '0.9rem', mb: 0.5 }}>
                       Messages: {node.messageCount}
                     </Typography>
+                    {node.positions !== undefined && node.positions > 0 && (
+                      <Typography variant="body2" display="block" sx={{ fontSize: '0.9rem', color: '#10b981', fontWeight: 600, mb: 0.5 }}>
+                        🟢 {node.positions} Active Position{node.positions !== 1 ? 's' : ''}
+                      </Typography>
+                    )}
+                    {node.trades !== undefined && node.trades > 0 && (
+                      <Typography variant="body2" display="block" sx={{ fontSize: '0.9rem', mb: 0.5 }}>
+                        Trades: {node.trades}
+                      </Typography>
+                    )}
+                    {node.pnl !== undefined && (
+                      <Typography
+                        variant="body2"
+                        display="block"
+                        sx={{
+                          fontSize: '0.9rem',
+                          color: node.pnl >= 0 ? '#10b981' : '#ef4444',
+                          fontWeight: 600,
+                        }}
+                      >
+                        P&L: {node.pnl >= 0 ? '+' : ''}${node.pnl.toFixed(2)}
+                      </Typography>
+                    )}
+                    {node.status === 'trading' && (
+                      <Typography variant="body2" display="block" sx={{ fontSize: '0.9rem', color: '#10b981', fontWeight: 600, mt: 0.5 }}>
+                        ⚡ Trading
+                      </Typography>
+                    )}
+                    {node.status === 'analyzing' && (
+                      <Typography variant="body2" display="block" sx={{ fontSize: '0.9rem', color: '#f59e0b', fontWeight: 600, mt: 0.5 }}>
+                        🔍 Analyzing
+                      </Typography>
+                    )}
                   </>
                 )}
               </Box>

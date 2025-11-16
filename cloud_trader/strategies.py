@@ -521,6 +521,18 @@ class StrategySelector:
         """Select the best strategy for current market conditions."""
         signals = await self.evaluate_all_strategies(symbol, market_data, historical_data)
         
+        # Add AI analysis for enhanced decision making
+        try:
+            logger.debug(f"Attempting AI analysis for {symbol} with {len(signals)} existing signals")
+            ai_signal = await self._get_ai_analysis_signal(symbol, market_data, historical_data, signals)
+            if ai_signal:
+                logger.info(f"✅ AI analysis successful for {symbol}: {ai_signal.direction} (confidence: {ai_signal.confidence:.2f})")
+                signals.append(ai_signal)
+            else:
+                logger.debug(f"AI analysis returned None for {symbol}")
+        except Exception as e:
+            logger.warning(f"AI analysis failed for {symbol}: {e}", exc_info=True)
+
         # Filter out HOLD signals
         active_signals = [s for s in signals if s.direction != "HOLD"]
         
@@ -533,6 +545,119 @@ class StrategySelector:
         
         return best_signal
     
+    async def _get_ai_analysis_signal(self, symbol: str, market_data: MarketSnapshot,
+                                     historical_data: Optional[pd.DataFrame],
+                                     existing_signals: List[StrategySignal]) -> Optional[StrategySignal]:
+        """Get AI-powered analysis signal using Vertex AI with prompt engineering."""
+        try:
+            # Import here to avoid circular imports
+            from .vertex_ai_client import get_vertex_client
+            from .prompt_engineer import PromptBuilder, ResponseValidator, PromptContext
+
+            logger.info(f"🤖 Starting AI analysis for {symbol}")
+            vertex_client = get_vertex_client()
+            if not vertex_client:
+                logger.warning(f"Vertex AI client not available for {symbol}")
+                return None
+            
+            logger.debug(f"Vertex AI client obtained for {symbol}, existing signals: {len(existing_signals)}")
+
+            # Determine agent type from existing signals
+            agent_type = "general"
+            if existing_signals:
+                signal_names = [s.strategy_name.lower() for s in existing_signals]
+                if any("momentum" in name for name in signal_names):
+                    agent_type = "momentum"
+                elif any("reversion" in name or "mean" in name for name in signal_names):
+                    agent_type = "mean_reversion"
+                elif any("sentiment" in name for name in signal_names):
+                    agent_type = "sentiment"
+                elif any("volatility" in name or "vpin" in name for name in signal_names):
+                    agent_type = "volatility"
+
+            # Build prompt using PromptBuilder
+            logger.debug(f"Building prompt for {symbol} with agent type: {agent_type}")
+            prompt_builder = PromptBuilder(prompt_version=self.settings.prompt_version)
+            context = PromptContext(
+                symbol=symbol,
+                market_data=market_data,
+                historical_data=historical_data,
+                technical_signals=[{
+                    "strategy_name": s.strategy_name,
+                    "direction": s.direction,
+                    "confidence": s.confidence,
+                    "reasoning": s.reasoning
+                } for s in existing_signals],
+                agent_type=agent_type
+            )
+            prompt = prompt_builder.build_prompt(context)
+            logger.debug(f"Prompt built for {symbol}, length: {len(prompt)} chars")
+
+            # Call Vertex AI
+            logger.info(f"📤 Calling Vertex AI for {symbol}...")
+            response = await vertex_client.predict_with_fallback(
+                agent_id="market-analysis",
+                prompt=prompt,
+                max_tokens=512  # Increased for better responses
+            )
+            logger.debug(f"📥 Received Vertex AI response for {symbol}")
+
+            if response and isinstance(response, dict):
+                # Use ResponseValidator to parse and validate
+                validator = ResponseValidator()
+                validated_response = validator.validate_and_parse(response, symbol)
+                
+                if validated_response:
+                    # Convert to StrategySignal
+                    return StrategySignal(
+                        strategy_name="ai_analysis",
+                        symbol=symbol,
+                        direction=validated_response.direction,
+                        confidence=validated_response.confidence,
+                        position_size=validated_response.position_size_recommendation or 0.02,
+                        reasoning=validated_response.rationale,
+                        metadata={
+                            "ai_analysis": True,
+                            "model": "gemini",
+                            "prompt_version": self.settings.prompt_version,
+                            "risk_assessment": validated_response.risk_assessment
+                        }
+                    )
+                else:
+                    # Create fallback signal on validation failure
+                    fallback = validator.create_fallback_signal(symbol, "Response validation failed")
+                    logger.warning(f"AI response validation failed for {symbol}, using fallback")
+                    return StrategySignal(
+                        strategy_name="ai_analysis",
+                        symbol=symbol,
+                        direction=fallback.direction,
+                        confidence=fallback.confidence,
+                        position_size=fallback.position_size_recommendation or 0.0,
+                        reasoning=fallback.rationale,
+                        metadata={"ai_analysis": True, "fallback": True}
+                    )
+
+        except Exception as e:
+            logger.warning(f"Vertex AI analysis failed for {symbol}: {e}", exc_info=True)
+            # Return fallback on exception
+            try:
+                from .prompt_engineer import ResponseValidator
+                validator = ResponseValidator()
+                fallback = validator.create_fallback_signal(symbol, f"Exception: {str(e)}")
+                return StrategySignal(
+                    strategy_name="ai_analysis",
+                    symbol=symbol,
+                    direction=fallback.direction,
+                    confidence=fallback.confidence,
+                    position_size=0.0,
+                    reasoning=fallback.rationale,
+                    metadata={"ai_analysis": True, "fallback": True, "error": str(e)}
+                )
+            except Exception:
+                return None
+
+        return None
+
     def _score_signal(self, signal: StrategySignal) -> float:
         """Score a signal based on confidence and historical performance."""
         base_score = signal.confidence
