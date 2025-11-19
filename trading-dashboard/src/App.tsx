@@ -115,7 +115,7 @@ function AppContent() {
                   letterSpacing: '0.3px'
                 }}
               >
-                Advanced Multi-Agent Coordination Protocol • Neural Network Signal Processing • Real-time Anomaly Detection
+                Advanced Multi-Agent Coordination Protocol • Agent Network Signal Processing • Real-time Anomaly Detection
               </Typography>
             </Box>
           </Box>

@@ -492,7 +492,7 @@ const AgentModelCards: React.FC = () => {
           }}
         >
           <Chip
-            label={`${agentActivities.length} Active Neural Networks`}
+            label={`${agentActivities.length} Active AI Agents`}
             sx={{
               bgcolor: 'rgba(6, 182, 212, 0.1)',
               color: '#06b6d4',

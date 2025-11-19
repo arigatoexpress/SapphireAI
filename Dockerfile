@@ -1,17 +1,40 @@
-# Simplified single-stage build for reliable deployment
-FROM python:3.11-slim
+# Multi-stage build for optimized image size
+# Stage 1: Build dependencies
+FROM python:3.11-slim as builder
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# Install system dependencies
+# Install build dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        build-essential \
+        gcc \
+        g++ \
+        && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements first for better layer caching
+COPY requirements.txt .
+# Install Python packages with parallel pip for faster builds
+RUN pip install --user --no-cache-dir --use-pep517 -r requirements.txt
+
+# Stage 2: Runtime image
+FROM python:3.11-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PATH=/home/trader/.local/bin:$PATH
+
+# Install runtime dependencies only
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
-        build-essential \
         && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
@@ -20,26 +43,21 @@ RUN groupadd -r trader && useradd -r -g trader trader
 # Set working directory
 WORKDIR /app
 
-# Copy requirements and install Python packages
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy Python packages from builder stage
+COPY --from=builder --chown=trader:trader /root/.local /home/trader/.local
 
 # Copy application code with forced cache invalidation
 ARG CACHE_BUST
 RUN echo "Cache bust: $CACHE_BUST"
-COPY cloud_trader ./cloud_trader
-COPY pyproject.toml README.md ./
-
-# Copy system initialization and testing scripts (optional - only if they exist)
-# These files are not required for the trading service to run
-
-# Force rebuild marker with timestamp
-RUN echo "MCP endpoints included - $(date +%s)" > /tmp/build_marker && ls -la /app/cloud_trader/api.py
+COPY --chown=trader:trader cloud_trader ./cloud_trader
+COPY --chown=trader:trader start.py ./
+COPY --chown=trader:trader pyproject.toml ./
 
 # Set environment and permissions
 ENV PYTHONPATH=/app \
     PYTHONUNBUFFERED=1
-RUN chown -R trader:trader /app
+
+# Switch to non-root user
 USER trader
 
 EXPOSE 8080
@@ -48,12 +66,5 @@ EXPOSE 8080
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
     CMD curl -f http://127.0.0.1:8080/healthz || exit 1
 
-# Optimized uvicorn for production HFT with MCP support
-CMD ["uvicorn", "cloud_trader.api:build_app", \
-     "--host", "0.0.0.0", \
-     "--port", "8080", \
-     "--factory", \
-     "--workers", "1", \
-     "--loop", "uvloop", \
-     "--http", "httptools", \
-     "--access-log"]
+# Startup script to ensure proper initialization
+CMD ["python3", "start.py"]

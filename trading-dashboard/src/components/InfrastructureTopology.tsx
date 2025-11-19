@@ -42,131 +42,134 @@ const InfrastructureTopology: React.FC = () => {
     return () => window.removeEventListener('resize', updateDimensions);
   }, []);
 
-  // Calculate infrastructure nodes organized by hierarchy and data flow
+  // Calculate infrastructure nodes with clear hierarchy and simplified layout
   const calculateNodes = useCallback((): InfrastructureNode[] => {
     if (dimensions.width === 0 || dimensions.height === 0) return [];
 
     const nodes: InfrastructureNode[] = [];
     const centerX = dimensions.width / 2;
-    const sectionHeight = dimensions.height / 5; // Adjusted for better spacing
+    const layerSpacing = dimensions.height / 6;
 
-    // Layer Labels (Visual hierarchy indicators)
-    nodes.push({
-      id: 'layer-1-label',
-      name: 'INFRASTRUCTURE LAYER',
-      type: 'cluster',
-      x: 80,
-      y: sectionHeight * 0.8,
-      color: '#0EA5E9',
-      status: 'healthy',
+    // Clear hierarchical layers with descriptive headers
+    const layers = [
+      { name: 'INFRASTRUCTURE', y: layerSpacing, color: '#0EA5E9' },
+      { name: 'SERVICES', y: layerSpacing * 2, color: '#8B5CF6' },
+      { name: 'AI AGENTS', y: layerSpacing * 3.5, color: '#10B981' },
+      { name: 'EXTERNAL APIs', y: layerSpacing * 5, color: '#F59E0B' },
+    ];
+
+    // Add layer labels for clear hierarchy
+    layers.forEach((layer, index) => {
+      nodes.push({
+        id: `layer-${index}`,
+        name: layer.name,
+        type: 'cluster',
+        x: 120,
+        y: layer.y,
+        color: layer.color,
+        status: 'healthy',
+      });
     });
 
-    nodes.push({
-      id: 'layer-2-label',
-      name: 'CORE SERVICES LAYER',
-      type: 'service',
-      x: 80,
-      y: sectionHeight * 1.8,
-      color: '#8B5CF6',
-      status: 'healthy',
-    });
-
-    nodes.push({
-      id: 'layer-3-label',
-      name: 'AI AGENTS LAYER',
-      type: 'agent',
-      x: 80,
-      y: sectionHeight * 2.8,
-      color: '#10B981',
-      status: 'healthy',
-    });
-
-    nodes.push({
-      id: 'layer-4-label',
-      name: 'EXTERNAL SERVICES LAYER',
-      type: 'service',
-      x: 80,
-      y: sectionHeight * 4.2,
-      color: '#F59E0B',
-      status: 'healthy',
-    });
-
-    // Layer 1: Infrastructure (Top)
+    // Layer 1: Infrastructure - Simple and clear
     nodes.push({
       id: 'gke-cluster',
-      name: 'Google Kubernetes Engine',
+      name: 'Google Cloud GKE',
       type: 'cluster',
       x: centerX,
-      y: sectionHeight,
+      y: layerSpacing,
       color: '#0EA5E9',
       status: 'healthy',
       metrics: { cpu: 45, memory: 62 },
     });
 
-    // Layer 2: Core Services (Middle-Top)
-    const coreServices = [
-      { id: 'redis', name: 'Redis Cache', type: 'cache' as const, color: '#EF4444', x: centerX - 280, y: sectionHeight * 2 },
-      { id: 'cloud-trader', name: 'Cloud Trader API', type: 'service' as const, color: '#0EA5E9', x: centerX, y: sectionHeight * 2 },
-      { id: 'mcp-coordinator', name: 'MCP Coordinator', type: 'coordinator' as const, color: '#8B5CF6', x: centerX + 280, y: sectionHeight * 2 },
+    // Layer 2: Core Services - Clean horizontal layout
+    const services = [
+      { id: 'cloud-trader', name: 'Trading Engine', x: centerX - 200, color: '#0EA5E9' },
+      { id: 'mcp-coordinator', name: 'Agent Coordinator', x: centerX, color: '#8B5CF6' },
+      { id: 'redis', name: 'Redis Cache', x: centerX + 200, color: '#EF4444' },
     ];
 
-    coreServices.forEach(service => {
+    services.forEach(service => {
       nodes.push({
-        ...service,
+        id: service.id,
+        name: service.name,
+        type: 'service',
+        x: service.x,
+        y: layerSpacing * 2,
+        color: service.color,
         status: 'healthy',
-        metrics: { cpu: Math.random() * 30 + 20, memory: Math.random() * 40 + 30, latency: Math.random() * 50 + 10 },
+        metrics: { cpu: Math.random() * 25 + 15, memory: Math.random() * 35 + 25, latency: Math.random() * 30 + 10 },
       });
     });
 
-    // Layer 3: AI Agents (Middle-Bottom) - organized in clear functional groups
-    const agentHierarchy = [
-      // Analysis Layer (left side - data collection & processing)
-      { id: 'volume-microstructure-agent', x: centerX - 350, y: sectionHeight * 2.8, group: 'analysis' },
-      { id: 'trend-momentum-agent', x: centerX - 200, y: sectionHeight * 2.8, group: 'analysis' },
-      { id: 'financial-sentiment-agent', x: centerX - 200, y: sectionHeight * 3.4, group: 'analysis' },
-
-      // Strategy Layer (center - decision making)
-      { id: 'strategy-optimization-agent', x: centerX, y: sectionHeight * 3.1, group: 'strategy' },
-      { id: 'market-prediction-agent', x: centerX + 150, y: sectionHeight * 3.1, group: 'strategy' },
-
-      // Execution Layer (right side - trade execution)
-      { id: 'vpin-hft', x: centerX + 300, y: sectionHeight * 3.1, group: 'execution' },
+    // Layer 3: AI Agents - Organized in functional groups with clear spacing
+    const agentGroups = [
+      // Analysis Agents (Data Collection)
+      { agents: ['volume-microstructure-agent', 'trend-momentum-agent'], x: centerX - 300, title: 'ANALYSIS' },
+      // Strategy Agents (Decision Making)
+      { agents: ['strategy-optimization-agent', 'market-prediction-agent'], x: centerX, title: 'STRATEGY' },
+      // Execution Agents (Trade Execution)
+      { agents: ['financial-sentiment-agent', 'vpin-hft'], x: centerX + 300, title: 'EXECUTION' },
     ];
 
-    agentHierarchy.forEach(({ id: agentType, x, y, group }) => {
-      const agentActivity = agentActivities.find(a => a.agent_type === agentType);
-      const agentColor = AGENT_COLORS[agentType as keyof typeof AGENT_COLORS] || AGENT_COLORS.coordinator;
+    agentGroups.forEach((group, groupIndex) => {
+      const baseY = layerSpacing * 3.5;
 
+      // Add group title
       nodes.push({
-        id: agentType,
-        name: agentColor.name,
-        type: 'agent',
-        x,
-        y,
-        color: agentColor.primary,
-        status: agentActivity?.status === 'active' || agentActivity?.status === 'trading' ? 'healthy' :
-                agentActivity?.status === 'analyzing' ? 'warning' : 'idle',
-        metrics: {
-          cpu: Math.random() * 40 + 15,
-          memory: Math.random() * 30 + 20,
-          requests: agentActivity?.communication_count || 0,
-          latency: Math.random() * 100 + 50,
-        },
+        id: `group-${groupIndex}`,
+        name: group.title,
+        type: 'cluster',
+        x: group.x,
+        y: baseY - 60,
+        color: '#666',
+        status: 'healthy',
+      });
+
+      // Add agents in the group
+      group.agents.forEach((agentType, agentIndex) => {
+        const agentActivity = agentActivities.find(a => a.agent_type === agentType);
+        const agentColor = AGENT_COLORS[agentType as keyof typeof AGENT_COLORS] || AGENT_COLORS.coordinator;
+
+        nodes.push({
+          id: agentType,
+          name: agentColor.name,
+          type: 'agent',
+          x: group.x,
+          y: baseY + (agentIndex * 80),
+          color: agentColor.primary,
+          status: agentActivity?.status === 'active' || agentActivity?.status === 'trading' ? 'healthy' :
+                  agentActivity?.status === 'analyzing' ? 'warning' : 'idle',
+          metrics: {
+            cpu: Math.random() * 35 + 10,
+            memory: Math.random() * 25 + 15,
+            requests: agentActivity?.communication_count || Math.floor(Math.random() * 20),
+            latency: Math.random() * 80 + 30,
+          },
+        });
       });
     });
 
-    // Layer 4: External Services (Bottom)
+    // Layer 4: External Services - Clean bottom layout
     const externalServices = [
-      { id: 'aster-dex', name: 'Aster DEX Exchange API', color: '#10B981', x: centerX - 250, y: sectionHeight * 4.4 },
-      { id: 'vertex-ai', name: 'Google Vertex AI (Gemini)', color: '#F59E0B', x: centerX + 250, y: sectionHeight * 4.4 },
+      { id: 'aster-dex', name: 'Aster DEX', x: centerX - 250, color: '#10B981' },
+      { id: 'vertex-ai', name: 'Gemini AI', x: centerX + 250, color: '#F59E0B' },
     ];
 
     externalServices.forEach(service => {
       nodes.push({
-        ...service,
+        id: service.id,
+        name: service.name,
         type: 'service',
+        x: service.x,
+        y: layerSpacing * 5,
+        color: service.color,
         status: 'healthy',
-        metrics: { latency: service.id === 'aster-dex' ? 45 : 180, requests: service.id === 'aster-dex' ? 120 : 85 },
+        metrics: {
+          latency: service.id === 'aster-dex' ? 45 : 180,
+          requests: service.id === 'aster-dex' ? 120 : 85
+        },
       });
     });
 
@@ -211,44 +214,56 @@ const InfrastructureTopology: React.FC = () => {
 
         ctx.strokeStyle = gradient;
         ctx.lineWidth = 2;
+        // Neon glow effect for connections
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = from.color;
         if (style === 'dashed') {
           ctx.setLineDash([8, 4]);
         }
         ctx.stroke();
         ctx.setLineDash([]); // Reset dash
+        ctx.shadowBlur = 0; // Reset shadow
       };
 
-      // Data Flow Connections:
-      // 1. Infrastructure → Core Services
+      // Clear Data Flow Connections - Simplified hierarchy
+
+      // 1. Infrastructure foundation
       const gkeNode = nodes.find(n => n.id === 'gke-cluster');
-      const coreServiceNodes = nodes.filter(n => ['cloud-trader', 'mcp-coordinator', 'redis'].includes(n.id));
+      const coreServices = nodes.filter(n => ['cloud-trader', 'mcp-coordinator', 'redis'].includes(n.id));
       if (gkeNode) {
-        coreServiceNodes.forEach(service => drawConnection(gkeNode, service, 'solid', 0.25));
+        coreServices.forEach(service => drawConnection(gkeNode, service, 'solid', 0.3));
       }
 
-      // 2. External Data → Cloud Trader
+      // 2. Data flow: External APIs → Trading Engine
       const asterNode = nodes.find(n => n.id === 'aster-dex');
       const traderNode = nodes.find(n => n.id === 'cloud-trader');
       if (asterNode && traderNode) {
         drawConnection(asterNode, traderNode, 'solid', 0.4);
       }
 
-      // 3. Cloud Trader → MCP Coordinator
+      // 3. Coordination: Trading Engine → MCP Coordinator
       const coordinatorNode = nodes.find(n => n.id === 'mcp-coordinator');
       if (traderNode && coordinatorNode) {
         drawConnection(traderNode, coordinatorNode, 'solid', 0.35);
       }
 
-      // 4. MCP Coordinator → AI Agents (hierarchical flow)
-      const agentNodes = nodes.filter(n => n.type === 'agent');
+      // 4. Intelligence flow: Coordinator → Agent Groups
+      const analysisGroup = nodes.find(n => n.name === 'ANALYSIS');
+      const strategyGroup = nodes.find(n => n.name === 'STRATEGY');
+      const executionGroup = nodes.find(n => n.name === 'EXECUTION');
+
       if (coordinatorNode) {
-        agentNodes.forEach(agent => drawConnection(coordinatorNode, agent, 'solid', 0.3));
+        if (analysisGroup) drawConnection(coordinatorNode, analysisGroup, 'solid', 0.25);
+        if (strategyGroup) drawConnection(coordinatorNode, strategyGroup, 'solid', 0.25);
+        if (executionGroup) drawConnection(coordinatorNode, executionGroup, 'solid', 0.25);
       }
 
-      // 5. AI Agents → Vertex AI (intelligence flow)
+      // 5. AI Intelligence: Key agents → Gemini AI
       const vertexNode = nodes.find(n => n.id === 'vertex-ai');
       if (vertexNode) {
-        agentNodes.forEach(agent => drawConnection(agent, vertexNode, 'dashed', 0.25));
+        // Connect only representative agents to avoid clutter
+        const keyAgents = nodes.filter(n => ['trend-momentum-agent', 'strategy-optimization-agent', 'vpin-hft'].includes(n.id));
+        keyAgents.forEach(agent => drawConnection(agent, vertexNode, 'dashed', 0.2));
       }
 
       // 6. Redis ↔ All components (caching layer - bidirectional)
@@ -306,18 +321,31 @@ const InfrastructureTopology: React.FC = () => {
         const size = node.type === 'cluster' ? 80 : node.type === 'coordinator' ? 60 : 50;
         const pulseSize = isHovered ? size * 1.2 : size;
 
-        // Status-based glow
+        // Enhanced neon glow for cyberpunk aesthetic
         if (node.status === 'healthy') {
+          const time = Date.now() / 1000;
+          const pulse = (Math.sin(time * 2 + node.x * 0.01) + 1) / 2;
+          const glowIntensity = 0.5 + pulse * 0.3;
+          
           const glowGradient = ctx.createRadialGradient(
             node.x, node.y, size * 0.5,
-            node.x, node.y, size * 2
+            node.x, node.y, size * 2.5
           );
-          glowGradient.addColorStop(0, `${node.color}60`);
+          glowGradient.addColorStop(0, `${node.color}${Math.floor(glowIntensity * 255).toString(16).padStart(2, '0')}`);
+          glowGradient.addColorStop(0.4, `${node.color}${Math.floor(glowIntensity * 0.6 * 255).toString(16).padStart(2, '0')}`);
+          glowGradient.addColorStop(0.7, `${node.color}${Math.floor(glowIntensity * 0.3 * 255).toString(16).padStart(2, '0')}`);
           glowGradient.addColorStop(1, `${node.color}00`);
           ctx.fillStyle = glowGradient;
           ctx.beginPath();
-          ctx.arc(node.x, node.y, size * 2, 0, Math.PI * 2);
+          ctx.arc(node.x, node.y, size * 2.5, 0, Math.PI * 2);
           ctx.fill();
+          
+          // Additional outer neon ring
+          ctx.strokeStyle = `${node.color}${Math.floor(glowIntensity * 0.3 * 255).toString(16).padStart(2, '0')}`;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(node.x, node.y, size * 2.2, 0, Math.PI * 2);
+          ctx.stroke();
         }
 
         // Node circle

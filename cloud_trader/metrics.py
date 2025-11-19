@@ -181,6 +181,12 @@ TRADE_EXECUTION_FAILURE = Counter(
     ["symbol", "reason"],
 )
 
+PAPER_TRADES_TOTAL = Counter(
+    "paper_trades_total",
+    "Total paper trading orders executed",
+    ["symbol", "side"],
+)
+
 # Snapshot and telemetry metrics
 DASHBOARD_SNAPSHOT_TIME = Histogram(
     "dashboard_snapshot_duration_seconds",

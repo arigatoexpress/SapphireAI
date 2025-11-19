@@ -19,6 +19,11 @@ simplifiedTrader:
     repository: cloud-run-source-deploy/cloud-trader
     tag: latest
   replicas: 1
+  env:
+    - name: TOTAL_CAPITAL
+      value: "3000"  # 6 agents × $500 each
+    - name: AGENT_CAPITAL
+      value: "500"  # Fixed $500 per trading agent
 
 # Vertex AI and TPU configuration - Full Google AI optimization
 vertexAI:
@@ -37,7 +42,7 @@ vertexAI:
     driftDetection: true
 
 tpu:
-  enabled: true  # Set to true after TPU quota approval
+  enabled: false  # Disabled - no TPU nodes available in current cluster
   type: "v5e-lite-podslice"  # Most cost-effective TPU for inference
   machineType: "ct5lp-hightpu-1t"  # TPU v5e instance
   optimization:
@@ -49,7 +54,7 @@ tpu:
 
 # Redis configuration
 redis:
-  enabled: true  # Temporarily disabled for faster deployment
+  enabled: false  # Temporarily disabled while fixing image registry issues
   architecture: standalone
   auth:
     enabled: true
@@ -488,6 +493,14 @@ hpa:
             type: AverageValue
             averageValue: 0.1  # Scale down if throttle rate >10%
 
+# Telegram Enhanced Features
+telegram:
+  dailyRecap:
+    enabled: true
+    schedule: "0 0 * * *"  # Daily at midnight UTC (00:00)
+    hours: 24  # Hours of data to include in recap
+    includeChart: true  # Include performance chart in recap
+
 # Monitoring and Observability
 monitoring:
   enabled: true
@@ -542,17 +555,7 @@ securityContext:
   runAsUser: 1000
   fsGroup: 2000
 
-# Node Selector for TPU nodes (only used when tpu.enabled=true)
-nodeSelector:
-  cloud.google.com/gke-tpu-accelerator: v5-lite-podslice
-  cloud.google.com/gke-tpu-topology: "1"
-  instance-type: ct5lp-hightpu-1t
-
-# Tolerations for TPU workloads (only used when tpu.enabled=true)
-tolerations:
-  - key: "google.com/tpu"
-    operator: "Exists"
-    effect: "NoSchedule"
+# TPU node selectors and tolerations removed - TPU disabled
 
 # Affinity rules
 affinity:

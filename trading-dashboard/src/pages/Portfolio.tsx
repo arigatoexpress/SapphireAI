@@ -1,33 +1,25 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Box, Typography, Card, CardContent, Grid, Chip, Divider, LinearProgress, Container } from '@mui/material';
-import { TrendingUp, TrendingDown, AccountBalance, ShowChart } from '@mui/icons-material';
 import { useTrading } from '../contexts/TradingContext';
 import PortfolioChart from '../components/PortfolioChart';
 import TradeAlertEffect from '../components/TradeAlertEffect';
-import DiamondSparkle from '../components/DiamondSparkle';
 import SapphireDust from '../components/SapphireDust';
+import DiamondSparkle from '../components/DiamondSparkle';
 import RegulatoryDisclaimer from '../components/RegulatoryDisclaimer';
-import { gradientCardStyles, gradientTextStyles, formatCurrency } from '../utils/themeUtils';
-import { getAgentColor } from '../utils/themeUtils';
 
 const Portfolio: React.FC = () => {
-  const { portfolio, agentActivities, recentSignals, loading } = useTrading();
+  const { portfolio, agentActivities, recentSignals } = useTrading();
   const [showTradeEffect, setShowTradeEffect] = useState(false);
   const [tradeEffectType, setTradeEffectType] = useState<'buy' | 'sell' | 'signal'>('signal');
   const previousSignalsCount = useRef(0);
 
   const calculateTotalValue = () => {
-    // Always calculate from agent allocations (bot trading capital only)
-    if (portfolio?.agent_allocations) {
-      return Object.values(portfolio.agent_allocations).reduce((sum: number, val: any) => sum + (val || 0), 0);
-    }
-    // Fallback to $3,000 (6 agents × $500 each)
-    return 3000;
+    // Use the actual portfolio value from the API/context
+    return portfolio?.portfolio_value || 3000;
   };
 
   const totalValue = calculateTotalValue();
   const activeAgents = agentActivities.filter(a => a.status === 'active' || a.status === 'trading').length;
-  const totalTrades = agentActivities.reduce((sum, a) => sum + (a.trading_count || 0), 0);
 
   // Trigger trade alert effect when new signals arrive
   useEffect(() => {
@@ -85,87 +77,47 @@ const Portfolio: React.FC = () => {
       {/* Regulatory Disclaimer */}
       <RegulatoryDisclaimer />
 
-      {/* Portfolio Summary Cards - Bold and Clean */}
+      {/* Simplified Portfolio Summary - Only Critical Metrics */}
       <Grid container spacing={{ xs: 2, md: 3 }} sx={{ mb: { xs: 3, md: 4 }, position: 'relative', zIndex: 1 }}>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={gradientCardStyles('#0EA5E9', '#06b6d4')}>
-            <DiamondSparkle count={3} duration={3000} size={15} enabled={true} color="#0ea5e9" />
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="space-between">
-                <Box>
-                  <Typography variant="body1" sx={{ color: '#CBD5E1', mb: 1.5, fontSize: { xs: '0.9rem', md: '1rem' }, fontWeight: 600 }}>
-                    Total Bot Trading Capital
-                  </Typography>
-                  <Typography variant="h2" sx={{ fontWeight: 900, color: '#0EA5E9', fontSize: { xs: '2.5rem', md: '3rem' }, lineHeight: 1 }}>
-                    ${totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </Typography>
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={6}>
           <Card sx={{
-            background: '#0A0A0F',
-            border: '2px solid rgba(16, 185, 129, 0.4)',
+            background: '#000000',
+            border: '2px solid rgba(0, 255, 255, 0.4)',
             transition: 'all 0.2s ease',
             '&:hover': {
-              borderColor: '#10B981',
-              boxShadow: '0 8px 32px rgba(16, 185, 129, 0.4)',
+              borderColor: '#00ffff',
+              boxShadow: '0 8px 32px rgba(0, 255, 255, 0.4)',
               transform: 'translateY(-4px)',
             }
           }}>
             <CardContent>
-              <Typography variant="body1" sx={{ color: '#CBD5E1', mb: 1.5, fontSize: { xs: '0.9rem', md: '1rem' }, fontWeight: 600 }}>
+              <Typography variant="body1" sx={{ color: '#e2e8f0', mb: 1.5, fontSize: { xs: '0.9rem', md: '1rem' }, fontWeight: 600 }}>
+                Total Bot Trading Capital
+              </Typography>
+              <Typography variant="h2" sx={{ fontWeight: 900, color: '#00ffff', fontSize: { xs: '2.5rem', md: '3rem' }, lineHeight: 1 }}>
+                ${totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} sm={6}>
+          <Card sx={{
+            background: '#000000',
+            border: '2px solid rgba(168, 85, 247, 0.4)',
+            transition: 'all 0.2s ease',
+            '&:hover': {
+              borderColor: '#a855f7',
+              boxShadow: '0 8px 32px rgba(168, 85, 247, 0.4)',
+              transform: 'translateY(-4px)',
+            }
+          }}>
+            <CardContent>
+              <Typography variant="body1" sx={{ color: '#e2e8f0', mb: 1.5, fontSize: { xs: '0.9rem', md: '1rem' }, fontWeight: 600 }}>
                 Active Agents
               </Typography>
-              <Typography variant="h2" sx={{ fontWeight: 900, color: '#10B981', fontSize: { xs: '2.5rem', md: '3rem' }, lineHeight: 1 }}>
+              <Typography variant="h2" sx={{ fontWeight: 900, color: '#a855f7', fontSize: { xs: '2.5rem', md: '3rem' }, lineHeight: 1 }}>
                 {activeAgents} / {agentActivities.length}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{
-            background: '#0A0A0F',
-            border: '2px solid rgba(6, 182, 212, 0.4)',
-            transition: 'all 0.2s ease',
-            '&:hover': {
-              borderColor: '#06B6D4',
-              boxShadow: '0 8px 32px rgba(6, 182, 212, 0.4)',
-              transform: 'translateY(-4px)',
-            }
-          }}>
-            <CardContent>
-              <Typography variant="body1" sx={{ color: '#CBD5E1', mb: 1.5, fontSize: { xs: '0.9rem', md: '1rem' }, fontWeight: 600 }}>
-                Total Trades
-              </Typography>
-              <Typography variant="h2" sx={{ fontWeight: 900, color: '#06B6D4', fontSize: { xs: '2.5rem', md: '3rem' }, lineHeight: 1 }}>
-                {totalTrades}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{
-            background: '#0A0A0F',
-            border: '2px solid rgba(245, 158, 11, 0.4)',
-            transition: 'all 0.2s ease',
-            '&:hover': {
-              borderColor: '#F59E0B',
-              boxShadow: '0 8px 32px rgba(245, 158, 11, 0.4)',
-              transform: 'translateY(-4px)',
-            }
-          }}>
-            <CardContent>
-              <Typography variant="body1" sx={{ color: '#CBD5E1', mb: 1.5, fontSize: { xs: '0.9rem', md: '1rem' }, fontWeight: 600 }}>
-                Trading Signals
-              </Typography>
-              <Typography variant="h2" sx={{ fontWeight: 900, color: '#F59E0B', fontSize: { xs: '2.5rem', md: '3rem' }, lineHeight: 1 }}>
-                {recentSignals.length}
               </Typography>
             </CardContent>
           </Card>
@@ -177,7 +129,7 @@ const Portfolio: React.FC = () => {
         <PortfolioChart />
       </Box>
 
-      {/* Agent Performance Comparison - Colored Dots & Metrics */}
+      {/* Agent Performance - Focused on Portfolio Allocation */}
       <Box sx={{ mb: 4 }}>
         <Typography
           variant="h5"
@@ -185,15 +137,13 @@ const Portfolio: React.FC = () => {
             fontWeight: 700,
             mb: 3,
             fontSize: { xs: '1.25rem', md: '1.5rem' },
-            color: '#FFFFFF',
+            color: '#00ffff',
           }}
         >
-          Agent Performance Comparison
+          Agent Capital Allocation
         </Typography>
         <Grid container spacing={3}>
           {agentActivities.map((agent) => {
-            const capital = portfolio?.agent_allocations?.[agent.agent_id] ||
-              portfolio?.agent_allocations?.[agent.agent_type] || 500;
             const positions = recentSignals.filter(s =>
               s.source?.toLowerCase().includes(agent.agent_type) ||
               agent.agent_id.includes(s.source?.toLowerCase() || '')
@@ -353,7 +303,8 @@ const Portfolio: React.FC = () => {
             <Grid container spacing={{ xs: 2, md: 2 }}>
               {Object.entries(portfolio.agent_allocations).map(([agentId, allocation]: [string, any]) => {
                 const agent = agentActivities.find(a => a.agent_id.includes(agentId) || a.agent_type === agentId);
-                const percentage = totalValue > 0 ? (allocation / totalValue) * 100 : 0;
+                const dollarAmount = totalValue * allocation;
+                const percentage = allocation * 100;
                 return (
                   <Grid item xs={12} sm={6} md={4} key={agentId}>
                     <Box sx={{ p: 2, bgcolor: 'rgba(255,255,255,0.05)', borderRadius: 2 }}>
@@ -362,7 +313,7 @@ const Portfolio: React.FC = () => {
                           {agent?.agent_name || agentId.replace(/-/g, ' ').replace(/\b\w/g, char => char.toUpperCase())}
                         </Typography>
                         <Chip
-                          label={`$${allocation.toFixed(2)}`}
+                          label={`$${dollarAmount.toFixed(0)}`}
                           size="small"
                           sx={{ bgcolor: 'rgba(0, 212, 170, 0.2)', color: '#00d4aa', fontWeight: 600 }}
                         />

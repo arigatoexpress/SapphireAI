@@ -3,7 +3,6 @@ import {
   AppBar,
   Toolbar,
   Typography,
-  Button,
   Box,
   IconButton,
   Menu,
@@ -18,21 +17,17 @@ import {
   useTheme,
   Chip,
   Avatar,
-  Fade,
 } from '@mui/material';
 import {
   Dashboard as DashboardIcon,
   AccountBalance as PortfolioIcon,
-  Psychology as AgentsIcon,
   Analytics as AnalyticsIcon,
-  RocketLaunch as MissionControlIcon,
   Settings as SettingsIcon,
   AccountCircle,
   Menu as MenuIcon,
   Diamond as DiamondIcon,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useTrading } from '../contexts/TradingContext';
 
 const drawerWidth = 280;
 
@@ -40,7 +35,6 @@ const Navbar: React.FC = () => {
   const theme = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
-  const { portfolio, agentActivities } = useTrading();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -52,13 +46,12 @@ const Navbar: React.FC = () => {
     setAnchorEl(null);
   };
 
+  // Simplified to 4 core pages as per plan
   const navItems = [
-    { path: '/', label: 'Neural Network', icon: <AnalyticsIcon />, description: 'Multi-agent consensus visualization' },
-    { path: '/dashboard', label: 'Command Center', icon: <DashboardIcon />, description: 'Real-time trading operations' },
-    { path: '/portfolio', label: 'Portfolio Matrix', icon: <PortfolioIcon />, description: 'Dynamic capital allocation' },
-    { path: '/agents', label: 'Agent Council', icon: <AgentsIcon />, description: '6 specialized AI traders' },
-    { path: '/mission-control', label: 'Mission Control', icon: <MissionControlIcon />, description: 'System health & performance' },
-    { path: '/workflow', label: 'Architecture', icon: <SettingsIcon />, description: 'Enterprise infrastructure' },
+    { path: '/dashboard', label: 'Dashboard', icon: <DashboardIcon />, description: 'Real-time trading operations' },
+    { path: '/portfolio', label: 'Portfolio', icon: <PortfolioIcon />, description: 'Capital allocation & positions' },
+    { path: '/', label: 'Agent Network', icon: <AnalyticsIcon />, description: 'AI agent network visualization' },
+    { path: '/workflow', label: 'Infrastructure', icon: <SettingsIcon />, description: 'System architecture' },
   ];
 
   const handleDrawerToggle = () => {
@@ -115,35 +108,7 @@ const Navbar: React.FC = () => {
         </Box>
       </Box>
 
-      {/* Portfolio Stats */}
-      {portfolio && (
-        <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
-          <Typography variant="overline" sx={{ fontWeight: 600, color: 'text.secondary', mb: 1, display: 'block' }}>
-            Portfolio
-          </Typography>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-            <Typography variant="body2" color="text.secondary">Bot Trading Capital</Typography>
-            <Typography variant="body2" sx={{ fontWeight: 600, color: 'primary.main' }}>
-              ${portfolio?.agent_allocations ? Object.values(portfolio.agent_allocations).reduce((sum: number, val: any) => sum + (val || 0), 0).toLocaleString() : '3,000'}
-            </Typography>
-          </Box>
-          {agentActivities && (
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="body2" color="text.secondary">Active Agents</Typography>
-              <Chip
-                label={agentActivities.length}
-                size="small"
-                sx={{
-                  height: 20,
-                  fontSize: '0.7rem',
-                  bgcolor: 'primary.main',
-                  color: 'primary.contrastText',
-                }}
-              />
-            </Box>
-          )}
-        </Box>
-      )}
+      {/* Simplified metrics - removed redundant portfolio stats */}
 
       {/* Navigation Menu */}
       <List sx={{ flexGrow: 1, pt: 2 }}>
@@ -167,15 +132,17 @@ const Navbar: React.FC = () => {
                     transform: 'translateY(-50%)',
                     width: 4,
                     height: '60%',
-                    bgcolor: 'primary.main',
+                    bgcolor: '#00ffff',
                     borderRadius: '0 4px 4px 0',
-                    boxShadow: `0 0 8px ${theme.palette.primary.main}50`,
+                    boxShadow: '0 0 8px rgba(0, 255, 255, 0.6)',
                   } : {},
-                  bgcolor: isActive ? 'rgba(0, 212, 170, 0.1)' : 'transparent',
-                  border: isActive ? '1px solid rgba(0, 212, 170, 0.3)' : '1px solid transparent',
+                  bgcolor: isActive ? 'rgba(0, 255, 255, 0.1)' : 'transparent',
+                  border: isActive ? '1px solid rgba(0, 255, 255, 0.4)' : '1px solid transparent',
+                  boxShadow: isActive ? '0 0 10px rgba(0, 255, 255, 0.2)' : 'none',
                   '&:hover': {
-                    bgcolor: isActive ? 'rgba(0, 212, 170, 0.15)' : 'action.hover',
-                    borderColor: isActive ? 'rgba(0, 212, 170, 0.4)' : 'rgba(0, 212, 170, 0.2)',
+                    bgcolor: isActive ? 'rgba(0, 255, 255, 0.15)' : 'action.hover',
+                    borderColor: isActive ? 'rgba(0, 255, 255, 0.5)' : 'rgba(0, 255, 255, 0.2)',
+                    boxShadow: isActive ? '0 0 15px rgba(0, 255, 255, 0.3)' : '0 0 5px rgba(0, 255, 255, 0.1)',
                     transform: 'translateX(2px)',
                   },
                   transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
@@ -324,19 +291,7 @@ const Navbar: React.FC = () => {
             </Box>
           </Box>
 
-          {/* Bot Trading Capital Chip */}
-          {portfolio && (
-            <Chip
-              label={`$${(portfolio?.agent_allocations ? Object.values(portfolio.agent_allocations).reduce((sum: number, val: any) => sum + (val || 0), 0) : 3000).toLocaleString()}`}
-              variant="outlined"
-              sx={{
-                color: '#00d4aa',
-                borderColor: '#00d4aa',
-                fontWeight: 600,
-                mr: 2,
-              }}
-            />
-          )}
+          {/* Simplified navbar - metrics removed to reduce clutter */}
 
           {/* User Menu */}
           <IconButton

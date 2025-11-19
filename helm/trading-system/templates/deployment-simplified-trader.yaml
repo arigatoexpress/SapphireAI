@@ -33,8 +33,9 @@ spec:
               protocol: TCP
           env:
             {{- include "trading-system.commonEnv" $ | nindent 12 }}
-            - name: TOTAL_CAPITAL
-              value: {{ .Values.trading.capitalAllocation | quote }}
+            {{- with .Values.simplifiedTrader.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
             - name: SIMPLIFIED_MODE
               value: "true"
           envFrom:

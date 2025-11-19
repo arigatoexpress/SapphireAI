@@ -4,17 +4,30 @@
   box-sizing: border-box;
 }
 
-html, body, #root {
+/* Import monospace font for metrics */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+html,
+body,
+#root {
   height: 100%;
   margin: 0;
   padding: 0;
   font-family: 'Inter', 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
-  background:
-    radial-gradient(ellipse at top, rgba(0, 212, 170, 0.1) 0%, transparent 50%),
-    radial-gradient(ellipse at bottom, rgba(138, 43, 226, 0.1) 0%, transparent 50%),
-    linear-gradient(135deg, #0a0a0a 0%, #0f0f23 50%, #0a0a0a 100%);
+  background: #000000;
+  /* Pure black background */
+  background-image:
+    radial-gradient(ellipse at top, rgba(0, 255, 255, 0.05) 0%, transparent 50%),
+    radial-gradient(ellipse at bottom, rgba(168, 85, 247, 0.05) 0%, transparent 50%),
+    repeating-linear-gradient(0deg,
+      transparent,
+      transparent 2px,
+      rgba(0, 255, 255, 0.03) 2px,
+      rgba(0, 255, 255, 0.03) 4px);
+  /* Subtle tech grid overlay */
   background-attachment: fixed;
-  color: rgba(255, 255, 255, 0.95);
+  color: #ffffff;
+  /* Pure white for maximum contrast */
   overflow-x: hidden;
 }
 
@@ -45,13 +58,14 @@ body {
 ::-webkit-scrollbar-thumb {
   background:
     linear-gradient(180deg,
-      rgba(0, 212, 170, 0.8) 0%,
-      rgba(0, 212, 170, 0.6) 50%,
-      rgba(0, 212, 170, 0.8) 100%);
+      rgba(0, 255, 255, 0.8) 0%,
+      rgba(0, 255, 255, 0.6) 50%,
+      rgba(0, 255, 255, 0.8) 100%);
   border-radius: 8px;
-  border: 2px solid rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(0, 255, 255, 0.3);
   box-shadow:
-    0 2px 8px rgba(0, 212, 170, 0.3),
+    0 2px 8px rgba(0, 255, 255, 0.4),
+    0 0 12px rgba(0, 255, 255, 0.2),
     inset 0 1px 0 rgba(255, 255, 255, 0.2);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -59,12 +73,13 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background:
     linear-gradient(180deg,
-      rgba(0, 245, 212, 0.9) 0%,
-      rgba(0, 245, 212, 0.7) 50%,
-      rgba(0, 245, 212, 0.9) 100%);
+      rgba(0, 255, 255, 1) 0%,
+      rgba(0, 255, 255, 0.8) 50%,
+      rgba(0, 255, 255, 1) 100%);
   transform: scale(1.1);
   box-shadow:
-    0 4px 12px rgba(0, 245, 212, 0.4),
+    0 4px 12px rgba(0, 255, 255, 0.6),
+    0 0 20px rgba(0, 255, 255, 0.4),
     inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
@@ -81,6 +96,7 @@ body {
     transform: translateY(30px) scale(0.95);
     filter: blur(10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
@@ -93,6 +109,7 @@ body {
     opacity: 0;
     transform: translateX(50px);
   }
+
   to {
     opacity: 1;
     transform: translateX(0);
@@ -100,16 +117,21 @@ body {
 }
 
 @keyframes glowPulse {
-  0%, 100% {
+
+  0%,
+  100% {
     box-shadow:
-      0 0 20px rgba(0, 212, 170, 0.3),
-      0 0 40px rgba(0, 212, 170, 0.1),
+      0 0 20px rgba(0, 255, 255, 0.4),
+      0 0 40px rgba(0, 255, 255, 0.2),
+      0 0 60px rgba(168, 85, 247, 0.1),
       inset 0 1px 0 rgba(255, 255, 255, 0.1);
   }
+
   50% {
     box-shadow:
-      0 0 30px rgba(0, 212, 170, 0.5),
-      0 0 60px rgba(0, 212, 170, 0.2),
+      0 0 30px rgba(0, 255, 255, 0.6),
+      0 0 60px rgba(0, 255, 255, 0.3),
+      0 0 80px rgba(168, 85, 247, 0.2),
       inset 0 1px 0 rgba(255, 255, 255, 0.2);
   }
 }
@@ -118,15 +140,19 @@ body {
   0% {
     background-position: -200% 0;
   }
+
   100% {
     background-position: 200% 0;
   }
 }
 
 @keyframes float {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: translateY(0px);
   }
+
   50% {
     transform: translateY(-10px);
   }
@@ -146,12 +172,10 @@ body {
 }
 
 .shimmer {
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(255, 255, 255, 0.1),
-    transparent
-  );
+  background: linear-gradient(90deg,
+      transparent,
+      rgba(255, 255, 255, 0.1),
+      transparent);
   background-size: 200% 100%;
   animation: shimmer 2s infinite;
 }
@@ -183,16 +207,16 @@ body {
     inset 0 1px 0 rgba(255, 255, 255, 0.15);
 }
 
-/* Premium loading spinner */
+/* Premium loading spinner with cyberpunk glow */
 .spinner-premium {
   width: 40px;
   height: 40px;
-  border: 3px solid rgba(0, 212, 170, 0.2);
-  border-top: 3px solid #00d4aa;
-  border-right: 3px solid #00f5d4;
+  border: 3px solid rgba(0, 255, 255, 0.2);
+  border-top: 3px solid #00ffff;
+  border-right: 3px solid #a855f7;
   border-radius: 50%;
   animation: spinPremium 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
-  box-shadow: 0 0 20px rgba(0, 212, 170, 0.3);
+  box-shadow: 0 0 20px rgba(0, 255, 255, 0.4), 0 0 40px rgba(168, 85, 247, 0.2);
 }
 
 @keyframes spinPremium {
@@ -200,35 +224,84 @@ body {
     transform: rotate(0deg) scale(1);
     filter: hue-rotate(0deg);
   }
+
   50% {
     transform: rotate(180deg) scale(1.1);
     filter: hue-rotate(180deg);
   }
+
   100% {
     transform: rotate(360deg) scale(1);
     filter: hue-rotate(360deg);
   }
 }
 
-/* Advanced gradient backgrounds */
+/* Advanced gradient backgrounds - Cyberpunk theme */
 .gradient-primary {
   background: linear-gradient(135deg,
-    rgba(0, 212, 170, 0.2) 0%,
-    rgba(138, 43, 226, 0.2) 50%,
-    rgba(0, 212, 170, 0.2) 100%);
+      rgba(0, 255, 255, 0.2) 0%,
+      rgba(168, 85, 247, 0.2) 50%,
+      rgba(0, 255, 255, 0.2) 100%);
 }
 
 .gradient-accent {
   background: linear-gradient(135deg,
-    rgba(0, 245, 212, 0.3) 0%,
-    rgba(138, 43, 226, 0.3) 100%);
+      rgba(0, 255, 255, 0.3) 0%,
+      rgba(168, 85, 247, 0.3) 100%);
 }
 
 .gradient-text {
-  background: linear-gradient(135deg, #00d4aa 0%, #8a2be2 50%, #00f5d4 100%);
+  background: linear-gradient(135deg, #00ffff 0%, #a855f7 50%, #ff00ff 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+}
+
+/* Cyberpunk effects */
+@keyframes neonGlow {
+
+  0%,
+  100% {
+    text-shadow:
+      0 0 5px rgba(0, 255, 255, 0.5),
+      0 0 10px rgba(0, 255, 255, 0.3),
+      0 0 15px rgba(0, 255, 255, 0.2);
+  }
+
+  50% {
+    text-shadow:
+      0 0 10px rgba(0, 255, 255, 0.8),
+      0 0 20px rgba(0, 255, 255, 0.5),
+      0 0 30px rgba(0, 255, 255, 0.3);
+  }
+}
+
+.neon-glow {
+  animation: neonGlow 2s ease-in-out infinite;
+}
+
+/* Scan line effect */
+@keyframes scanLine {
+  0% {
+    transform: translateY(-100%);
+  }
+
+  100% {
+    transform: translateY(100vh);
+  }
+}
+
+.scan-line {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(to bottom, transparent, rgba(0, 255, 255, 0.5), transparent);
+  pointer-events: none;
+  z-index: 9999;
+  animation: scanLine 8s linear infinite;
+  opacity: 0.3;
 }
 
 /* Chart customizations */

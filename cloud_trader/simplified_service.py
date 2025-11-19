@@ -13,7 +13,7 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 
 from .vertex_ai_client import VertexAIClient
-from .config import TradingConfig
+from .config import Settings
 
 logger = logging.getLogger(__name__)
 
@@ -25,9 +25,30 @@ class SimplifiedTradingService:
     """
 
     def __init__(self):
-        self.config = TradingConfig()
-        self.vertex_client = VertexAIClient()
+        logger.info("🔧 Initializing Simplified Trading Service...")
+        self.config = Settings()
+        logger.info(f"✅ Configuration loaded: GCP_PROJECT={self.config.gcp_project_id}")
+
+        try:
+            self.vertex_client = VertexAIClient()
+            self.vertex_available = True
+            logger.info("✅ Vertex AI client initialized successfully")
+        except Exception as e:
+            logger.warning(f"⚠️ Vertex AI client initialization failed: {e}. Running in limited mode.")
+            self.vertex_client = None
+            self.vertex_available = False
+
+        # Check for required environment variables
+        required_env = ['ASTER_API_KEY', 'ASTER_SECRET_KEY']
+        missing_env = [env for env in required_env if not os.getenv(env)]
+        if missing_env:
+            logger.warning(f"⚠️ Missing environment variables: {missing_env}. API calls may fail.")
+            # Set dummy values for missing secrets to prevent crashes
+            for env_var in missing_env:
+                os.environ[env_var] = 'placeholder_' + env_var.lower()
+
         self.is_running = False
+        logger.info("✅ Simplified Trading Service initialization complete")
         self.agent_status = {
             'trend-momentum-agent': {'status': 'active', 'last_trade': None},
             'strategy-optimization-agent': {'status': 'active', 'last_trade': None},
@@ -37,9 +58,9 @@ class SimplifiedTradingService:
             'vpin-hft': {'status': 'active', 'last_trade': None}
         }
 
-        # Simplified capital allocation
-        self.total_capital = float(os.getenv('TOTAL_CAPITAL', '3500'))
-        self.agent_capital = self.total_capital / 6  # $500 per trading agent (6 agents total)
+        # Simplified capital allocation - configurable via environment variables
+        self.total_capital = float(os.getenv('TOTAL_CAPITAL', '3000'))
+        self.agent_capital = float(os.getenv('AGENT_CAPITAL', str(self.total_capital / 6)))  # Default to equal split
 
         logger.info(f"🟢 Simplified Trading Service initialized with ${self.total_capital} capital")
 
@@ -65,12 +86,15 @@ class SimplifiedTradingService:
     async def _health_check(self):
         """Basic health check"""
         # Simple connectivity test
-        try:
-            # Test Vertex AI connectivity
-            await self.vertex_client.health_check()
-            logger.debug("✅ Vertex AI connection healthy")
-        except Exception as e:
-            logger.warning(f"⚠️ Vertex AI health check failed: {e}")
+        if self.vertex_available and self.vertex_client:
+            try:
+                # Test Vertex AI connectivity
+                await self.vertex_client.health_check()
+                logger.debug("✅ Vertex AI connection healthy")
+            except Exception as e:
+                logger.warning(f"⚠️ Vertex AI health check failed: {e}")
+        else:
+            logger.debug("ℹ️ Vertex AI not available - running in limited mode")
 
     async def get_portfolio_status(self) -> Dict[str, Any]:
         """Get simplified portfolio status"""

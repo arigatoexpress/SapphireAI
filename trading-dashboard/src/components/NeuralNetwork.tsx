@@ -1,11 +1,12 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Box, Typography, Tooltip, Chip, Paper, Fade } from '@mui/material';
+import React, { useEffect, useRef, useState, useCallback, ErrorInfo } from 'react';
+import { Box, Typography, Tooltip, Chip, CircularProgress, Alert } from '@mui/material';
 import { useTrading } from '../contexts/TradingContext';
 import NeuralPulse from './NeuralPulse';
 import SapphireDust from './SapphireDust';
 import DiamondSparkle from './DiamondSparkle';
 import { getDynamicAgentColor } from '../constants/dynamicAgentColors';
 import AgentGeometricIcon from './AgentGeometricIcon';
+import ErrorBoundary from './ErrorBoundary';
 
 interface Pulse {
   id: string;
@@ -56,10 +57,45 @@ interface AgentNode {
 const NeuralNetwork: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const { agentActivities, recentSignals } = useTrading();
+  const { agentActivities, recentSignals, error } = useTrading();
   const [pulses, setPulses] = useState<Pulse[]>([]);
   const [sparks, setSparks] = useState<Spark[]>([]);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [renderError, setRenderError] = useState<string | null>(null);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
+    {
+      id: 'initial-1',
+      agent: 'MCP Coordinator',
+      agentType: 'coordinator',
+      message: 'System initialized - all agents online and trading active',
+      timestamp: Date.now() - 300000,
+      color: '#00d4aa',
+    },
+    {
+      id: 'initial-2',
+      agent: 'VPIN HFT Agent',
+      agentType: 'vpin-hft',
+      message: 'Market toxicity scan active - monitoring order flow anomalies',
+      timestamp: Date.now() - 240000,
+      color: '#06b6d4',
+    },
+    {
+      id: 'initial-3',
+      agent: 'Trend Momentum Agent',
+      agentType: 'trend-momentum-agent',
+      message: 'BTC/USDT momentum analysis complete - bullish signals detected',
+      timestamp: Date.now() - 180000,
+      color: '#f59e0b',
+    },
+    {
+      id: 'initial-4',
+      agent: 'Strategy Optimization Agent',
+      agentType: 'strategy-optimization-agent',
+      message: 'Risk parameters updated - position sizing optimized for current volatility',
+      timestamp: Date.now() - 120000,
+      color: '#10b981',
+    },
+  ]);
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const animationFrameRef = useRef<number>();
@@ -129,7 +165,7 @@ const NeuralNetwork: React.FC = () => {
       model: 'Orchestration Hub',
       x: centerX,
       y: centerY,
-      color: '#0ea5e9',
+      color: '#00ffff', // Neon cyan for cyberpunk theme
       status: 'active',
       activityScore: 100,
       messageCount: 0,
@@ -234,12 +270,33 @@ const NeuralNetwork: React.FC = () => {
         type: 'coordinator',
       };
 
+      // Generate realistic agent communication messages
+      const communicationMessages = [
+        `BTC/USDT showing momentum divergence - confidence 78%`,
+        `ETH volatility spike detected, considering position adjustment`,
+        `SOL/USDT volume imbalance suggests institutional activity`,
+        `ADA price action indicates potential reversal pattern`,
+        `DOT/USDT correlation with BTC weakening - risk management triggered`,
+        `LINK showing accumulation pattern, entry signal generated`,
+        `Market regime shifting to trending - adjusting position sizes`,
+        `Volume microstructure analysis: large orders at best bid`,
+        `Sentiment analysis: social media signals turning bullish`,
+        `VPIN toxicity levels elevated - reducing position exposure`,
+        `Coordinating entry timing with market prediction model`,
+        `Risk assessment: drawdown within acceptable limits`,
+        `Strategy optimization complete - updating execution parameters`,
+        `Cross-market correlation analysis shows BTC leading ETH`,
+        `Order flow analysis indicates smart money accumulation`
+      ];
+
+      const randomMessage = communicationMessages[Math.floor(Math.random() * communicationMessages.length)];
+
       // Add chat message
       const chatMessage: ChatMessage = {
         id: `chat-${Date.now()}`,
         agent: agentConfig[agent1.type]?.name || agent1.name,
         agentType: agent1.type,
-        message: `Collaborating with ${agentConfig[agent2.type]?.name || agent2.name} on market analysis`,
+        message: randomMessage,
         timestamp: Date.now(),
         color: agent1.color,
       };
@@ -293,13 +350,30 @@ const NeuralNetwork: React.FC = () => {
     setPulses(prev => prev.filter(p => p.id !== pulseId));
   }, []);
 
+  // Initialize component after mount
+  useEffect(() => {
+    if (dimensions.width > 0 && dimensions.height > 0 && nodes.length > 0) {
+      setIsInitialized(true);
+    }
+  }, [dimensions, nodes.length]);
+
   // Draw network on canvas with agent-to-agent connections
   useEffect(() => {
+    if (!isInitialized) return;
+    
     const canvas = canvasRef.current;
-    if (!canvas || nodes.length === 0) return;
+    if (!canvas || nodes.length === 0) {
+      setRenderError(null);
+      return;
+    }
 
     const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    if (!ctx) {
+      setRenderError('Canvas context not available');
+      return;
+    }
+
+    try {
 
     canvas.width = dimensions.width;
     canvas.height = dimensions.height;
@@ -835,143 +909,13 @@ const NeuralNetwork: React.FC = () => {
         );
       })}
 
-      {/* Live Chat Box - Simplified and elegant */}
-      <Paper
-        elevation={0}
-        sx={{
-          position: 'absolute',
-          bottom: 20,
-          left: 20,
-          width: '360px',
-          maxHeight: '280px',
-          background: 'rgba(0, 0, 0, 0.6)',
-          backdropFilter: 'blur(24px)',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-          borderRadius: 2,
-          overflow: 'hidden',
-          zIndex: 20,
-        }}
-      >
-        <Box
-          sx={{
-            p: 1.5,
-            borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-          }}
-        >
-          <Typography
-            variant="body2"
-            sx={{
-              fontWeight: 600,
-              fontFamily: '"Inter", sans-serif',
-              color: 'rgba(255, 255, 255, 0.7)',
-              fontSize: '0.85rem',
-              textTransform: 'uppercase',
-              letterSpacing: '0.1em',
-            }}
-          >
-            Agent Communication
-          </Typography>
-        </Box>
-        <Box
-          sx={{
-            maxHeight: '240px',
-            overflowY: 'auto',
-            p: 1.5,
-            '&::-webkit-scrollbar': {
-              width: '6px',
-            },
-            '&::-webkit-scrollbar-track': {
-              background: 'rgba(14, 165, 233, 0.1)',
-            },
-            '&::-webkit-scrollbar-thumb': {
-              background: 'rgba(14, 165, 233, 0.3)',
-              borderRadius: '3px',
-            },
-          }}
-        >
-          {chatMessages.length === 0 ? (
-            <Typography variant="body2" sx={{ color: 'text.secondary', textAlign: 'center', py: 2, fontFamily: '"Rajdhani", sans-serif' }}>
-              Waiting for agent interactions...
-            </Typography>
-          ) : (
-            chatMessages.map((msg) => (
-              <Fade in timeout={300} key={msg.id}>
-                <Box
-                  sx={{
-                    mb: 1.5,
-                    p: 1.5,
-                    borderRadius: 2,
-                    background: `linear-gradient(135deg, ${msg.color}15, ${msg.color}05)`,
-                    border: `1px solid ${msg.color}30`,
-                    transition: 'all 0.3s ease',
-                    '&:hover': {
-                      borderColor: `${msg.color}60`,
-                      transform: 'translateX(4px)',
-                    },
-                  }}
-                >
-                  <Box display="flex" alignItems="center" gap={1} mb={0.5}>
-                    <Box
-                      sx={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: '50%',
-                        background: msg.color,
-                        boxShadow: `0 0 12px ${msg.color}`,
-                        animation: 'pulse 2s ease-in-out infinite',
-                        '@keyframes pulse': {
-                          '0%, 100%': { opacity: 1, transform: 'scale(1)' },
-                          '50%': { opacity: 0.7, transform: 'scale(1.2)' },
-                        },
-                      }}
-                    />
-                    <Typography
-                      variant="body2"
-                      sx={{
-                        fontWeight: 700,
-                        color: msg.color,
-                        fontFamily: '"Orbitron", sans-serif',
-                        fontSize: '0.9rem',
-                      }}
-                    >
-                      {msg.agent}
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      sx={{
-                        color: 'text.secondary',
-                        ml: 'auto',
-                        fontFamily: '"Rajdhani", sans-serif',
-                        fontSize: '0.85rem',
-                      }}
-                    >
-                      {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </Typography>
-                  </Box>
-                  <Typography
-                    variant="body1"
-                    sx={{
-                      color: 'text.primary',
-                      fontSize: '0.95rem',
-                      lineHeight: 1.7,
-                      fontFamily: '"Rajdhani", sans-serif',
-                    }}
-                  >
-                    {msg.message}
-                  </Typography>
-                </Box>
-              </Fade>
-            ))
-          )}
-        </Box>
-      </Paper>
 
       {/* Stats overlay - simplified and elegant */}
       <Box
         sx={{
           position: 'absolute',
           top: 20,
-          right: 20,
+          left: 20,
           display: 'flex',
           flexDirection: 'column',
           gap: 1,

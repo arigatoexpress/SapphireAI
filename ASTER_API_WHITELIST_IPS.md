@@ -1,71 +1,110 @@
 # Aster DEX API Whitelist IPs
 
-## Current IP Addresses to Whitelist
+## ⚠️ CURRENT IP ADDRESSES TO WHITELIST
 
-### Static/Global IPs
-- **34.144.213.188** - Google Cloud static IP (`cloud-trader-ip`)
-  - This is your reserved static IP for the trading system
+### 🔴 CRITICAL - GKE Node External IPs (Required)
+**These are the IPs Aster API will see when trading service makes API calls from GKE pods.**
 
-### Load Balancer/Service IPs
-- **34.49.212.244** - `api.sapphiretrade.xyz`
-  - Main API endpoint for the trading system
-- **34.117.165.111** - `trader.sapphiretrade.xyz`
-  - Trading dashboard and agent services
+1. **104.154.90.215** - `gke-hft-trading-cluster-default-pool-cca23a60-mvsi`
+2. **34.9.133.10** - `gke-hft-trading-cluster-default-pool-cca23a60-zjff`
+3. **35.188.43.171** - `gke-hft-trading-cluster-default-pool-cca23a60-8ye9`
 
-### Cloud Run IP Range
-- **34.143.72.0/29** - Cloud Run service range (`wallet-orchestrator`)
-  - Individual IPs in range: `34.143.72.2` - `34.143.79.2`
-  - Used for the wallet orchestrator service
+**Status**: ✅ Verified - Test pod confirmed egress uses node external IPs
+**Note**: All pods in the cluster use their node's external IP for outbound API calls
 
-## How to Whitelist
+### 🟡 OPTIONAL - Static IPs (If using Load Balancer)
+4. **34.144.213.188** - `cloud-trader-ip` (Global static IP)
+   - Used for load balancer/ingress if configured
+   - May not be necessary if trading service only uses node IPs
+
+## ⚠️ DO NOT WHITELIST
+
+### Internal Network IPs (Private, not visible to Aster API)
+- ❌ Pod IPs: `10.0.x.x` (internal cluster network)
+- ❌ Node internal IPs: `10.128.x.x` (private GKE network)
+- ❌ Service IPs: `10.x.x.x` (all internal cluster networking)
+
+**Why**: These are private network addresses that Aster API cannot see. Only external IPs are visible to external APIs.
+
+## 📋 How to Whitelist
 
 ### For Aster DEX Dashboard:
 1. Log into your Aster DEX account
-2. Go to API Settings/Security
-3. Add each IP address to the whitelist
-4. For the Cloud Run range, you can either:
-   - Add the CIDR range: `34.143.72.0/29`
-   - Add individual IPs: `34.143.72.2, 34.143.73.2, 34.143.74.2, 34.143.75.2, 34.143.76.2, 34.143.77.2, 34.143.78.2, 34.143.79.2`
+2. Go to **API Settings** → **Security** → **IP Whitelist**
+3. Add the **3 node external IPs** listed above:
+   - `104.154.90.215`
+   - `34.9.133.10`
+   - `35.188.43.171`
+4. Save changes
 
-## Important Notes
+### Important Notes:
+- **All 3 node IPs must be whitelisted** - pods can run on any node
+- If nodes are added/removed, update whitelist accordingly
+- Static IP `34.144.213.188` is optional (only if load balancer makes API calls)
 
-### IP Address Changes
-- **Static IP (34.144.213.188)**: Should remain stable unless you manually change it
-- **Load Balancer IPs**: May change if you redeploy infrastructure or if Google rotates them
-- **Cloud Run IPs**: These are Google's Cloud Run IP ranges and should be stable, but monitor for updates
+## 🔍 Verification Commands
 
-### Monitoring IP Changes
-To check if IPs have changed:
+### Check Current Node IPs:
 ```bash
-# Check current DNS resolution
-dig api.sapphiretrade.xyz +short
-dig trader.sapphiretrade.xyz +short
-
-# Check Cloud Run service
-dig wallet-orchestrator-880429861698.us-central1.run.app +short
-
-# Check Google Cloud static IP
-gcloud compute addresses list --global --project sapphireinfinite
+kubectl get nodes -o jsonpath='{range .items[*]}{.status.addresses[?(@.type=="ExternalIP")].address}{"\n"}{end}'
 ```
 
-### Security Considerations
-- Only whitelist the minimum required IPs
-- Regularly audit API access logs
-- Consider using API key rotation
-- Monitor for unauthorized access attempts
+### Test Actual Egress IP:
+```bash
+kubectl run test-ip -n trading-system-live --image=curlimages/curl --rm -i --restart=Never -- curl -s https://api.ipify.org
+```
 
-## Update Process
+### Check Static IPs:
+```bash
+gcloud compute addresses list --global --format="table(name,address,status)"
+```
 
-If you need to update these IPs in the future:
+## ⚠️ IP Address Changes
 
-1. **Check current IPs** using the commands above
+### Node IPs May Change If:
+- Nodes are deleted and recreated
+- Cluster is resized
+- Nodes are upgraded/replaced
+
+### How to Detect Changes:
+1. Monitor Aster API logs for 403/429 errors
+2. Check if new nodes are added: `kubectl get nodes`
+3. Compare current IPs with whitelisted IPs
+4. Update whitelist immediately if changes detected
+
+## 🚨 Emergency Update Process
+
+If you lose API access:
+
+1. **Check current node IPs**:
+   ```bash
+   kubectl get nodes -o jsonpath='{range .items[*]}{.status.addresses[?(@.type=="ExternalIP")].address}{"\n"}{end}'
+   ```
+
 2. **Update Aster DEX whitelist** with new IPs
-3. **Update this document** with new IP information
-4. **Test API connectivity** after changes
 
-## Emergency Contact
+3. **Test connectivity**:
+   ```bash
+   kubectl exec -n trading-system-live deployment/sapphire-trading-service -- curl -s https://fapi.asterdex.com/fapi/v1/ping
+   ```
 
-If you lose API access after an IP change:
-- Check which IPs changed using the monitoring commands above
-- Update the Aster DEX whitelist immediately
-- Temporarily disable trading if needed
+4. **Monitor logs**:
+   ```bash
+   kubectl logs -n trading-system-live deployment/sapphire-trading-service --tail=50 | grep -i "aster\|api\|403\|429"
+   ```
+
+## 📊 Current Configuration (as of 2025-11-18)
+
+- **Cluster**: `hft-trading-cluster` (us-central1-a)
+- **Node Pool**: `default-pool`
+- **Nodes**: 3 nodes running trading service pods
+- **Egress**: Pods use node external IPs (no Cloud NAT configured)
+- **Status**: ✅ All 3 node IPs need to be whitelisted
+
+## 🔒 Security Considerations
+
+- ✅ Only whitelist the minimum required IPs (3 node IPs)
+- ✅ Regularly audit API access logs in Aster DEX
+- ✅ Monitor for unauthorized access attempts
+- ✅ Consider API key rotation periodically
+- ✅ If using Cloud NAT in future, whitelist NAT IP instead

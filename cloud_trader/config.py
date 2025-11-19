@@ -166,8 +166,22 @@ class Settings(BaseSettings):
 
     # Feature flags
     enable_paper_trading: bool = Field(default=False, validation_alias="ENABLE_PAPER_TRADING")
+    paper_trading_enabled: bool = Field(default=False, validation_alias="PAPER_TRADING_ENABLED", description="Enable parallel paper trading mode alongside live trading")
     enable_arbitrage: bool = Field(default=True, validation_alias="ENABLE_ARBITRAGE", description="Enable arbitrage scanning and execution")
     enable_rl_strategies: bool = Field(default=True, validation_alias="ENABLE_RL_STRATEGIES", description="Enable reinforcement learning strategies")
+    
+    # Paper trading testnet configuration
+    aster_testnet_api_key: str | None = Field(default=None, validation_alias="ASTER_TESTNET_API_KEY")
+    aster_testnet_api_secret: str | None = Field(default=None, validation_alias="ASTER_TESTNET_SECRET_KEY")
+    aster_testnet_rest_url: str = Field(default="https://testnet-api.asterdex.com", validation_alias="ASTER_TESTNET_REST_URL")
+    aster_testnet_ws_url: str = Field(default="wss://testnet-fstream.asterdex.com", validation_alias="ASTER_TESTNET_WS_URL")
+    
+    # Telegram enhanced features
+    telegram_daily_recap_enabled: bool = Field(default=True, validation_alias="TELEGRAM_DAILY_RECAP_ENABLED", description="Enable daily performance summaries via Telegram")
+    telegram_recap_time_utc: str = Field(default="00:00", validation_alias="TELEGRAM_RECAP_TIME_UTC", description="Daily recap time in UTC (HH:MM format)")
+    
+    # GPU acceleration configuration
+    gpu_acceleration_threshold: float = Field(default=2.0, ge=0.0, validation_alias="GPU_ACCELERATION_THRESHOLD", description="ATR multiplier threshold for GPU/TPU routing")
     
     # Redis cache
     redis_url: str | None = Field(default=None, validation_alias="REDIS_URL", description="Redis connection URL")

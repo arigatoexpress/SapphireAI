@@ -343,7 +343,9 @@ Your **Sapphire AI** institutional trading system is **live and operational** wi
 
 ## 📄 License
 
-Proprietary - All rights reserved.
+See [LICENSE](LICENSE) file for details.
+
+**Note**: This project uses an MIT License. The platform name "Sapphire AI" and related branding are proprietary trademarks.
 
 ## 🆘 Support
 

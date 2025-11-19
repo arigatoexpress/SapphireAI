@@ -79,6 +79,22 @@ class TelegramService:
     async def send_mcp_notification(self, **kwargs):
         """Disabled - too noisy for trade-focused notifications."""
         return  # Skip all MCP notifications to reduce noise
+    
+    async def send_alert(self, message: str, priority: str = "medium") -> None:
+        """Send an alert message with optional priority formatting."""
+        try:
+            # Add priority emoji prefix
+            priority_emojis = {
+                "low": "ℹ️",
+                "medium": "⚠️",
+                "high": "🚨",
+                "critical": "🔴"
+            }
+            emoji = priority_emojis.get(priority, "ℹ️")
+            formatted_message = f"{emoji} {message}"
+            await self.send_message(formatted_message)
+        except Exception as exc:
+            logger.error(f"Failed to send Telegram alert: {exc}")
 
     def _escape_markdown(self, text: str) -> str:
         """Helper to escape characters for Telegram's MarkdownV2."""

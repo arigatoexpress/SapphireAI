@@ -62,6 +62,11 @@ class BaseCache(ABC):
         }
 
     @abstractmethod
+    async def ping(self) -> bool:
+        """Test connectivity to the cache backend."""
+        pass
+
+    @abstractmethod
     async def connect(self) -> None:
         ...
 
@@ -215,8 +220,8 @@ class InMemoryCache(BaseCache):
         return True
 
     async def ping(self) -> bool:
-        """In-memory cache is always available."""
-        return True
+        """Test connectivity to the cache backend."""
+        return True  # In-memory cache is always available
 
     def _purge_expired(self) -> None:
         now = time.time()

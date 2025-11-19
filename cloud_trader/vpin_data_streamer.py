@@ -4,6 +4,19 @@ import time
 import websockets
 from typing import Any, Dict, List
 
+# Handle websockets exceptions import - version compatibility
+try:
+    from websockets.exceptions import ConnectionClosedError, InvalidURI
+except (ImportError, AttributeError):
+    # Fallback for newer websockets versions
+    try:
+        ConnectionClosedError = websockets.exceptions.ConnectionClosedError
+        InvalidURI = websockets.exceptions.InvalidURI
+    except AttributeError:
+        # If exceptions don't exist, use base Exception
+        ConnectionClosedError = Exception
+        InvalidURI = Exception
+
 from .exchange import AsterClient
 
 class VPINDataStreamer:
@@ -17,8 +30,15 @@ class VPINDataStreamer:
 
     async def _get_all_symbols(self) -> List[str]:
         try:
-            symbols_info = await self.rest_client.get_all_symbols()
+            # Add timeout to prevent hanging during startup
+            symbols_info = await asyncio.wait_for(
+                self.rest_client.get_all_symbols(),
+                timeout=10.0
+            )
             return [info['symbol'] for info in symbols_info if info.get('symbol') and info.get('status') == 'TRADING']
+        except asyncio.TimeoutError:
+            print("Timeout fetching symbols for VPIN streamer, using empty list")
+            return []
         except Exception as e:
             print(f"Error fetching symbols: {e}")
             return []
@@ -69,7 +89,7 @@ class VPINDataStreamer:
                         message = await websocket.recv()
                         await self._handle_message(message)
 
-            except (websockets.exceptions.ConnectionClosedError, websockets.exceptions.InvalidURI) as e:
+            except (ConnectionClosedError, InvalidURI) as e:
                 print(f"WebSocket connection error: {e}")
             except Exception as e:
                 print(f"An unexpected error occurred in data streamer: {e}")

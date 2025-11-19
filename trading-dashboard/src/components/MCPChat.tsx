@@ -206,7 +206,7 @@ const MCPChat: React.FC = () => {
             'Machine learning models project 45-minute timeframe completion. Statistical significance: 2.3 standard deviations.',
             'Predictive analytics show diminishing returns after 2 hours. Unlike HFT agents, I optimize for holding periods.',
             'Regression analysis favors continuation thesis. Unlike sentiment data, this is pure quantitative forecasting.',
-            'Neural network confidence: 68%. Unlike pattern recognition, I model temporal dependencies across hours.'
+            'ML model confidence: 68%. Unlike pattern recognition, I model temporal dependencies across hours.'
           ],
           'volume-microstructure-agent': [
             'Order book imbalance detected. Bid-ask spread widening 23%. Unlike macro sentiment, this is micro-level flow.',
@@ -406,7 +406,7 @@ const MCPChat: React.FC = () => {
       const responses = [
         'Message acknowledged. Coordination protocol activated. All agents will integrate your input into their decision matrices.',
         'Human directive received. Multi-agent coordination initiated. Agents adapting strategies based on your guidance.',
-        'Input processed. Neural coordination network updated. All agents recalibrating based on your strategic input.',
+        'Input processed. MCP coordination protocol activated. All agents recalibrating based on your strategic input.',
         'Directive integrated. Agent ensemble adapting. Expect to see modified behavior across all trading algorithms.',
         'Human override accepted. All agents updating their models and strategies based on your market intelligence.'
       ];
@@ -531,11 +531,11 @@ const MCPChat: React.FC = () => {
                       mb: 1,
                     }}
                   >
-                    🌐 Neural Coordination Nexus
+                    💬 MCP Coordination Hub
                   </Typography>
                   <Typography variant="body1" sx={{ color: 'text.secondary', lineHeight: 1.6 }}>
-                    Multi-Agent Coordination Protocol orchestrating real-time collaboration between AI trading entities.
-                    Witness the emergence of collective intelligence in algorithmic decision-making.
+                    Multi-Agent Communication Protocol orchestrating real-time collaboration between AI trading agents.
+                    Coordinate strategies and share market intelligence across the agent network.
                   </Typography>
                 </Box>
               </Box>

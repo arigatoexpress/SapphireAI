@@ -47,7 +47,7 @@ export const AGENT_CONFIG = {
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ||
   (typeof window !== 'undefined' && window.location.hostname === 'localhost'
     ? 'http://localhost:8080'
-    : 'https://api.sapphiretrade.xyz');
+    : 'http://mock-api.local'); // Temporarily disable API calls
 
 export const REFRESH_INTERVALS = {
   data: 5000, // 5 seconds

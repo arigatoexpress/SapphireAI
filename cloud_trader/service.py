@@ -18,7 +18,7 @@ import structlog
 from .config import Settings, get_settings
 from .credentials import CredentialManager, load_credentials
 from .enums import OrderSide, OrderStatus
-from .exchange import AsterClient, Ticker, Trade, TrailingStop, Execution, Order
+from .exchange import AsterClient, Ticker, Trade, TrailingStop, Execution, Order, create_exchange_clients
 from .mcp import MCPClient
 from .optimization.bandit import EpsilonGreedyBandit
 # Open-source analyst removed - now using Google Cloud AI exclusively
@@ -32,7 +32,7 @@ from .arbitrage import ArbitrageEngine
 from .cache import get_cache, close_cache, BaseCache
 from .safeguards import TradingSafeguards, handle_kill_switch_command
 from .enhanced_telegram import EnhancedTelegramService, create_enhanced_telegram_service
-# telegram.py kept for backward compatibility but not actively used - enhanced_telegram is preferred
+# Note: telegram.py is deprecated - enhanced_telegram.py is the active Telegram service
 from .ai_analyzer import AITradingAnalyzer
 from .market_sentiment import MarketSentimentAnalyzer
 from .risk_analyzer import RiskAnalyzer
@@ -61,6 +61,7 @@ from .metrics_tracker import get_metrics_tracker
 from .metrics import (
     ASTER_API_REQUESTS,
     LLM_CONFIDENCE,
+    PAPER_TRADES_TOTAL,
     LLM_INFERENCE_TIME,
     PORTFOLIO_BALANCE,
     PORTFOLIO_LEVERAGE,
@@ -293,12 +294,22 @@ class AgentState:
 
 
 class TradingService:
+    # Class variable to track the currently running instance
+    _running_instance: Optional['TradingService'] = None
+
+    @classmethod
+    def get_running_instance(cls) -> Optional['TradingService']:
+        """Get the currently running trading service instance."""
+        return cls._running_instance
+
     def __init__(self, settings: Optional[Settings] = None) -> None:
         self._settings = settings or get_settings()
         self._credential_manager = CredentialManager()
-        self._exchange = AsterClient(
+        
+        # Create live and paper trading exchange clients
+        self._exchange, self._paper_exchange = create_exchange_clients(
+            self._settings,
             self._credential_manager.get_credentials(),
-            base_url=self._settings.rest_base_url,
         )
         self._stop_event = asyncio.Event()
         self._task: Optional[asyncio.Task[None]] = None
@@ -565,7 +576,23 @@ class TradingService:
             # If no symbols loaded, agents will trade any symbols they encounter
             coverage_universe = []
 
+        # Check Redis for agent enable flags and merge with settings
         enabled_agent_ids = set(self._settings.enabled_agents)
+        
+        # Load enable flags from Redis (persistent override)
+        if self._cache:
+            for agent_def in AGENT_DEFINITIONS:
+                agent_id = agent_def["id"]
+                redis_enabled = await self._is_agent_enabled_in_redis(agent_id)
+                if redis_enabled is not None:
+                    # Redis override exists, use it
+                    if redis_enabled and agent_id not in enabled_agent_ids:
+                        enabled_agent_ids.add(agent_id)
+                        logger.info(f"Agent {agent_id} enabled via Redis override")
+                    elif not redis_enabled and agent_id in enabled_agent_ids:
+                        enabled_agent_ids.remove(agent_id)
+                        logger.info(f"Agent {agent_id} disabled via Redis override")
+        
         for i, agent_def in enumerate(AGENT_DEFINITIONS):
             if agent_def["id"] not in enabled_agent_ids:
                 logger.info(f"Skipping disabled agent: {agent_def['id']}")
@@ -1356,6 +1383,9 @@ class TradingService:
         self._stop_event.clear()
         self._health = HealthStatus(running=True, paper_trading=self._settings.enable_paper_trading, last_error=None)
 
+        # Set this instance as the running instance
+        TradingService._running_instance = self
+
         # Initialize cache
         try:
             self._cache = await get_cache()
@@ -1425,6 +1455,15 @@ class TradingService:
             logger.info("PubSub client connected (ready=%s).", self._pubsub_connected)
             await self._init_telegram()
             logger.info("Telegram service initialized.")
+            
+            # Send Telegram alert if paper trading is enabled
+            if self._settings.paper_trading_enabled and self._telegram:
+                try:
+                    alert_msg = f"📝 *Paper Trading Mode Enabled*\n\nParallel paper trading mode is now active\\.\n\nAll trades will execute on both live and testnet exchanges for comparison\\.\n\nLive trades: Aster DEX production\nPaper trades: Aster DEX testnet"
+                    await self._telegram.send_message(alert_msg)
+                    logger.info("Paper trading mode Telegram alert sent")
+                except Exception as exc:
+                    logger.warning(f"Failed to send paper trading mode Telegram alert: {exc}")
             if self._orchestrator:
                 await self._sync_portfolio()
                 logger.info("Portfolio synced with orchestrator.")
@@ -1462,12 +1501,15 @@ class TradingService:
             self._health.last_error = str(exc)
             self._health.running = False
 
-        # Start VPIN streamer and processor if enabled
+        # Start VPIN streamer and processor if enabled (non-blocking, won't fail startup)
         if self._vpin_data_streamer and self._vpin_agent:
-            logger.info("Starting VPIN data streamer...")
-            self._vpin_data_streamer_task = asyncio.create_task(self._vpin_data_streamer.run())
-            logger.info("Starting VPIN processing task...")
-            self._vpin_processing_task = asyncio.create_task(self._process_vpin_batches())
+            try:
+                logger.info("Starting VPIN data streamer...")
+                self._vpin_data_streamer_task = asyncio.create_task(self._vpin_data_streamer.run())
+                logger.info("Starting VPIN processing task...")
+                self._vpin_processing_task = asyncio.create_task(self._process_vpin_batches())
+            except Exception as e:
+                logger.warning(f"Failed to start VPIN streamer (non-critical): {e}, continuing without VPIN")
 
         # Start RiskManager VPIN listener
         try:
@@ -1496,7 +1538,11 @@ class TradingService:
         if self._vpin_data_streamer:
             self._vpin_data_streamer.stop()
         if self._vpin_data_streamer_task:
-            await self._vpin_data_streamer_task
+            self._vpin_data_streamer_task.cancel()
+            try:
+                await self._vpin_data_streamer_task
+            except asyncio.CancelledError:
+                pass
         if self._vpin_processing_task:
             self._vpin_processing_task.cancel()
             try:
@@ -1518,6 +1564,9 @@ class TradingService:
         if self._mcp:
             await self._mcp.close()
         self._health = HealthStatus(running=False, paper_trading=self.paper_trading, last_error=self._health.last_error)
+
+        # Clear the running instance
+        TradingService._running_instance = None
 
     async def _run_loop(self) -> None:
         logger.warning("--- ENTERING _run_loop() ---")
@@ -1583,6 +1632,14 @@ class TradingService:
         # Check drawdown limits
         if not self._safeguards.check_drawdown_limits():
             logger.error("Drawdown limits exceeded, halting trading")
+            # Send Telegram alert for drawdown breach
+            if self._telegram:
+                try:
+                    drawdown_pct = ((self._peak_balance - self._portfolio.balance) / self._peak_balance * 100) if self._peak_balance > 0 else 0.0
+                    alert_msg = f"🚨 *DRAWDOWN ALERT*\n\nDrawdown exceeded limit: `{drawdown_pct:.2f}%`\nBalance: `${self._portfolio.balance:.2f}`\nPeak: `${self._peak_balance:.2f}`\n\nTrading halted automatically."
+                    await self._telegram.send_message(alert_msg)
+                except Exception as exc:
+                    logger.warning(f"Failed to send drawdown Telegram alert: {exc}")
             return
         
         # First, check existing positions for profit targets and stop losses
@@ -1770,6 +1827,14 @@ class TradingService:
 
                 if not self._has_agent_margin(agent_id_for_symbol, notional):
                     RISK_LIMITS_BREACHED.labels(limit_type="agent_margin").inc()
+                    # Send Telegram alert for margin breach
+                    if self._telegram:
+                        try:
+                            remaining_margin = self._get_agent_margin_remaining(agent_id_for_symbol)
+                            alert_msg = f"⚠️ *RISK ALERT*\n\nAgent margin limit exceeded\\!\nAgent: `{agent_id_for_symbol}`\nSymbol: `{symbol}`\nRequested: `${notional:.2f}`\nRemaining: `${remaining_margin:.2f}`\n\nTrade blocked by risk management."
+                            await self._telegram.send_message(alert_msg)
+                        except Exception as exc:
+                            logger.warning(f"Failed to send margin breach Telegram alert: {exc}")
                     await self._streams.publish_reasoning(
                         {
                             "bot_id": agent_id_for_symbol,
@@ -1793,6 +1858,14 @@ class TradingService:
                 if not self._risk.can_open_position(self._portfolio, notional, volatility_estimate):
                     logger.info("Risk limits prevent new %s position", symbol)
                     RISK_LIMITS_BREACHED.labels(limit_type="position_size").inc()
+                    # Send Telegram alert for position size risk breach
+                    if self._telegram:
+                        try:
+                            exposure_pct = (self._portfolio.total_exposure / self._portfolio.balance * 100) if self._portfolio.balance > 0 else 0.0
+                            alert_msg = f"⚠️ *RISK ALERT*\n\nPosition size limit exceeded\\!\nSymbol: `{symbol}`\nRequested: `${notional:.2f}`\nCurrent Exposure: `{exposure_pct:.2f}%`\nBalance: `${self._portfolio.balance:.2f}`\n\nTrade blocked by risk management."
+                            await self._telegram.send_message(alert_msg)
+                        except Exception as exc:
+                            logger.warning(f"Failed to send position size risk Telegram alert: {exc}")
                     await self._streams.publish_reasoning(
                         {
                             "bot_id": self._settings.bot_id,
@@ -1966,7 +2039,12 @@ class TradingService:
                 if not symbol or not batch:
                     continue
 
-                vpin_signal = self._vpin_agent.calculate_vpin(batch)
+                vpin_result = self._vpin_agent.calculate_vpin(batch)
+                # calculate_vpin returns a dict, extract vpin value for execute_trade
+                if isinstance(vpin_result, dict):
+                    vpin_signal = vpin_result.get('vpin', 0.0)
+                else:
+                    vpin_signal = float(vpin_result) if vpin_result else 0.0
                 await self._vpin_agent.execute_trade(vpin_signal, symbol)
 
             except asyncio.CancelledError:
@@ -2515,6 +2593,39 @@ The output should be a JSON object with these keys.
                 try:
                     logger.info("Submitting order payload: %s", order_payload)
                     await self._exchange.place_order(**order_payload)
+                    
+                    # Execute paper trading order in parallel if enabled
+                    if self._paper_exchange:
+                        try:
+                            paper_tag = f"{order_tag}_paper"
+                            paper_order_payload = {
+                                **order_payload,
+                                "new_client_order_id": paper_tag,
+                            }
+                            await self._paper_exchange.place_order(**paper_order_payload)
+                            logger.info(
+                                "Placed paper %s order for %s (notional %.2f) [PAPER]",
+                                side,
+                                symbol,
+                                final_notional,
+                            )
+                            # Log paper trade to BigQuery with mode='paper'
+                            if self._bigquery:
+                                await self._bigquery.stream_trade(
+                                    symbol=symbol,
+                                    side=side,
+                                    price=execution_price,
+                                    quantity=float(final_quantity_dec),
+                                    notional=final_notional,
+                                    mode='paper',
+                                    agent_id=agent_id,
+                                    timestamp=datetime.utcnow(),
+                                )
+                            # Increment paper trades metric
+                            PAPER_TRADES_TOTAL.labels(symbol=symbol.upper(), side=side.upper()).inc()
+                        except Exception as paper_exc:
+                            # Paper trading failures don't affect live trading
+                            logger.warning(f"Paper trading order failed for {symbol}: {paper_exc}")
                     
                     # Record API success
                     self._safeguards.record_success('api')
@@ -4099,6 +4210,21 @@ The output should be a JSON object with these keys.
             quantity=quantity,
             metadata=metadata,
         )
+        
+        # Send Telegram trade notification
+        if self._telegram:
+            try:
+                await self._telegram.send_trade_notification(
+                    symbol=symbol,
+                    side=side,
+                    price=price,
+                    notional=notional,
+                    take_profit=take_profit,
+                    stop_loss=stop_loss,
+                    pnl=unrealized_pnl if unrealized_pnl != 0.0 else None,
+                )
+            except Exception as exc:
+                logger.warning(f"Failed to send trade Telegram notification: {exc}")
 
     async def _auto_delever(self, symbol: str, snapshot: MarketSnapshot, notional: float) -> float:
         threshold = self._settings.volatility_delever_threshold
@@ -4229,6 +4355,23 @@ The output should be a JSON object with these keys.
         if self._peak_balance > 0:
             drawdown = max((self._peak_balance - balance) / self._peak_balance, 0.0)
         PORTFOLIO_DRAWDOWN.set(drawdown)
+        
+        # Send Telegram alert if drawdown exceeds 5% threshold
+        if drawdown > 0.05 and self._telegram:
+            try:
+                # Track last alert time to avoid spam
+                if not hasattr(self, '_last_drawdown_alert'):
+                    self._last_drawdown_alert = 0.0
+                
+                # Alert if drawdown > 5% and we haven't alerted in the last hour
+                current_time = time.time()
+                if current_time - self._last_drawdown_alert > 3600:  # 1 hour cooldown
+                    drawdown_pct = drawdown * 100
+                    alert_msg = f"⚠️ *DRAWDOWN WARNING*\n\nDrawdown: `{drawdown_pct:.2f}%`\nBalance: `${balance:.2f}`\nPeak: `${self._peak_balance:.2f}`\nExposure: `${total_exposure:.2f}`\n\nMonitor positions closely\\."
+                    await self._telegram.send_message(alert_msg)
+                    self._last_drawdown_alert = current_time
+            except Exception as exc:
+                logger.warning(f"Failed to send drawdown warning Telegram alert: {exc}")
 
         # Update position metrics
         for symbol, position in positions.items():
@@ -4253,19 +4396,76 @@ The output should be a JSON object with these keys.
             logger.warning("Failed to dispatch test Telegram message: %s", exc)
 
     # Agent Management Methods
+    async def _is_agent_enabled_in_redis(self, agent_id: str) -> Optional[bool]:
+        """Check if agent is enabled in Redis (returns None if not set in Redis)."""
+        if not self._cache:
+            return None
+        
+        try:
+            key = f"agent:enabled:{agent_id}"
+            value = await self._cache.get(key)
+            if value is None:
+                return None  # Not set in Redis, use settings default
+            return bool(value) if isinstance(value, (bool, int, str)) else None
+        except Exception as exc:
+            logger.warning(f"Failed to check agent enable status in Redis for {agent_id}: {exc}")
+            return None
+    
+    async def _set_agent_enabled_in_redis(self, agent_id: str, enabled: bool) -> bool:
+        """Set agent enable/disable flag in Redis (persistent across restarts)."""
+        if not self._cache:
+            logger.warning("Cache not available, cannot persist agent enable/disable flag")
+            return False
+        
+        try:
+            key = f"agent:enabled:{agent_id}"
+            # Set with no TTL (persistent)
+            success = await self._cache.set(key, "1" if enabled else "0", ttl=None)
+            if success:
+                logger.info(f"Set agent {agent_id} enabled={enabled} in Redis")
+            return success
+        except Exception as exc:
+            logger.error(f"Failed to set agent enable status in Redis for {agent_id}: {exc}")
+            return False
+    
+    async def _is_agent_enabled(self, agent_id: str) -> bool:
+        """Check if agent is enabled (checks Redis first, falls back to settings)."""
+        # Check Redis first (persistent override)
+        redis_enabled = await self._is_agent_enabled_in_redis(agent_id)
+        if redis_enabled is not None:
+            return redis_enabled
+        
+        # Fall back to settings
+        return agent_id in self._settings.enabled_agents
+    
     async def enable_agent(self, agent_id: str) -> bool:
-        """Enable a specific agent for autonomous trading."""
-        if agent_id in [agent["id"] for agent in AGENT_DEFINITIONS]:
-            if agent_id not in self._settings.enabled_agents:
-                self._settings.enabled_agents.append(agent_id)
-                # Reinitialize agents to include the newly enabled one
-                await self._initialize_agents()
-                logger.info(f"Enabled agent: {agent_id}")
-                return True
-        return False
+        """Enable a specific agent for autonomous trading (persisted in Redis)."""
+        if agent_id not in [agent["id"] for agent in AGENT_DEFINITIONS]:
+            logger.warning(f"Invalid agent_id: {agent_id}")
+            return False
+        
+        # Persist in Redis
+        await self._set_agent_enabled_in_redis(agent_id, True)
+        
+        # Update settings (non-persistent, but needed for immediate effect)
+        if agent_id not in self._settings.enabled_agents:
+            self._settings.enabled_agents.append(agent_id)
+            # Reinitialize agents to include the newly enabled one
+            await self._initialize_agents()
+            logger.info(f"Enabled agent: {agent_id}")
+        
+        return True
 
     async def disable_agent(self, agent_id: str) -> bool:
-        """Disable a specific agent from autonomous trading."""
+        """Disable a specific agent from autonomous trading (persisted in Redis)."""
+        if agent_id not in [agent["id"] for agent in AGENT_DEFINITIONS]:
+            logger.warning(f"Invalid agent_id: {agent_id}")
+            return False
+        
+        # Persist in Redis
+        await self._set_agent_enabled_in_redis(agent_id, False)
+        
+        # Update settings (non-persistent, but needed for immediate effect)
         if agent_id in self._settings.enabled_agents:
             self._settings.enabled_agents.remove(agent_id)
             # Remove from active agents

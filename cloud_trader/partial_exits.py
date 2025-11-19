@@ -43,8 +43,8 @@ class PositionExitPlan:
     total_pnl: float = 0.0
     active: bool = True
 
-    created_time: int
-    last_update: int
+    created_time: int = 0
+    last_update: int = 0
 
     def to_dict(self) -> Dict:
         """Convert to dictionary for serialization."""

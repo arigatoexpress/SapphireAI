@@ -86,6 +86,7 @@ class BigQueryStreamer:
             bigquery.SchemaField("order_id", "STRING", mode="NULLABLE"),
             bigquery.SchemaField("fee", "FLOAT", mode="NULLABLE"),
             bigquery.SchemaField("slippage_bps", "FLOAT", mode="NULLABLE"),
+            bigquery.SchemaField("mode", "STRING", mode="NULLABLE"),  # 'live' or 'paper'
             bigquery.SchemaField("metadata", "JSON", mode="NULLABLE"),
         ]
         
@@ -243,18 +244,19 @@ class BigQueryStreamer:
     
     async def stream_trade(
         self,
-        timestamp: datetime,
         symbol: str,
         side: str,
         price: float,
         quantity: float,
         notional: float,
         agent_id: Optional[str] = None,
+        timestamp: Optional[datetime] = None,
         agent_model: Optional[str] = None,
         strategy: Optional[str] = None,
         order_id: Optional[str] = None,
         fee: Optional[float] = None,
         slippage_bps: Optional[float] = None,
+        mode: Optional[str] = None,  # 'live' or 'paper'
         metadata: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """Stream a trade to BigQuery."""
@@ -268,7 +270,7 @@ class BigQueryStreamer:
             )
             
             row = {
-                "timestamp": timestamp.isoformat(),
+                "timestamp": (timestamp or datetime.utcnow()).isoformat(),
                 "symbol": symbol.upper(),
                 "side": side.upper(),
                 "price": price,
@@ -280,6 +282,7 @@ class BigQueryStreamer:
                 "order_id": order_id,
                 "fee": fee,
                 "slippage_bps": slippage_bps,
+                "mode": mode or "live",
                 "metadata": json.dumps(metadata) if metadata else None,
             }
             

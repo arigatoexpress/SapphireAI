@@ -36,10 +36,14 @@ app.add_middleware(
 async def startup_event():
     """Start the simplified trading service on startup"""
     try:
-        await service.start()
+        # Start the service in the background without blocking
+        import asyncio
+        asyncio.create_task(service.start())
         logger.info("✅ Simplified API started successfully")
     except Exception as e:
         logger.error(f"❌ Failed to start simplified service: {e}")
+        # Don't crash the API, just log the error
+        logger.info("🚨 API starting in degraded mode without trading service")
 
 @app.on_event("shutdown")
 async def shutdown_event():

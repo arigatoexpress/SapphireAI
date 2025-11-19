@@ -19,7 +19,7 @@ import hashlib
 import hmac
 import json
 import time
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, Tuple
 from urllib.parse import urlencode
 
 import httpx
@@ -1010,6 +1010,51 @@ async def test_api_connection():
     except Exception as e:
         print(f"\n❌ Test failed with error: {e}")
         await client.close()
+
+
+def create_exchange_clients(
+    settings: Any,
+    live_credentials: Optional[Credentials] = None,
+) -> Tuple[AsterClient, Optional[AsterClient]]:
+    """
+    Factory function to create live and paper trading exchange clients.
+    
+    Args:
+        settings: Settings object with configuration
+        live_credentials: Credentials for live trading (if None, will be loaded from settings)
+        
+    Returns:
+        Tuple of (live_client, paper_client). paper_client is None if paper trading is disabled.
+    """
+    from .credentials import load_credentials
+    
+    # Create live trading client
+    if live_credentials is None:
+        live_credentials = load_credentials()
+    
+    live_client = AsterClient(
+        credentials=live_credentials,
+        base_url=settings.rest_base_url,
+    )
+    
+    # Create paper trading client if enabled
+    paper_client = None
+    if settings.paper_trading_enabled:
+        if not settings.aster_testnet_api_key or not settings.aster_testnet_api_secret:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning("Paper trading enabled but testnet credentials not configured")
+        else:
+            paper_credentials = Credentials(
+                api_key=settings.aster_testnet_api_key,
+                api_secret=settings.aster_testnet_api_secret,
+            )
+            paper_client = AsterClient(
+                credentials=paper_credentials,
+                base_url=settings.aster_testnet_rest_url,
+            )
+    
+    return live_client, paper_client
 
 
 if __name__ == "__main__":

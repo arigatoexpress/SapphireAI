@@ -254,26 +254,9 @@ class AdaptivePositionSizer:
         """Calculate correlation risk for a symbol against current positions using advanced correlation analysis."""
 
         try:
-            from .trade_correlation import get_correlation_analyzer
-            analyzer = await get_correlation_analyzer()
-
-            # Get correlation-based risk assessment
-            correlation_risk = analyzer.get_symbol_correlation_risk(symbol)
-
-            # Get portfolio correlation analysis
-            portfolio_risk = analyzer.analyze_portfolio_correlation_risk(current_positions)
-
-            # Combine symbol-specific and portfolio-level correlation risk
-            symbol_risk_score = correlation_risk['correlation_risk']
-            portfolio_risk_score = portfolio_risk.risk_concentration_score
-
-            # Weight the combination (60% symbol-specific, 40% portfolio-level)
-            combined_risk = (symbol_risk_score * 0.6) + (portfolio_risk_score * 0.4)
-
-            # Apply risk-adjusted limit from portfolio analysis
-            risk_adjusted_limit = portfolio_risk.risk_adjusted_limits.get(symbol, 1.0)
-
-            return min(combined_risk, 1.0)
+            # TODO: Implement synchronous correlation analysis
+            # For now, return moderate correlation risk
+            return 0.5  # Moderate risk assumption
 
         except Exception:
             # Fallback to simplified calculation

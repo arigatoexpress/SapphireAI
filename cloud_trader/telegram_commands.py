@@ -2,8 +2,8 @@
 from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
 
 if TYPE_CHECKING:
     from .service import TradingService
@@ -24,6 +24,9 @@ class TelegramCommandHandler:
         self.application.add_handler(CommandHandler("portfolio", self.portfolio))
         self.application.add_handler(CommandHandler("kill_switch", self.kill_switch))
         self.application.add_handler(CommandHandler("safeguards", self.safeguards))
+        self.application.add_handler(CommandHandler("recap", self.recap))
+        # Callback handler for inline keyboard buttons
+        self.application.add_handler(CallbackQueryHandler(self.handle_callback))
 
     async def start(self):
         logger.info("Starting Telegram command handler...")
@@ -117,4 +120,101 @@ class TelegramCommandHandler:
         msg += f"  Order Rate: {limits['current_order_rate']}/{limits['orders_per_minute']}/min\n"
         
         await context.bot.send_message(chat_id=self.chat_id, text=msg, parse_mode='Markdown')
+    
+    async def recap(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Send daily performance recap."""
+        if await self._restricted(update, context): return
+        
+        # Import recap service
+        from .config import get_settings
+        from .telegram_recaps import create_recap_service
+        
+        settings = get_settings()
+        recap_service = await create_recap_service(settings)
+        
+        if not recap_service:
+            await context.bot.send_message(
+                chat_id=self.chat_id,
+                text="❌ Recap service not available. Check configuration."
+            )
+            return
+        
+        # Parse hours from command args (default: 24)
+        hours = 24
+        if context.args:
+            try:
+                hours = int(context.args[0])
+                hours = max(1, min(168, hours))  # Limit between 1 and 168 hours (1 week)
+            except ValueError:
+                pass
+        
+        # Send recap
+        await context.bot.send_message(
+            chat_id=self.chat_id,
+            text=f"📊 Generating {hours}h performance recap..."
+        )
+        
+        success = await recap_service.send_recap(hours=hours, include_chart=True)
+        
+        if not success:
+            await context.bot.send_message(
+                chat_id=self.chat_id,
+                text="❌ Failed to generate recap. Check logs for details."
+            )
+    
+    async def handle_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle inline keyboard button callbacks."""
+        query = update.callback_query
+        await query.answer()
+        
+        if await self._restricted(update, context): return
+        
+        callback_data = query.data
+        
+        if callback_data == "recap_refresh":
+            # Refresh recap
+            from .config import get_settings
+            from .telegram_recaps import create_recap_service
+            
+            settings = get_settings()
+            recap_service = await create_recap_service(settings)
+            
+            if recap_service:
+                await recap_service.send_recap(hours=24, include_chart=True)
+        
+        elif callback_data == "recap_paper":
+            # Show paper trading mode status
+            from .config import get_settings
+            settings = get_settings()
+            paper_enabled = "✅ Enabled" if settings.paper_trading_enabled else "❌ Disabled"
+            await query.edit_message_text(
+                text=f"📝 Paper Trading Mode: {paper_enabled}"
+            )
+        
+        elif callback_data == "recap_settings":
+            # Show settings menu
+            from .config import get_settings
+            settings = get_settings()
+            
+            settings_msg = "⚙️ *Settings*\n\n"
+            settings_msg += f"Paper Trading: {'✅' if settings.paper_trading_enabled else '❌'}\n"
+            settings_msg += f"Daily Recap: {'✅' if settings.telegram_daily_recap_enabled else '❌'}\n"
+            settings_msg += f"Recap Time: `{settings.telegram_recap_time_utc}` UTC\n"
+            
+            keyboard = [
+                [
+                    InlineKeyboardButton("🔙 Back", callback_data="recap_back"),
+                ]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(
+                text=settings_msg,
+                parse_mode='Markdown',
+                reply_markup=reply_markup
+            )
+        
+        elif callback_data == "recap_back":
+            # Return to recap
+            await self.recap(update, context)
 

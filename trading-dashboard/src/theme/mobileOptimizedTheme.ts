@@ -8,27 +8,39 @@ export const mobileOptimizedTheme: ThemeOptions = {
   palette: {
     mode: 'dark',
     primary: {
-      main: '#0EA5E9',
-      light: '#38BDF8',
-      dark: '#0284C7',
-      contrastText: '#FFFFFF',
+      main: '#00ffff', // Neon cyan
+      light: '#80ffff',
+      dark: '#0080ff', // Electric blue
+      contrastText: '#000000',
     },
     secondary: {
-      main: '#8B5CF6',
-      light: '#A78BFA',
-      dark: '#6D28D9',
+      main: '#a855f7', // Electric purple
+      light: '#ff00ff', // Bright magenta
+      dark: '#7c3aed',
       contrastText: '#FFFFFF',
     },
     background: {
-      default: '#000000',
-      paper: '#0A0A0F',
+      default: '#000000', // Pure black
+      paper: '#0a0a0a', // Subtle dark gray
     },
     text: {
-      primary: '#FFFFFF',
-      secondary: '#E2E8F0',
-      disabled: '#94A3B8',
+      primary: '#ffffff', // Pure white
+      secondary: '#e2e8f0', // Light gray with high contrast
+      disabled: '#64748b',
     },
-    divider: 'rgba(255, 255, 255, 0.2)',
+    error: {
+      main: '#ff0044', // Bright red
+      contrastText: '#FFFFFF',
+    },
+    warning: {
+      main: '#ffaa00', // Amber
+      contrastText: '#000000',
+    },
+    success: {
+      main: '#00ff00', // Bright green
+      contrastText: '#000000',
+    },
+    divider: 'rgba(0, 255, 255, 0.2)', // Neon cyan divider
   },
   typography: {
     fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
@@ -96,6 +108,13 @@ export const mobileOptimizedTheme: ThemeOptions = {
       color: '#CBD5E1',
       fontWeight: 500,
     },
+    // Monospace for metrics/numbers for improved legibility
+    overline: {
+      fontFamily: '"JetBrains Mono", "Fira Code", "Consolas", monospace',
+      fontSize: 'clamp(0.7rem, 1.5vw, 0.8rem)',
+      fontWeight: 600,
+      letterSpacing: '0.05em',
+    },
   },
   shape: {
     borderRadius: 12,
@@ -115,16 +134,16 @@ export const mobileOptimizedTheme: ThemeOptions = {
     MuiCard: {
       styleOverrides: {
         root: {
-          backgroundColor: '#0A0A0F',
-          border: '2px solid rgba(255, 255, 255, 0.2)',
+          backgroundColor: '#000000', // Pure black
+          border: '2px solid rgba(0, 255, 255, 0.4)', // Neon cyan border
           borderRadius: 16,
           padding: { xs: '1rem', sm: '1.5rem' },
           transition: 'all 0.2s ease',
-          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.3)',
+          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.5)',
           '&:hover': {
-            borderColor: 'rgba(14, 165, 233, 0.6)',
+            borderColor: '#00ffff', // Bright neon cyan on hover
             transform: 'translateY(-2px)',
-            boxShadow: '0 12px 40px rgba(14, 165, 233, 0.25)',
+            boxShadow: '0 12px 40px rgba(0, 255, 255, 0.3), 0 0 20px rgba(0, 255, 255, 0.2)',
           },
         },
       },
@@ -143,12 +162,12 @@ export const mobileOptimizedTheme: ThemeOptions = {
           },
         },
         contained: {
-          backgroundColor: '#0EA5E9',
-          color: '#FFFFFF',
-          boxShadow: '0 4px 16px rgba(14, 165, 233, 0.4)',
+          backgroundColor: '#00ffff', // Neon cyan
+          color: '#000000',
+          boxShadow: '0 4px 16px rgba(0, 255, 255, 0.4), 0 0 20px rgba(0, 255, 255, 0.2)',
           '&:hover': {
-            backgroundColor: '#0284C7',
-            boxShadow: '0 6px 24px rgba(14, 165, 233, 0.5)',
+            backgroundColor: '#80ffff',
+            boxShadow: '0 6px 24px rgba(0, 255, 255, 0.6), 0 0 30px rgba(0, 255, 255, 0.3)',
           },
         },
       },
