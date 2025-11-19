@@ -91,8 +91,28 @@
 ---
 
 **Next Steps**:
-1. Rotate any exposed infrastructure credentials
-2. Ensure team members use `.envrc.example` as template
-3. Monitor git commits for accidental credential commits
-4. Consider enabling pre-commit hooks to prevent credential commits
+1. ✅ **Rotate any exposed infrastructure credentials** (See `scripts/rotate-credentials.sh`)
+2. ✅ **Ensure team members use `.envrc.example` as template**
+3. ✅ **Monitor git commits for accidental credential commits** (Pre-commit hooks installed)
+4. ✅ **Consider enabling pre-commit hooks** (See `scripts/setup-security-hooks.sh`)
+5. ✅ **Monitor for suspicious activity** (See `scripts/monitor-suspicious-activity.sh`)
+6. ⚠️ **Clean git history** (See `scripts/cleanup-git-history.sh` - Use with caution!)
+
+## 🛠️ Security Tools Installed
+
+1. **Pre-commit hooks** (`.pre-commit-config.yaml`)
+   - Detects private keys
+   - Detects AWS/GCP credentials
+   - Detects secrets in code
+   - Prevents accidental credential commits
+
+2. **Git-secrets patterns** (`.git-secrets-patterns`)
+   - Custom patterns to detect credentials
+   - Can be used with git-secrets tool
+
+3. **Helper Scripts**:
+   - `scripts/setup-security-hooks.sh` - Install security hooks
+   - `scripts/cleanup-git-history.sh` - Clean sensitive data from git history
+   - `scripts/rotate-credentials.sh` - Guide for credential rotation
+   - `scripts/monitor-suspicious-activity.sh` - Monitor for suspicious activity
 

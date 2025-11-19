@@ -40,6 +40,23 @@ The dependency set is intentionally small; please avoid adding heavy libraries u
 
 ## Development Guidelines
 
+### Security Guidelines
+
+**⚠️ NEVER commit credentials or sensitive information!**
+
+Before committing, ensure:
+- ✅ No API keys, tokens, or passwords in code
+- ✅ No `.env`, `.envrc`, or `.env.*` files committed
+- ✅ Use `.env.example` or `.envrc.example` as templates
+- ✅ All secrets use environment variables or secret managers
+- ✅ Run `pre-commit install` to enable security hooks (see `scripts/setup-security-hooks.sh`)
+
+If you accidentally commit credentials:
+1. Remove from git: `git rm --cached <file>`
+2. Add to `.gitignore`
+3. Rotate the exposed credentials immediately
+4. See `scripts/rotate-credentials.sh` for rotation steps
+
 ### Code Style
 
 - Follow PEP 8 style guidelines
