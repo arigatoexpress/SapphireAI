@@ -341,6 +341,15 @@ Your **Sapphire AI** institutional trading system is **live and operational** wi
 - Update documentation for API changes
 - Ensure all code passes linting
 
+### Security Guidelines
+**⚠️ NEVER commit credentials or sensitive information!**
+
+Before committing:
+- ✅ No API keys, tokens, or passwords in code
+- ✅ No `.env`, `.envrc`, or `.env.*` files committed
+- ✅ Run `./scripts/setup-security-hooks.sh` to install security hooks
+- ✅ See [CONTRIBUTING.md](CONTRIBUTING.md) for full security guidelines
+
 ## 📄 License
 
 See [LICENSE](LICENSE) file for details.
