@@ -62,6 +62,11 @@ class BaseCache(ABC):
         }
 
     @abstractmethod
+    async def ping(self) -> bool:
+        """Test connectivity to the cache backend."""
+        pass
+
+    @abstractmethod
     async def connect(self) -> None:
         ...
 
@@ -87,6 +92,11 @@ class BaseCache(ABC):
 
     @abstractmethod
     async def clear_pattern(self, pattern: str) -> int:
+        ...
+
+    @abstractmethod
+    async def ping(self) -> bool:
+        """Test connectivity to the cache backend."""
         ...
 
     async def get_stats(self) -> Optional[Dict[str, Any]]:
@@ -209,6 +219,10 @@ class InMemoryCache(BaseCache):
     def is_connected(self) -> bool:
         return True
 
+    async def ping(self) -> bool:
+        """Test connectivity to the cache backend."""
+        return True  # In-memory cache is always available
+
     def _purge_expired(self) -> None:
         now = time.time()
         expired = [key for key, (_, expiry) in self._store.items() if expiry and expiry <= now]
@@ -299,6 +313,16 @@ class RedisCache(BaseCache):
 
     def is_connected(self) -> bool:
         return self._redis is not None
+
+    async def ping(self) -> bool:
+        """Test Redis connectivity."""
+        if not self._redis:
+            return False
+        try:
+            await self._redis.ping()
+            return True
+        except Exception:
+            return False
 
     async def get(self, key: str) -> Optional[Any]:
         if not self._redis:

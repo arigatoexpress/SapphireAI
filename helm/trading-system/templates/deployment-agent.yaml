@@ -1,0 +1,82 @@
+{{- if .Values.agents.enabled }}
+{{- range $agentName, $agentConfig := .Values.agents }}
+{{- if ne $agentName "enabled" }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "trading-system.fullname" $ }}-{{ $agentName }}-bot
+  namespace: trading
+  labels:
+    {{- include "trading-system.labels" $ | nindent 4 }}
+    app: cloud-trader
+    agent: {{ $agentName }}
+spec:
+  replicas: {{ $agentConfig.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "trading-system.selectorLabels" $ | nindent 6 }}
+      app: cloud-trader
+      agent: {{ $agentName }}
+  template:
+    metadata:
+      labels:
+        {{- include "trading-system.selectorLabels" $ | nindent 8 }}
+        app: cloud-trader
+        agent: {{ $agentName }}
+    spec:
+      {{- with $.Values.securityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- if and $.Values.tpu.enabled (eq $agentName "vpin") }}
+{{- with $.Values.nodeSelector }}
+nodeSelector:
+  {{- toYaml . | nindent 8 }}
+{{- end }}
+{{- with $.Values.tolerations }}
+tolerations:
+  {{- toYaml . | nindent 8 }}
+{{- end }}
+{{- end }}
+      serviceAccountName: {{ include "trading-system.serviceAccountName" $ }}
+      containers:
+        - name: cloud-trader
+          image: {{ $.Values.global.imageRegistry }}/{{ $.Values.global.projectId }}/{{ $agentConfig.image.repository }}:{{ $agentConfig.image.tag }}
+          imagePullPolicy: {{ $.Values.global.imagePullPolicy }}
+          command: ["uvicorn", "cloud_trader.api:build_app", "--host", "0.0.0.0", "--port", "8080"]
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            {{- include "trading-system.commonEnv" $ | nindent 12 }}
+            - name: MCP_COORDINATOR_URL
+              value: "http://{{ include "trading-system.fullname" $ }}-mcp-coordinator.trading.svc.cluster.local:{{ $.Values.mcpCoordinator.service.port }}"
+            {{- with $agentConfig.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          envFrom:
+            - secretRef:
+                name: cloud-trader-secrets
+          resources:
+            {{- $resources := $agentConfig.resources }}
+            {{- if and $.Values.tpu.enabled (ne $agentName "vpin") }}
+              {{- $resources = omit $resources "limits" "requests" | merge (dict "limits" (omit $agentConfig.resources.limits "google.com/tpu") "requests" (omit $agentConfig.resources.requests "google.com/tpu")) }}
+            {{- end }}
+            {{- toYaml $resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+{{- end }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,72 @@
+{{- if .Values.coordinator.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "sapphire-trading-system.fullname" . }}-coordinator
+  labels:
+    {{- include "sapphire-trading-system.labels" . | nindent 4 }}
+    app.kubernetes.io/component: coordinator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "sapphire-trading-system.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: coordinator
+  template:
+    metadata:
+      labels:
+        {{- include "sapphire-trading-system.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: coordinator
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
+    spec:
+      {{- include "sapphire-trading-system.podSecurityContext" . | nindent 6 }}
+      containers:
+        - name: coordinator
+          image: {{ .Values.global.imageRegistry | default "" }}/{{ .Values.coordinator.image.repository | default "cloud-run-source-deploy/cloud-trader" }}:{{ .Values.coordinator.image.tag | default .Values.trading.image.tag | default .Chart.AppVersion | default "latest" }}
+          imagePullPolicy: {{ include "sapphire-trading-system.imagePullPolicy" . }}
+          command:
+            - "python"
+            - "-m"
+            - "cloud_trader.mcp_coordinator"
+          ports:
+            - name: http
+              containerPort: {{ .Values.coordinator.service.port }}
+              protocol: TCP
+          env:
+            {{- include "sapphire-trading-system.env" .Values.coordinator.env | nindent 12 }}
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "sapphire-trading-system.fullname" . }}-config
+                  key: LOG_LEVEL
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          {{- include "sapphire-trading-system.resources" .Values.coordinator.resources | nindent 10 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

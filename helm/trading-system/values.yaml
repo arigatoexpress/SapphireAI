@@ -1,0 +1,586 @@
+# Default values for trading-system helm chart
+global:
+  imageRegistry: us-central1-docker.pkg.dev
+  projectId: sapphireinfinite
+  imagePullPolicy: Always
+
+# Trading configuration
+trading:
+  enabled: true
+  capitalAllocation: 3500  # $3,500 total = $500 per agent
+  riskMultiplier: 0.02
+  maxLeverage: 10
+  disableRateLimiter: true  # Emergency bypass for deployment
+
+# Simplified trader for emergency deployment
+simplifiedTrader:
+  enabled: true
+  image:
+    repository: cloud-run-source-deploy/cloud-trader
+    tag: latest
+  replicas: 1
+  env:
+    - name: TOTAL_CAPITAL
+      value: "3000"  # 6 agents × $500 each
+    - name: AGENT_CAPITAL
+      value: "500"  # Fixed $500 per trading agent
+
+# Vertex AI and TPU configuration - Full Google AI optimization
+vertexAI:
+  enabled: true
+  project: "sapphireinfinite"
+  location: "us-central1"
+  orchestrator:
+    enabled: true
+    endpoint: "https://us-central1-aiplatform.googleapis.com/v1/projects/sapphireinfinite/locations/us-central1/endpoints/mcp-orchestrator-endpoint"
+    model: "gemini-1.5-pro"  # Advanced orchestrator for MCP coordination
+  mlops:
+    enabled: true
+    experimentTracking: true
+    modelMonitoring: true
+    performanceMetrics: true
+    driftDetection: true
+
+tpu:
+  enabled: false  # Disabled - no TPU nodes available in current cluster
+  type: "v5e-lite-podslice"  # Most cost-effective TPU for inference
+  machineType: "ct5lp-hightpu-1t"  # TPU v5e instance
+  optimization:
+    bfloat16: true  # Enable mixed precision for TPU efficiency
+    xlaCompilation: true  # Enable XLA compilation for TPU
+    dynamicPadding: false  # Static shapes for TPU optimization
+  # TPU v5e pricing: ~$1.20/hour vs L4 GPU ~$1.50/hour
+  # Performance: 197 TFLOPS optimized for transformer inference
+
+# Redis configuration
+redis:
+  enabled: false  # Temporarily disabled while fixing image registry issues
+  architecture: standalone
+  auth:
+    enabled: true
+  master:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+  replica:
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 512Mi
+  metrics:
+    enabled: true
+  persistence:
+    enabled: true
+    size: 8Gi
+  redisConfig:
+    maxmemory: "512mb"
+    maxmemory-policy: "allkeys-lru"
+    tcp-keepalive: "60"
+    timeout: "300"
+    databases: "16"
+    appendonly: "yes"
+    appendfsync: "everysec"
+
+# Cloud Trader API Service
+cloudTrader:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: cloud-run-source-deploy/cloud-trader
+    tag: "latest"
+  service:
+    type: ClusterIP
+    port: 8080
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+  env:
+    - name: ENABLE_PAPER_TRADING
+      value: "true"
+    - name: LOG_LEVEL
+      value: "WARNING"
+    - name: MCP_ENABLED
+      value: "true"
+    - name: TELEGRAM_BOT_TOKEN
+      value: ""  # Will be overridden by secret
+    - name: TELEGRAM_CHAT_ID
+      value: ""  # Will be overridden by secret
+
+# MCP Coordinator Service - Vertex AI Orchestrator
+mcpCoordinator:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: cloud-run-source-deploy/cloud-trader
+    tag: "latest"
+  service:
+    type: ClusterIP
+    port: 8081
+  # Vertex AI Orchestration for Advanced MCP Coordination
+  vertexAI:
+    model: "gemini-1.5-pro"  # Advanced orchestrator for multi-agent coordination
+    optimization:
+      quantization: "int8"  # Efficient for orchestration tasks
+      batchSize: 1  # Single orchestration decisions
+      temperature: 0.1  # High precision for coordination
+      maxTokens: 2048  # Complex coordination analysis
+    roleContext: "mcp-orchestrator"
+    monitoring:
+      latencyThreshold: 300  # 300ms target for orchestration decisions
+      accuracyMetric: "coordination_success_rate"
+      driftThreshold: 0.04
+  resources:
+    requests:
+      cpu: 1000m  # Increased for Vertex AI orchestration
+      memory: 2Gi  # Increased for complex coordination state
+    limits:
+      cpu: 2000m  # Higher CPU for concurrent AI coordination
+      memory: 4Gi  # Increased memory for orchestration state
+  env:
+    - name: LOG_LEVEL
+      value: "INFO"
+    - name: MCP_ENABLED
+      value: "true"
+    - name: MESSAGE_COMPRESSION
+      value: "true"  # Enable message compression
+    - name: CONNECTION_POOL_SIZE
+      value: "50"  # Larger connection pool
+    - name: MESSAGE_BATCH_SIZE
+      value: "100"  # Batch message processing
+    - name: ASYNC_WORKERS
+      value: "16"  # Concurrent message handlers
+    - name: MEMORY_CACHE_ENABLED
+      value: "true"  # Enable in-memory caching
+
+# LLM Agent Services - Open Source Models on Vertex AI
+agents:
+  enabled: true  # Disabled for minimal deployment - enable after core services work
+
+  # Trend Momentum Agent - Real-time market momentum analysis using PaLM 2 Chat
+  trend-momentum-agent:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: cloud-run-source-deploy/cloud-trader
+      tag: "latest"
+    resources:
+      requests:
+        cpu: 1000m
+        memory: 4Gi
+      limits:
+        cpu: 3000m
+        memory: 12Gi
+    # Vertex AI Optimization for Momentum Analysis
+    vertexAI:
+      model: "gemini-2.0-flash-exp"  # Gemini 2.0 Flash Experimental - Fastest for momentum
+      optimization:
+        quantization: "int8"  # Efficient for real-time analysis
+        batchSize: 16  # Higher throughput for momentum signals
+        temperature: 0.1  # Low creativity, high precision
+        maxTokens: 512  # Concise momentum analysis
+      roleContext: "momentum-analysis"
+      monitoring:
+        latencyThreshold: 150  # 150ms target for momentum signals (faster model)
+        accuracyMetric: "momentum_prediction_accuracy"
+        driftThreshold: 0.05
+    env:
+      - name: ENABLE_PAPER_TRADING
+        value: "true"
+      - name: ENABLED_AGENTS
+        value: '["trend-momentum-agent"]'
+      - name: ENABLE_VERTEX_AI
+        value: "true"
+      - name: MCP_ENABLED
+        value: "true"
+      - name: AGENT_ROLE
+        value: "momentum-analysis"
+      - name: VERTEX_MODEL
+        value: "gemini-2.0-flash-exp"
+      - name: MODEL_TEMPERATURE
+        value: "0.1"
+      - name: MAX_OUTPUT_TOKENS
+        value: "512"
+      - name: QUANTIZATION_LEVEL
+        value: "int8"
+      - name: MONITORING_ENABLED
+        value: "true"
+
+  # Strategy Optimization Agent - Advanced trading strategy optimization using PaLM 2 Unicorn
+  strategy-optimization-agent:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: cloud-run-source-deploy/cloud-trader
+      tag: "latest"
+    resources:
+      requests:
+        cpu: 1000m
+        memory: 4Gi
+      limits:
+        cpu: 3000m
+        memory: 12Gi
+    # Vertex AI Optimization for Strategy Optimization
+    vertexAI:
+      model: "gemini-exp-1206"  # Latest Gemini Experimental - Advanced reasoning for strategy
+      optimization:
+        quantization: "int8"  # Balanced precision/performance
+        batchSize: 4  # Smaller batches for complex reasoning
+        temperature: 0.3  # Moderate creativity for strategy innovation
+        maxTokens: 1024  # Detailed strategy analysis
+      roleContext: "strategy-optimization"
+      monitoring:
+        latencyThreshold: 500  # 500ms acceptable for strategy decisions
+        accuracyMetric: "strategy_success_rate"
+        driftThreshold: 0.08
+    env:
+      - name: ENABLE_PAPER_TRADING
+        value: "true"
+      - name: ENABLED_AGENTS
+        value: '["strategy-optimization-agent"]'
+      - name: ENABLE_VERTEX_AI
+        value: "true"
+      - name: MCP_ENABLED
+        value: "true"
+      - name: AGENT_ROLE
+        value: "strategy-optimization"
+      - name: VERTEX_MODEL
+        value: "gemini-exp-1206"
+      - name: MODEL_TEMPERATURE
+        value: "0.3"
+      - name: MAX_OUTPUT_TOKENS
+        value: "1024"
+      - name: QUANTIZATION_LEVEL
+        value: "int8"
+      - name: MONITORING_ENABLED
+        value: "true"
+
+  # Financial Sentiment Agent - Financial news and market sentiment analysis using BERT
+  financial-sentiment-agent:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: cloud-run-source-deploy/cloud-trader
+      tag: "latest"
+    resources:
+      requests:
+        cpu: 1000m
+        memory: 4Gi
+      limits:
+        cpu: 3000m
+        memory: 12Gi
+    # Vertex AI Optimization for Sentiment Analysis
+    vertexAI:
+      model: "gemini-2.0-flash-exp"  # Latest Gemini 2.0 Flash - Fast text processing
+      optimization:
+        quantization: "int8"  # Efficient for text analysis
+        batchSize: 32  # Higher batches for sentiment processing
+        temperature: 0.2  # Low creativity for consistent sentiment
+        maxTokens: 256  # Concise sentiment scores
+      roleContext: "sentiment-analysis"
+      monitoring:
+        latencyThreshold: 150  # 150ms target for sentiment signals
+        accuracyMetric: "sentiment_accuracy"
+        driftThreshold: 0.03
+    env:
+      - name: ENABLE_PAPER_TRADING
+        value: "true"
+      - name: ENABLED_AGENTS
+        value: '["financial-sentiment-agent"]'
+      - name: ENABLE_VERTEX_AI
+        value: "true"
+      - name: MCP_ENABLED
+        value: "true"
+      - name: AGENT_ROLE
+        value: "sentiment-analysis"
+      - name: VERTEX_MODEL
+        value: "gemini-2.0-flash-exp"
+      - name: MODEL_TEMPERATURE
+        value: "0.2"
+      - name: MAX_OUTPUT_TOKENS
+        value: "256"
+      - name: QUANTIZATION_LEVEL
+        value: "int8"
+      - name: MONITORING_ENABLED
+        value: "true"
+
+  # Market Prediction Agent - Time series forecasting and market prediction using PaLM 2 Text
+  market-prediction-agent:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: cloud-run-source-deploy/cloud-trader
+      tag: "latest"
+    resources:
+      requests:
+        cpu: 1000m
+        memory: 4Gi
+      limits:
+        cpu: 3000m
+        memory: 12Gi
+    # Vertex AI Optimization for Market Prediction
+    vertexAI:
+      model: "gemini-exp-1206"  # Latest Gemini Experimental - Complex analytical reasoning
+      optimization:
+        quantization: "int8"  # Balanced for prediction analysis
+        batchSize: 8  # Medium batches for prediction models
+        temperature: 0.4  # Moderate creativity for market scenarios
+        maxTokens: 768  # Detailed prediction analysis
+      roleContext: "market-prediction"
+      monitoring:
+        latencyThreshold: 400  # 400ms acceptable for prediction analysis
+        accuracyMetric: "prediction_accuracy"
+        driftThreshold: 0.06
+    env:
+      - name: ENABLE_PAPER_TRADING
+        value: "true"
+      - name: ENABLED_AGENTS
+        value: '["market-prediction-agent"]'
+      - name: ENABLE_VERTEX_AI
+        value: "true"
+      - name: MCP_ENABLED
+        value: "true"
+      - name: AGENT_ROLE
+        value: "market-prediction"
+      - name: VERTEX_MODEL
+        value: "gemini-exp-1206"
+      - name: MODEL_TEMPERATURE
+        value: "0.4"
+      - name: MAX_OUTPUT_TOKENS
+        value: "768"
+      - name: QUANTIZATION_LEVEL
+        value: "int8"
+      - name: MONITORING_ENABLED
+        value: "true"
+
+  # Volume Microstructure Agent - Volume synchronized probability of informed trading using Codey
+  volume-microstructure-agent:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: cloud-run-source-deploy/cloud-trader
+      tag: "latest"
+    resources:
+      requests:
+        cpu: 1000m
+        memory: 4Gi
+      limits:
+        cpu: 3000m
+        memory: 12Gi
+    # Vertex AI Optimization for Volume Analysis
+    vertexAI:
+      model: "codey-001"  # Codey - Mathematical and code processing
+      optimization:
+        quantization: "int8"  # Efficient for computational analysis
+        batchSize: 4  # Focused batches for complex calculations
+        temperature: 0.1  # High precision for volume calculations
+        maxTokens: 1024  # Detailed volume microstructure analysis
+      roleContext: "volume-analysis"
+      monitoring:
+        latencyThreshold: 300  # 300ms acceptable for volume analysis
+        accuracyMetric: "volume_analysis_accuracy"
+        driftThreshold: 0.04
+    env:
+      - name: ENABLE_PAPER_TRADING
+        value: "true"
+      - name: ENABLED_AGENTS
+        value: '["volume-microstructure-agent"]'
+      - name: ENABLE_VERTEX_AI
+        value: "true"
+      - name: MCP_ENABLED
+        value: "true"
+      - name: AGENT_ROLE
+        value: "volume-analysis"
+      - name: VERTEX_MODEL
+        value: "codey-001"
+      - name: MODEL_TEMPERATURE
+        value: "0.1"
+      - name: MAX_OUTPUT_TOKENS
+        value: "1024"
+      - name: QUANTIZATION_LEVEL
+        value: "int8"
+      - name: MONITORING_ENABLED
+        value: "true"
+
+  # VPIN HFT Agent
+  vpin-hft:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: cloud-run-source-deploy/cloud-trader
+      tag: "latest"
+    resources:
+      requests:
+        cpu: 1000m
+        memory: 4Gi
+      limits:
+        cpu: 3000m
+        memory: 12Gi
+    vertexAI:
+      model: "gemini-2.0-flash-exp"
+      optimization:
+        quantization: "int8"
+        batchSize: 8
+        temperature: 0.1
+        maxTokens: 512
+      roleContext: "vpin-hft-analysis"
+      monitoring:
+        latencyThreshold: 150
+        accuracyMetric: "vpin_prediction_accuracy"
+        driftThreshold: 0.03
+    env:
+      - name: ENABLE_PAPER_TRADING
+        value: "true"
+      - name: ENABLED_AGENTS
+        value: '["vpin-hft"]'
+      - name: ENABLE_VERTEX_AI
+        value: "true"
+      - name: MCP_ENABLED
+        value: "true"
+      - name: AGENT_ROLE
+        value: "vpin-hft-analysis"
+      - name: VERTEX_MODEL
+        value: "gemini-2.0-flash-exp"
+      - name: MODEL_TEMPERATURE
+        value: "0.1"
+      - name: MAX_OUTPUT_TOKENS
+        value: "512"
+      - name: QUANTIZATION_LEVEL
+        value: "int8"
+      - name: MONITORING_ENABLED
+        value: "true"
+
+# Trading Framework Services
+frameworks:
+  enabled: true
+
+# Horizontal Pod Autoscaling
+hpa:
+  enabled: true
+
+  # VPIN HPA (Elastic scaling with intelligent resource management)
+  vpin:
+    enabled: true
+    minReplicas: 0  # Can scale to zero when throttled
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 60  # Lower threshold for GPU workloads
+    targetMemoryUtilizationPercentage: 75
+    # Custom metrics for intelligent scaling
+    customMetrics:
+      - type: Pods
+        pods:
+          metric:
+            name: api_requests_per_second
+          target:
+            type: AverageValue
+            averageValue: 5  # Scale up if >5 req/sec
+      - type: Pods
+        pods:
+          metric:
+            name: throttle_rate
+          target:
+            type: AverageValue
+            averageValue: 0.1  # Scale down if throttle rate >10%
+
+# Telegram Enhanced Features
+telegram:
+  dailyRecap:
+    enabled: true
+    schedule: "0 0 * * *"  # Daily at midnight UTC (00:00)
+    hours: 24  # Hours of data to include in recap
+    includeChart: true  # Include performance chart in recap
+
+# Monitoring and Observability
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: true  # Disabled until Prometheus Operator CRDs are installed
+    scrapeInterval: 15s
+    evaluationInterval: 15s
+    retention: 30d
+  grafana:
+    enabled: true
+    adminPassword: "sapphire-trading-2024"  # Change in production
+    dashboards:
+      enabled: true
+      default: true
+  alertmanager:
+    enabled: true
+    slackWebhookUrl: ""  # Configure for production alerts
+
+# Logging Configuration
+logging:
+  level: "INFO"
+  format: "json"
+  fluentd:
+    enabled: true
+    match: "kube.*"
+  elasticsearch:
+    enabled: true  # Enable if needed for log aggregation
+
+# Security and Compliance
+security:
+  networkPolicies:
+    enabled: true
+  podSecurityStandards:
+    enabled: true
+    level: "restricted"
+  secrets:
+    encryption: true
+  audit:
+    enabled: true
+    logRetention: 90d
+
+# Service Account for GCP access
+serviceAccount:
+  create: true
+  name: trading-system-sa
+  annotations:
+    iam.gke.io/gcp-service-account: trading-system@sapphireinfinite.iam.gserviceaccount.com
+
+# Security Context
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 2000
+
+# TPU node selectors and tolerations removed - TPU disabled
+
+# Affinity rules
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+    - weight: 100
+      podAffinityTerm:
+        labelSelector:
+          matchExpressions:
+          - key: app
+            operator: In
+            values:
+            - cloud-trader
+        topologyKey: kubernetes.io/hostname
+
+# System Initialization Job
+systemInitialization:
+  enabled: true  # Temporarily disabled to speed up deployment
+  image:
+    repository: cloud-run-source-deploy/cloud-trader
+    tag: "latest"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi

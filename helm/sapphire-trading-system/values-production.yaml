@@ -1,0 +1,88 @@
+# Production values for Sapphire Trading System
+# These override the defaults for production deployment
+
+global:
+  environment: production
+  imagePullPolicy: Always
+
+# Production trading settings - DISABLE PAPER TRADING
+trading:
+  enabled: true
+  env:
+    - name: ENABLE_PAPER_TRADING
+      value: "false"  # LIVE TRADING ENABLED
+    - name: LOG_LEVEL
+      value: "INFO"
+
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 3
+
+# All agents enabled for production
+agents:
+  enabled: true
+  trendMomentumAgent:
+    enabled: true
+  strategyOptimizationAgent:
+    enabled: true
+  financialSentimentAgent:
+    enabled: true
+  marketPredictionAgent:
+    enabled: true
+  volumeMicrostructureAgent:
+    enabled: true
+  vpinHftAgent:
+    enabled: true
+
+# Production monitoring
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: true
+
+# Production ingress
+ingress:
+  enabled: true
+  hosts:
+    - host: api.sapphiretrade.xyz
+      paths:
+        - path: /
+          pathType: Prefix
+    - host: trader.sapphiretrade.xyz
+      paths:
+        - path: /
+          pathType: Prefix
+
+# Production security
+securityContext:
+  enabled: true
+
+# Production resource limits
+trading:
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+
+coordinator:
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+agents:
+  common:
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi

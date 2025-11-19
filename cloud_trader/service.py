@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import time
 from decimal import Decimal, ROUND_DOWN
 from datetime import datetime
@@ -17,10 +18,10 @@ import structlog
 from .config import Settings, get_settings
 from .credentials import CredentialManager, load_credentials
 from .enums import OrderSide, OrderStatus
-from .exchange import AsterClient, Ticker, Trade, TrailingStop, Execution, Order
+from .exchange import AsterClient, Ticker, Trade, TrailingStop, Execution, Order, create_exchange_clients
 from .mcp import MCPClient
 from .optimization.bandit import EpsilonGreedyBandit
-from .open_source import OpenSourceAnalyst
+# Open-source analyst removed - now using Google Cloud AI exclusively
 from .pubsub import PubSubClient
 from .order_tags import generate_order_tag, parse_order_tag
 from .risk import PortfolioState, RiskManager, Position
@@ -30,21 +31,37 @@ from .strategies import StrategySelector, StrategySignal
 from .arbitrage import ArbitrageEngine
 from .cache import get_cache, close_cache, BaseCache
 from .safeguards import TradingSafeguards, handle_kill_switch_command
-from .telegram import TelegramService, create_telegram_service
-from .telegram_commands import TelegramCommandHandler
+from .enhanced_telegram import EnhancedTelegramService, create_enhanced_telegram_service
+# Note: telegram.py is deprecated - enhanced_telegram.py is the active Telegram service
+from .ai_analyzer import AITradingAnalyzer
+from .market_sentiment import MarketSentimentAnalyzer
+from .risk_analyzer import RiskAnalyzer
 from .storage import get_storage, close_storage, TradingStorage
 from .bigquery_streaming import get_bigquery_streamer, close_bigquery_streamer, BigQueryStreamer
 from .feature_store import get_feature_store, TradingFeatureStore
+from .agents.vpin_hft_agent import VpinHFTAgent
+from .vpin_data_streamer import VPINDataStreamer
+from .rate_limit_manager import RateLimitManager
+from .fallback_strategies import FallbackStrategySelector
+from .circuit_breaker import (
+    get_circuit_breaker, VERTEX_AI_BREAKER, EXCHANGE_API_BREAKER,
+    REDIS_BREAKER, DATABASE_BREAKER, TELEGRAM_BREAKER,
+    CircuitBreakerOpenException, CircuitBreakerTimeoutException
+)
+from .retry_mechanism import retry_api, retry_database, retry_redis, retry_external_api
+from .self_healing import get_self_healing_manager, recover_database_connection, recover_redis_connection, recover_vertex_ai_connection
+from .graceful_degradation import get_graceful_degradation_manager, initialize_graceful_degradation, DegradationLevel
 
 RiskOrchestratorClientType = Any
 OrderIntent = None  # type: ignore[assignment]
 from .mcp import MCPClient, MCPMessageType, MCPProposalPayload, MCPResponsePayload
-# Temporarily disable Vertex AI imports for service stability
-# from .vertex_ai_client import get_vertex_client, VertexAIClient
-from .open_source import OpenSourceAnalyst
+from .vertex_ai_client import get_vertex_client, VertexAIClient
+# Open-source analyst removed - now using Google Cloud AI exclusively
+from .metrics_tracker import get_metrics_tracker
 from .metrics import (
     ASTER_API_REQUESTS,
     LLM_CONFIDENCE,
+    PAPER_TRADES_TOTAL,
     LLM_INFERENCE_TIME,
     PORTFOLIO_BALANCE,
     PORTFOLIO_LEVERAGE,
@@ -67,6 +84,21 @@ from .metrics import (
     AGENT_MARGIN_REMAINING,
     AGENT_MARGIN_UTILIZATION,
     PORTFOLIO_DRAWDOWN,
+    AGENT_INFERENCE_TIME,
+    AGENT_DECISION_LATENCY,
+    AGENT_THROUGHPUT,
+    AGENT_INFERENCE_TOKENS,
+    AGENT_INFERENCE_COST,
+    AGENT_ERROR_RATE,
+    AGENT_SUCCESS_RATE,
+    AGENT_AVG_CONFIDENCE,
+    AGENT_LAST_INFERENCE_TIME,
+    AGENT_INFERENCE_COUNT,
+    AGENT_RESPONSE_TIME,
+    AGENT_MARKET_DATA_LATENCY,
+    AGENT_TRADE_EXECUTION_LATENCY,
+    AGENT_CIRCUIT_BREAKER_STATE,
+    AGENT_FALLBACK_USAGE,
 )
 
 
@@ -90,147 +122,142 @@ class HealthStatus:
 
 AGENT_DEFINITIONS: List[Dict[str, Any]] = [
     {
-        "id": "deepseek-v3",
-        "name": "DeepSeek Momentum",
-        "model": "DeepSeek-V3",
-        "emoji": "💎",
+        "id": "trend-momentum-agent",
+        "name": "Trend Momentum Agent",
+        "model": "gemini-2.0-flash-exp",
+        "emoji": "📈",
         "symbols": [],
-        "description": "High-conviction momentum execution powered by DeepSeek-V3.",
-        "personality": "Aggressive trend follower, high conviction",
-        "baseline_win_rate": 0.68,
-        "risk_multiplier": 1.0,
-        "profit_target": 0.015,
-        "margin_allocation": 200000.0,
-        "specialization": "momentum",
-        # Dynamic configuration parameters
+        "description": "High-speed momentum analysis using Gemini 2.0 Flash Experimental for real-time trend detection and fast execution.",
+        "personality": "Aggressive momentum trader, identifies and exploits strong directional moves with lightning-fast execution.",
+        "baseline_win_rate": 0.65,
+        "risk_multiplier": 1.4,
+        "profit_target": 0.008,
+        "margin_allocation": 500.0,
+        "specialization": "momentum_trading",
         "dynamic_position_sizing": True,
         "adaptive_leverage": True,
         "intelligence_tp_sl": True,
-        "max_leverage_limit": 5.0,
-        "min_position_size_pct": 0.01,
-        "max_position_size_pct": 0.15,
-        "risk_tolerance": "high",  # high, medium, low
-        "time_horizon": "short",   # short, medium, long
-        "market_regime_preference": "bull",  # bull, bear, neutral
+        "max_leverage_limit": 12.0,
+        "min_position_size_pct": 0.02,
+        "max_position_size_pct": 0.25,
+        "risk_tolerance": "high",
+        "time_horizon": "very_short",
+        "market_regime_preference": "trending",
     },
     {
-        "id": "qwen-7b",
-        "name": "Qwen Adaptive",
-        "model": "Qwen2.5-7B",
-        "emoji": "🜂",
+        "id": "strategy-optimization-agent",
+        "name": "Strategy Optimization Agent",
+        "model": "gemini-exp-1206",
+        "emoji": "🧠",
         "symbols": [],
-        "description": "Adaptive mean-reversion routing using Qwen2.5-7B.",
-        "personality": "Conservative mean-reversion with disciplined hedging",
-        "baseline_win_rate": 0.64,
-        "risk_multiplier": 1.0,
-        "profit_target": 0.015,
-        "margin_allocation": 200000.0,
-        "specialization": "mean_reversion",
-        # Dynamic configuration parameters
-        "dynamic_position_sizing": True,
-        "adaptive_leverage": True,
-        "intelligence_tp_sl": True,
-        "max_leverage_limit": 3.0,
-        "min_position_size_pct": 0.005,
-        "max_position_size_pct": 0.08,
-        "risk_tolerance": "medium",
-        "time_horizon": "medium",
-        "market_regime_preference": "neutral",
-    },
-    {
-        "id": "fingpt-alpha",
-        "name": "FinGPT Alpha",
-        "model": "FinGPT-8B",
-        "emoji": "📊",
-        "symbols": [],
-        "description": "FinGPT open-source finance agent covering momentum regimes.",
-        "personality": "Fundamental-driven, sentiment analysis focused",
-        "baseline_win_rate": 0.63,
-        "risk_multiplier": 1.0,
-        "profit_target": 0.015,
-        "margin_allocation": 200000.0,
-        "specialization": "fundamental_sentiment",
-        # Dynamic configuration parameters
-        "dynamic_position_sizing": True,
-        "adaptive_leverage": True,
-        "intelligence_tp_sl": True,
-        "max_leverage_limit": 4.0,
-        "min_position_size_pct": 0.008,
-        "max_position_size_pct": 0.12,
-        "risk_tolerance": "medium",
-        "time_horizon": "long",
-        "market_regime_preference": "bull",
-    },
-    {
-        "id": "lagllama-degen",
-        "name": "Lag-Llama Degenerate",
-        "model": "Lag-Llama",
-        "emoji": "🎰",
-        "symbols": [],
-        "description": "High-risk, high-reward Lag-Llama degenerate trader taking massive positions.",
-        "personality": "High-volatility specialist embracing fat-tail regimes",
-        "baseline_win_rate": 0.45,
-        "risk_multiplier": 2.5,
-        "profit_target": 0.025,
-        "margin_allocation": 300000.0,
-        "specialization": "volatility",
-        # Dynamic configuration parameters - MAXIMUM PROFIT MODE
+        "description": "Advanced strategy optimization using Gemini Experimental 1206 for complex analytical reasoning and portfolio optimization.",
+        "personality": "Analytical strategist, continuously optimizes trading approaches using advanced reasoning and market analysis.",
+        "baseline_win_rate": 0.62,
+        "risk_multiplier": 1.6,
+        "profit_target": 0.010,
+        "margin_allocation": 500.0,
+        "specialization": "strategy_optimization",
         "dynamic_position_sizing": True,
         "adaptive_leverage": True,
         "intelligence_tp_sl": True,
         "max_leverage_limit": 10.0,
-        "min_position_size_pct": 0.02,
-        "max_position_size_pct": 0.25,
-        "risk_tolerance": "extreme",
+        "min_position_size_pct": 0.015,
+        "max_position_size_pct": 0.22,
+        "risk_tolerance": "moderate",
         "time_horizon": "short",
-        "market_regime_preference": "volatile",
+        "market_regime_preference": "all_regimes",
     },
-    # NEW: Ultra-aggressive profit maximizer
     {
-        "id": "profit-maximizer",
-        "name": "Profit Maximizer",
-        "model": "Multi-Model Ensemble",
-        "emoji": "💰",
+        "id": "financial-sentiment-agent",
+        "name": "Financial Sentiment Agent",
+        "model": "gemini-2.0-flash-exp",
+        "emoji": "💭",
         "symbols": [],
-        "description": "AI-powered profit maximization using all available strategies autonomously.",
-        "personality": "Pure profit-seeking algorithm with adaptive risk management",
-        "baseline_win_rate": 0.60,
+        "description": "Real-time sentiment analysis using Gemini 2.0 Flash Experimental for fast processing of news and social media sentiment.",
+        "personality": "Sentiment-focused trader, analyzes market psychology and news impact to identify sentiment-driven opportunities.",
+        "baseline_win_rate": 0.58,
         "risk_multiplier": 1.8,
-        "profit_target": 0.02,
-        "margin_allocation": 400000.0,
-        "specialization": "profit_maximization",
-        # Dynamic configuration parameters - AUTONOMOUS PROFIT MODE
-        "dynamic_position_sizing": True,
-        "adaptive_leverage": True,
-        "intelligence_tp_sl": True,
-        "max_leverage_limit": 8.0,
-        "min_position_size_pct": 0.01,
-        "max_position_size_pct": 0.20,
-        "risk_tolerance": "high",
-        "time_horizon": "adaptive",
-        "market_regime_preference": "adaptive",
-    },
-    # NEW: Kimi agent for news and sentiment analysis
-    {
-        "id": "kimi-chat",
-        "name": "Kimi Chat",
-        "model": "kimi-chat-v1",
-        "emoji": "🦉",
-        "symbols": [],
-        "description": "News-driven sentiment analysis and event-based trading using the Kimi model.",
-        "personality": "Analytical, news-focused, and event-driven",
-        "baseline_win_rate": 0.65,
-        "risk_multiplier": 1.1,
-        "profit_target": 0.016,
-        "margin_allocation": 150000.0,
+        "profit_target": 0.012,
+        "margin_allocation": 500.0,
         "specialization": "sentiment_analysis",
         "dynamic_position_sizing": True,
         "adaptive_leverage": True,
         "intelligence_tp_sl": True,
-        "max_leverage_limit": 4.0,
-        "risk_tolerance": "medium",
+        "max_leverage_limit": 14.0,
+        "min_position_size_pct": 0.018,
+        "max_position_size_pct": 0.28,
+        "risk_tolerance": "high",
+        "time_horizon": "short_medium",
+        "market_regime_preference": "news_driven",
+    },
+    {
+        "id": "market-prediction-agent",
+        "name": "Market Prediction Agent",
+        "model": "gemini-exp-1206",
+        "emoji": "🔮",
+        "symbols": [],
+        "description": "Advanced market prediction using Gemini Experimental 1206 for time series forecasting and macroeconomic analysis.",
+        "personality": "Predictive analyst, uses advanced models to forecast market movements and identify high-probability setups.",
+        "baseline_win_rate": 0.60,
+        "risk_multiplier": 1.7,
+        "profit_target": 0.011,
+        "margin_allocation": 500.0,
+        "specialization": "market_prediction",
+        "dynamic_position_sizing": True,
+        "adaptive_leverage": True,
+        "intelligence_tp_sl": True,
+        "max_leverage_limit": 11.0,
+        "min_position_size_pct": 0.016,
+        "max_position_size_pct": 0.24,
+        "risk_tolerance": "moderate_high",
         "time_horizon": "medium",
-        "market_regime_preference": "neutral",
+        "market_regime_preference": "predictable",
+    },
+    {
+        "id": "volume-microstructure-agent",
+        "name": "Volume Microstructure Agent",
+        "model": "codey-001",
+        "emoji": "📊",
+        "symbols": [],
+        "description": "Mathematical volume analysis using Codey for precise order flow and microstructure analysis.",
+        "personality": "Quantitative analyst, focuses on order book dynamics and institutional activity patterns.",
+        "baseline_win_rate": 0.55,
+        "risk_multiplier": 2.0,
+        "profit_target": 0.006,
+        "margin_allocation": 500.0,
+        "specialization": "volume_analysis",
+        "dynamic_position_sizing": True,
+        "adaptive_leverage": True,
+        "intelligence_tp_sl": True,
+        "max_leverage_limit": 16.0,
+        "min_position_size_pct": 0.012,
+        "max_position_size_pct": 0.20,
+        "risk_tolerance": "high",
+        "time_horizon": "very_short",
+        "market_regime_preference": "liquid",
+    },
+    {
+        "id": "vpin-hft",
+        "name": "VPIN HFT Agent",
+        "model": "gemini-2.0-flash-exp",
+        "emoji": "⚡",
+        "symbols": [],  # All symbols
+        "description": "High-frequency trading agent using Gemini 2.0 Flash Experimental for real-time order flow toxicity detection and volume microstructure analysis to predict short-term price movements.",
+        "personality": "Aggressive, high-frequency, AI-powered pattern recognition in market microstructure.",
+        "baseline_win_rate": 0.55,
+        "risk_multiplier": 3.0,
+        "profit_target": 0.005,  # Small, frequent profits
+        "margin_allocation": 500.0,
+        "specialization": "volume_hft",
+        "dynamic_position_sizing": True,
+        "adaptive_leverage": True,
+        "intelligence_tp_sl": True,  # AI-powered take profit/stop loss
+        "max_leverage_limit": 30.0,
+        "min_position_size_pct": 0.01,
+        "max_position_size_pct": 0.10,
+        "risk_tolerance": "very_high",
+        "time_horizon": "very_short",
+        "market_regime_preference": "volatile",
     },
 ]
 
@@ -267,12 +294,22 @@ class AgentState:
 
 
 class TradingService:
+    # Class variable to track the currently running instance
+    _running_instance: Optional['TradingService'] = None
+
+    @classmethod
+    def get_running_instance(cls) -> Optional['TradingService']:
+        """Get the currently running trading service instance."""
+        return cls._running_instance
+
     def __init__(self, settings: Optional[Settings] = None) -> None:
         self._settings = settings or get_settings()
         self._credential_manager = CredentialManager()
-        self._exchange = AsterClient(
+        
+        # Create live and paper trading exchange clients
+        self._exchange, self._paper_exchange = create_exchange_clients(
+            self._settings,
             self._credential_manager.get_credentials(),
-            base_url=self._settings.rest_base_url,
         )
         self._stop_event = asyncio.Event()
         self._task: Optional[asyncio.Task[None]] = None
@@ -317,8 +354,10 @@ class TradingService:
             logger.info("Vertex AI client disabled by settings.")
 
         # Initialize Telegram service for notifications
-        self._telegram: Optional[TelegramService] = None
-        self._telegram_commands: Optional[TelegramCommandHandler] = None
+        self._telegram: Optional[EnhancedTelegramService] = None
+        self._ai_analyzer: Optional[AITradingAnalyzer] = None
+        self._sentiment_analyzer: Optional[MarketSentimentAnalyzer] = None
+        self._risk_analyzer: Optional[RiskAnalyzer] = None
 
         # Fetch all available symbols from Aster DEX
         self._available_symbols: List[str] = []
@@ -327,6 +366,16 @@ class TradingService:
 
         # Agent tracking for live-only dashboards
         self._agent_states: Dict[str, AgentState] = {}
+
+        # Initialize self-healing system
+        self._healing_manager = get_self_healing_manager()
+        # Defer self-healing setup to async start() method to avoid event loop issues
+        # self._setup_self_healing_checks()
+
+        # Initialize graceful degradation system
+        initialize_graceful_degradation()
+        self._degradation_manager = get_graceful_degradation_manager()
+        self._setup_degradation_handlers() 
         self._symbol_to_agent: Dict[str, str] = {}
         # Agents will be initialized in start() method
 
@@ -340,7 +389,7 @@ class TradingService:
         self._price_cache: Dict[str, float] = {}
         self._symbol_filters: Dict[str, Dict[str, Decimal]] = {}
         self._notification_windows: Dict[str, Dict[str, float]] = {}
-        self._open_source_analyst = OpenSourceAnalyst(self._settings)
+        # Open-source analyst removed - now using Google Cloud AI exclusively
         self._strategy_selector = StrategySelector(enable_rl=self._settings.enable_rl_strategies)
         self._arbitrage_engine = ArbitrageEngine(self._exchange, self._settings)
         self._cache: Optional[BaseCache] = None
@@ -363,11 +412,66 @@ class TradingService:
             "alerts": [],
         }
 
-    async def _fetch_historical_klines(self, symbol: str, interval: str = "1h", limit: int = 100) -> Optional[Any]:
+        # VPIN Agent Initialization
+        self._vpin_agent: Optional[VpinHFTAgent] = None
+        self._vpin_data_streamer: Optional[VPINDataStreamer] = None
+        self._vpin_tick_batch_queue = asyncio.Queue()
+        self._vpin_data_streamer_task: Optional[asyncio.Task[None]] = None
+        self._vpin_processing_task: Optional[asyncio.Task[None]] = None
+
+        if "vpin-hft" in self._settings.enabled_agents:
+            self._vpin_data_streamer = VPINDataStreamer(output_queue=self._vpin_tick_batch_queue)
+            self._vpin_agent = VpinHFTAgent(
+                exchange_client=self._exchange,
+                pubsub_client=self._streams,
+                risk_manager_topic="sapphire-vpin-positions",
+            )
+
+        # Check environment variable to disable rate limiter for emergency deployment
+        disable_rate_limiter = os.getenv('DISABLE_RATE_LIMITER', 'false').lower() == 'true'
+        if disable_rate_limiter:
+            logger.warning("Rate limiter disabled via environment variable")
+            self._rate_limit_manager = None
+        else:
+            try:
+                # Initialize with default parameters
+                self._rate_limit_manager = RateLimitManager(default_rps=10, default_rpm=1200)
+            except Exception as e:
+                logger.error(f"Failed to initialize rate limiter: {e}")
+                logger.warning("Rate limiter disabled due to initialization error")
+                self._rate_limit_manager = None
+        self._fallback_strategy_selector = FallbackStrategySelector()
+
+    async def _execute_fallback_strategies(self) -> None:
+        """Executes fallback strategies when rate limits are hit."""
+        logger.warning("Executing fallback strategies...")
+        market = await self._fetch_market() # This might also be rate limited
+        if not market:
+            return
+
+        for symbol, snapshot in market.items():
+            position = self._portfolio.positions.get(symbol)
+            decision = await self._fallback_strategy_selector.select_and_execute(symbol, position)
+            
+            # The fallback strategies currently only return HOLD.
+            # If they returned BUY or SELL, I would need to execute the trades here.
+            # For now, I will just log the decision.
+            logger.info(f"Fallback strategy for {symbol}: {decision}")
+
+    async def _execute_standard_agents_only(self) -> None:
+        """Executes a trading tick for standard agents, throttling VPIN."""
+        # The VPIN agent runs in a separate task, so we just need to run the
+        # standard agent logic here.
+        await self._execute_all_agents()
+
         """Fetch historical kline data for technical analysis with caching."""
         # Check cache first
         if self._cache:
-            cached_data = await self._cache.get_historical_data(symbol, interval, limit)
+            try:
+                cached_data = await REDIS_BREAKER.call(self._cache.get_historical_data, symbol, interval, limit)
+            except Exception:
+                logger.warning(f"Cache operation failed, proceeding without cache")
+                cached_data = None
             if cached_data is not None:
                 logger.debug(f"Using cached historical data for {symbol}")
                 import pandas as pd
@@ -449,6 +553,7 @@ class TradingService:
 
     async def _initialize_agents(self) -> None:
         """Initialize agents with dynamic symbol assignment based on available markets."""
+        logger.info("Fetching available symbols for agent initialization...")
         # Fetch all available symbols
         try:
             self._available_symbols = await self._fetch_available_symbols()
@@ -463,14 +568,31 @@ class TradingService:
             if self._settings.symbols:
                 self._available_symbols = self._settings.symbols
             else:
-                # Fallback to common symbols from agent definitions
-                self._available_symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "SUIUSDT", "AVAXUSDT", "ARBUSDT"]
+                # Fallback to empty list - will be populated by exchange symbols
+                self._available_symbols = []
 
         coverage_universe: List[str] = [str(symbol).upper() for symbol in self._available_symbols]
         if not coverage_universe:
-            coverage_universe = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "SUIUSDT", "AVAXUSDT", "ARBUSDT"]
+            # If no symbols loaded, agents will trade any symbols they encounter
+            coverage_universe = []
 
+        # Check Redis for agent enable flags and merge with settings
         enabled_agent_ids = set(self._settings.enabled_agents)
+        
+        # Load enable flags from Redis (persistent override)
+        if self._cache:
+            for agent_def in AGENT_DEFINITIONS:
+                agent_id = agent_def["id"]
+                redis_enabled = await self._is_agent_enabled_in_redis(agent_id)
+                if redis_enabled is not None:
+                    # Redis override exists, use it
+                    if redis_enabled and agent_id not in enabled_agent_ids:
+                        enabled_agent_ids.add(agent_id)
+                        logger.info(f"Agent {agent_id} enabled via Redis override")
+                    elif not redis_enabled and agent_id in enabled_agent_ids:
+                        enabled_agent_ids.remove(agent_id)
+                        logger.info(f"Agent {agent_id} disabled via Redis override")
+        
         for i, agent_def in enumerate(AGENT_DEFINITIONS):
             if agent_def["id"] not in enabled_agent_ids:
                 logger.info(f"Skipping disabled agent: {agent_def['id']}")
@@ -526,8 +648,97 @@ class TradingService:
                 state.name,
                 coverage_count,
             )
-        
+
         logger.info(f"Total agents initialized: {len(self._agent_states)}/{len(AGENT_DEFINITIONS)}")
+        for agent_id in self._agent_states.keys():
+            logger.info(f"Agent {agent_id} initialized with {len(self._agent_states[agent_id].symbols)} symbols")
+
+        # Register agents with performance auto-adjuster
+        if hasattr(self, '_performance_adjuster') and self._performance_adjuster:
+            for agent_id, agent_state in self._agent_states.items():
+                try:
+                    from .agent_performance_auto_adjust import AgentState as AdjusterAgentState
+                    adjuster_state = AdjusterAgentState(agent_id=agent_id)
+                    self._performance_adjuster.register_agent(agent_id, adjuster_state)
+                    logger.info(f"Registered agent {agent_id} with performance auto-adjuster")
+                except Exception as e:
+                    logger.warning(f"Failed to register agent {agent_id} with performance adjuster: {e}")
+
+    async def _register_agents_with_coordinator(self) -> None:
+        """Register all initialized agents with the MCP coordinator for inter-agent communication."""
+        logger.info("Starting agent registration process...")
+        coordinator_url = self._settings.mcp_url or os.getenv("MCP_URL") or os.getenv("COORDINATOR_URL")
+        logger.info(f"Coordinator URL resolved to: {coordinator_url}")
+        if not coordinator_url:
+            logger.warning("No coordinator URL configured (checked MCP_URL and COORDINATOR_URL), skipping agent registration")
+            return
+
+        if not self._agent_states:
+            logger.warning("No agents initialized, skipping coordinator registration")
+            return
+
+        logger.info(f"Registering {len(self._agent_states)} agents with MCP coordinator at {coordinator_url}...")
+
+        # Import the coordinator message types
+        from .mcp_coordinator import ComponentType, CoordinatorMessage
+
+        import httpx
+
+        registered_count = 0
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            for agent_id, agent_state in self._agent_states.items():
+                try:
+                    # Register each agent as an LLM_AGENT component
+                    registration_message = CoordinatorMessage(
+                        message_type="register",
+                        component_id=agent_id,
+                        component_type="llm_agent",  # Use string value instead of enum
+                        payload={
+                            "agent_name": agent_state.name,
+                            "model": agent_state.model,
+                            "specialization": getattr(agent_state, 'specialization', 'general'),
+                            "personality": agent_state.personality,
+                            "margin_allocation": float(agent_state.margin_allocation),
+                            "symbol_count": len(agent_state.symbols),
+                        },
+                        timestamp=datetime.utcnow().isoformat()
+                    )
+
+                    # Convert to dict and handle datetime serialization
+                    message_dict = registration_message.model_dump()
+                    logger.info(f"Raw message dict before conversion: {message_dict}")
+
+                    # Ensure all datetime objects are converted to ISO strings
+                    def convert_datetimes(obj):
+                        if isinstance(obj, dict):
+                            return {k: convert_datetimes(v) for k, v in obj.items()}
+                        elif isinstance(obj, list):
+                            return [convert_datetimes(item) for item in obj]
+                        elif hasattr(obj, 'isoformat'):  # datetime object
+                            return obj.isoformat()
+                        else:
+                            return obj
+
+                    message_dict = convert_datetimes(message_dict)
+                    logger.info(f"Message dict after datetime conversion: {message_dict}")
+
+                    # Send HTTP POST request to coordinator's /register endpoint
+                    response = await client.post(
+                        f"{coordinator_url}/register",
+                        json=message_dict,
+                        headers={"Content-Type": "application/json"}
+                    )
+
+                    if response.status_code == 200:
+                        registered_count += 1
+                        logger.info(f"Registered agent {agent_id} ({agent_state.name}) with coordinator")
+                    else:
+                        logger.warning(f"Failed to register agent {agent_id}: HTTP {response.status_code} - {response.text}")
+
+                except Exception as exc:
+                    logger.warning(f"Failed to register agent {agent_id} with coordinator: {exc}")
+
+        logger.info(f"Successfully registered {registered_count}/{len(self._agent_states)} agents with MCP coordinator")
 
     async def _refresh_symbols(self) -> None:
         """Periodically check for new symbols and reassign if needed."""
@@ -759,20 +970,40 @@ class TradingService:
         return True, market_price
 
     async def _init_telegram(self) -> None:
-        """Initialize Telegram notification service and command handler."""
-        self._telegram = await create_telegram_service(self._settings)
-        
-        # Initialize command handler if credentials are available
-        if self._settings.telegram_bot_token and self._settings.telegram_chat_id:
+        """Initialize enhanced Telegram notification service and AI components."""
+        # Skip Telegram initialization if not configured
+        if not (self._settings.telegram_bot_token and self._settings.telegram_chat_id):
+            logger.info("Telegram notifications disabled (token/chat_id not configured)")
+            self._telegram = None
+            return
+
+        try:
+            # Try to initialize enhanced Telegram service first
             try:
-                self._telegram_commands = TelegramCommandHandler(
-                    bot_token=self._settings.telegram_bot_token,
-                    chat_id=self._settings.telegram_chat_id,
-                    trading_service=self,
+                # Initialize AI analyzers
+                self._ai_analyzer = AITradingAnalyzer()
+                self._sentiment_analyzer = MarketSentimentAnalyzer()
+                self._risk_analyzer = RiskAnalyzer()
+
+                # Initialize enhanced Telegram service
+                self._telegram = await create_enhanced_telegram_service(
+                    self._settings,
+                    ai_analyzer=self._ai_analyzer,
+                    sentiment_analyzer=self._sentiment_analyzer,
+                    risk_analyzer=self._risk_analyzer
                 )
-                await self._telegram_commands.start()
-            except Exception as exc:
-                logger.warning(f"Failed to start Telegram command handler: {exc}")
+
+                # Start the enhanced Telegram bot if initialized
+                if self._telegram:
+                    await self._telegram.start()
+                    logger.info("Enhanced Telegram AI bot started successfully")
+            except Exception as enhanced_exc:
+                logger.warning(f"Failed to initialize enhanced Telegram service: {enhanced_exc}")
+                # Fallback removed - enhanced_telegram is required for full functionality
+                self._telegram = None
+        except Exception as exc:
+            logger.warning(f"Failed to initialize Telegram service: {exc}")
+            self._telegram = None
 
     async def dashboard_snapshot(self) -> Dict[str, Any]:
         """Aggregate a lightweight view for the dashboard endpoint."""
@@ -953,12 +1184,195 @@ class TradingService:
     def paper_trading(self) -> bool:
         return self._health.paper_trading
 
+    def _setup_self_healing_checks(self) -> None:
+        """Setup self-healing health checks for system resilience."""
+        from .self_healing import HealthCheck
+
+        # Import the standalone health check functions
+        from .health_checks import check_database_health, check_redis_health
+
+        # Vertex AI connectivity check
+        async def check_vertex_ai():
+            try:
+                if self._vertex_client:
+                    # Try a simple health check
+                    result = await self._vertex_client.health_check()
+                    return result
+                return True  # If not enabled, consider healthy
+            except Exception:
+                return False
+
+        # Exchange API connectivity check
+        async def check_exchange_api():
+            try:
+                # Try to get ticker data
+                ticker = await self._exchange.get_ticker_price("BTCUSDT")
+                return ticker is not None
+            except Exception:
+                return False
+
+        # Register health checks with recovery functions
+        self._healing_manager.register_health_check(HealthCheck(
+            name="database",
+            check_func=check_database_health,
+            recovery_func=recover_database_connection,
+            interval=60.0,  # Check every minute
+            max_failures=3
+        ))
+
+        self._healing_manager.register_health_check(HealthCheck(
+            name="redis",
+            check_func=check_redis_health,
+            recovery_func=recover_redis_connection,
+            interval=30.0,  # Check every 30 seconds
+            max_failures=3
+        ))
+
+        self._healing_manager.register_health_check(HealthCheck(
+            name="vertex_ai",
+            check_func=check_vertex_ai,
+            recovery_func=recover_vertex_ai_connection,
+            interval=120.0,  # Check every 2 minutes
+            max_failures=5
+        ))
+
+        self._healing_manager.register_health_check(HealthCheck(
+            name="exchange_api",
+            check_func=check_exchange_api,
+            recovery_func=None,  # No automatic recovery for exchange API
+            interval=30.0,  # Check every 30 seconds
+            max_failures=5
+        ))
+
+        # Start the healing manager
+        self._healing_manager.start_monitoring()
+
+    def _setup_degradation_handlers(self) -> None:
+        """Setup handlers for graceful degradation events."""
+        def handle_degradation(component: 'DegradedComponent'):
+            """Handle component degradation events."""
+            logger.warning(f"Component degradation detected: {component.name} - {component.description}")
+
+            # Log the impact and take appropriate actions
+            if component.degradation_level == DegradationLevel.CRITICAL:
+                logger.critical(f"Critical component {component.name} degraded: {component.impact}")
+                # Could trigger emergency stop here
+            elif component.degradation_level == DegradationLevel.SEVERE:
+                logger.error(f"Severe degradation in {component.name}: {component.impact}")
+            else:
+                logger.warning(f"Component {component.name} degraded: {component.impact}")
+
+        self._degradation_manager.add_degradation_listener(handle_degradation)
+
     async def start(self) -> None:
         """Start the trading service."""
         logger.warning("--- ENTERING start() ---")
         if self._health.running:
             logger.warning("Trading service already running.")
             return
+        
+        # Setup self-healing checks now that we have an event loop
+        try:
+            self._setup_self_healing_checks()
+        except Exception as e:
+            logger.warning(f"Failed to setup self-healing checks: {e}, continuing without it")
+
+        # Initialize precision time synchronization
+        try:
+            from .time_sync import get_precision_clock
+            self._precision_clock = await get_precision_clock()
+            logger.info("Precision time synchronization initialized")
+        except Exception as e:
+            logger.warning(f"Failed to initialize precision clock: {e}, using system time")
+
+        # Initialize distributed agent coordination
+        try:
+            from .vector_clock import get_agent_coordinator
+            self._agent_coordinator = await get_agent_coordinator(self._settings.bot_id)
+            logger.info("Distributed agent coordination initialized")
+        except Exception as e:
+            logger.warning(f"Failed to initialize agent coordinator: {e}, continuing without coordination")
+
+        # Initialize anomaly detection engine
+        try:
+            from .anomaly_detection import get_anomaly_detection_engine
+            self._anomaly_engine = await get_anomaly_detection_engine()
+            logger.info("Anomaly detection engine initialized")
+        except Exception as e:
+            logger.warning(f"Failed to initialize anomaly detection: {e}, continuing without anomaly monitoring")
+
+        # Initialize market regime detector
+        try:
+            from .market_regime import get_market_regime_detector
+            self._regime_detector = await get_market_regime_detector()
+            logger.info("Market regime detector initialized")
+        except Exception as e:
+            logger.warning(f"Failed to initialize market regime detector: {e}, continuing without regime detection")
+
+        # Initialize adaptive position sizer
+        try:
+            from .adaptive_position_sizing import get_adaptive_position_sizer
+            self._position_sizer = await get_adaptive_position_sizer()
+            logger.info("Adaptive position sizer initialized")
+        except Exception as e:
+            logger.warning(f"Failed to initialize position sizer: {e}, continuing without adaptive sizing")
+
+        # Initialize trade correlation analyzer
+        try:
+            from .trade_correlation import get_correlation_analyzer
+            self._correlation_analyzer = await get_correlation_analyzer()
+            logger.info("Trade correlation analyzer initialized")
+        except Exception as e:
+            logger.warning(f"Failed to initialize correlation analyzer: {e}, continuing without correlation analysis")
+
+        # Initialize agent consensus engine
+        try:
+            from .agent_consensus import get_agent_consensus_engine
+            self._consensus_engine = await get_agent_consensus_engine()
+            logger.info("Agent consensus engine initialized")
+        except Exception as e:
+            logger.warning(f"Failed to initialize consensus engine: {e}, continuing without consensus voting")
+
+        # Initialize performance auto-adjuster
+        try:
+            from .agent_performance_auto_adjust import get_performance_auto_adjuster
+            self._performance_adjuster = await get_performance_auto_adjuster(self._consensus_engine)
+            self._performance_adjuster.start_monitoring()
+            logger.info("Agent performance auto-adjuster initialized and monitoring started")
+        except Exception as e:
+            logger.warning(f"Failed to initialize performance auto-adjuster: {e}, continuing without auto-adjustment")
+
+        # Initialize agent memory manager
+        try:
+            from .agent_memory import get_agent_memory_manager
+            self._memory_manager = await get_agent_memory_manager()
+            logger.info("Agent memory manager initialized")
+        except Exception as e:
+            logger.warning(f"Failed to initialize memory manager: {e}, continuing without memory sharing")
+
+        # Initialize request batching manager
+        try:
+            from .request_batching import get_request_batch_manager
+            self._batch_manager = await get_request_batch_manager()
+            logger.info("Request batching manager initialized")
+        except Exception as e:
+            logger.warning(f"Failed to initialize batch manager: {e}, continuing without request batching")
+
+        # Initialize WebSocket manager
+        try:
+            from .websocket_manager import get_websocket_manager
+            self._websocket_manager = await get_websocket_manager()
+            logger.info("WebSocket manager initialized")
+        except Exception as e:
+            logger.warning(f"Failed to initialize WebSocket manager: {e}, continuing without real-time updates")
+
+        # Initialize multi-timeframe analyzer
+        try:
+            from .multi_timeframe import get_multi_timeframe_analyzer
+            self._mtf_analyzer = await get_multi_timeframe_analyzer()
+            logger.info("Multi-timeframe analyzer initialized")
+        except Exception as e:
+            logger.warning(f"Failed to initialize multi-timeframe analyzer: {e}, continuing without MTF analysis")
 
         credentials = self._credential_manager.get_credentials()
         if not (credentials.api_key and credentials.api_secret) and not self._settings.enable_paper_trading:
@@ -968,6 +1382,9 @@ class TradingService:
 
         self._stop_event.clear()
         self._health = HealthStatus(running=True, paper_trading=self._settings.enable_paper_trading, last_error=None)
+
+        # Set this instance as the running instance
+        TradingService._running_instance = self
 
         # Initialize cache
         try:
@@ -1012,7 +1429,18 @@ class TradingService:
             self._bigquery_ready = False
             
         # Initialize agents with dynamic symbol discovery
+        logger.info("Starting agent initialization...")
         await self._initialize_agents()
+        logger.info(f"Agents initialized: {len(self._agent_states)} agents created")
+        logger.info("Agents initialized, now registering with coordinator...")
+
+        # Register agents with MCP coordinator for inter-agent communication
+        try:
+            await self._register_agents_with_coordinator()
+        except Exception as exc:
+            logger.warning(f"Failed to register agents with coordinator: {exc}")
+            logger.info("Continuing without coordinator registration - agents will operate independently")
+            # Don't fail startup if registration fails
 
         # Initialize the Aster client with credentials
         self._exchange = AsterClient(
@@ -1027,6 +1455,15 @@ class TradingService:
             logger.info("PubSub client connected (ready=%s).", self._pubsub_connected)
             await self._init_telegram()
             logger.info("Telegram service initialized.")
+            
+            # Send Telegram alert if paper trading is enabled
+            if self._settings.paper_trading_enabled and self._telegram:
+                try:
+                    alert_msg = f"📝 *Paper Trading Mode Enabled*\n\nParallel paper trading mode is now active\\.\n\nAll trades will execute on both live and testnet exchanges for comparison\\.\n\nLive trades: Aster DEX production\nPaper trades: Aster DEX testnet"
+                    await self._telegram.send_message(alert_msg)
+                    logger.info("Paper trading mode Telegram alert sent")
+                except Exception as exc:
+                    logger.warning(f"Failed to send paper trading mode Telegram alert: {exc}")
             if self._orchestrator:
                 await self._sync_portfolio()
                 logger.info("Portfolio synced with orchestrator.")
@@ -1064,6 +1501,23 @@ class TradingService:
             self._health.last_error = str(exc)
             self._health.running = False
 
+        # Start VPIN streamer and processor if enabled (non-blocking, won't fail startup)
+        if self._vpin_data_streamer and self._vpin_agent:
+            try:
+                logger.info("Starting VPIN data streamer...")
+                self._vpin_data_streamer_task = asyncio.create_task(self._vpin_data_streamer.run())
+                logger.info("Starting VPIN processing task...")
+                self._vpin_processing_task = asyncio.create_task(self._process_vpin_batches())
+            except Exception as e:
+                logger.warning(f"Failed to start VPIN streamer (non-critical): {e}, continuing without VPIN")
+
+        # Start RiskManager VPIN listener
+        try:
+            await self._risk.start_vpin_listener()
+            logger.info("RiskManager VPIN listener started.")
+        except Exception as e:
+            logger.error(f"Failed to start RiskManager VPIN listener: {e}")
+
 
     async def stop(self) -> None:
         self._stop_event.set()
@@ -1081,6 +1535,20 @@ class TradingService:
                 await self._symbol_refresh_task
             except asyncio.CancelledError:
                 pass
+        if self._vpin_data_streamer:
+            self._vpin_data_streamer.stop()
+        if self._vpin_data_streamer_task:
+            self._vpin_data_streamer_task.cancel()
+            try:
+                await self._vpin_data_streamer_task
+            except asyncio.CancelledError:
+                pass
+        if self._vpin_processing_task:
+            self._vpin_processing_task.cancel()
+            try:
+                await self._vpin_processing_task
+            except asyncio.CancelledError:
+                pass
         if self._exchange:
             await self._exchange.close()
         await self._streams.close()
@@ -1096,6 +1564,9 @@ class TradingService:
         if self._mcp:
             await self._mcp.close()
         self._health = HealthStatus(running=False, paper_trading=self.paper_trading, last_error=self._health.last_error)
+
+        # Clear the running instance
+        TradingService._running_instance = None
 
     async def _run_loop(self) -> None:
         logger.warning("--- ENTERING _run_loop() ---")
@@ -1116,7 +1587,22 @@ class TradingService:
             await self._publish_portfolio_state()
 
     async def _tick(self) -> None:
-        """Execute trading tick with enhanced error handling per symbol."""
+        """Execute a trading tick, with rate limiting and fallback logic."""
+        # Record request for rate limiting for the overall tick process
+        if self._rate_limit_manager:
+            self._rate_limit_manager.record_request("tick_process", "overall")
+
+            # Check API rate limit status for VPIN specifically
+            if self._rate_limit_manager.should_throttle_agent("vpin-hft"):
+                logger.warning("Throttling VPIN HFT agent due to rate limits. Executing standard agents only.")
+                await self._execute_standard_agents_only()
+            elif self._rate_limit_manager.is_rate_limited():
+                logger.warning("Global rate limits exceeded, switching to fallback strategies for all agents.")
+                await self._execute_fallback_strategies()
+        else:
+            await self._execute_all_agents()
+    async def _execute_all_agents(self) -> None:
+        """Executes a full trading tick with all agents active."""
         # Check if market data circuit breaker allows operation
         if not self._safeguards.check_circuit_breaker('market_data'):
             logger.warning("Market data circuit breaker is open, skipping tick")
@@ -1146,6 +1632,14 @@ class TradingService:
         # Check drawdown limits
         if not self._safeguards.check_drawdown_limits():
             logger.error("Drawdown limits exceeded, halting trading")
+            # Send Telegram alert for drawdown breach
+            if self._telegram:
+                try:
+                    drawdown_pct = ((self._peak_balance - self._portfolio.balance) / self._peak_balance * 100) if self._peak_balance > 0 else 0.0
+                    alert_msg = f"🚨 *DRAWDOWN ALERT*\n\nDrawdown exceeded limit: `{drawdown_pct:.2f}%`\nBalance: `${self._portfolio.balance:.2f}`\nPeak: `${self._peak_balance:.2f}`\n\nTrading halted automatically."
+                    await self._telegram.send_message(alert_msg)
+                except Exception as exc:
+                    logger.warning(f"Failed to send drawdown Telegram alert: {exc}")
             return
         
         # First, check existing positions for profit targets and stop losses
@@ -1333,6 +1827,14 @@ class TradingService:
 
                 if not self._has_agent_margin(agent_id_for_symbol, notional):
                     RISK_LIMITS_BREACHED.labels(limit_type="agent_margin").inc()
+                    # Send Telegram alert for margin breach
+                    if self._telegram:
+                        try:
+                            remaining_margin = self._get_agent_margin_remaining(agent_id_for_symbol)
+                            alert_msg = f"⚠️ *RISK ALERT*\n\nAgent margin limit exceeded\\!\nAgent: `{agent_id_for_symbol}`\nSymbol: `{symbol}`\nRequested: `${notional:.2f}`\nRemaining: `${remaining_margin:.2f}`\n\nTrade blocked by risk management."
+                            await self._telegram.send_message(alert_msg)
+                        except Exception as exc:
+                            logger.warning(f"Failed to send margin breach Telegram alert: {exc}")
                     await self._streams.publish_reasoning(
                         {
                             "bot_id": agent_id_for_symbol,
@@ -1356,6 +1858,14 @@ class TradingService:
                 if not self._risk.can_open_position(self._portfolio, notional, volatility_estimate):
                     logger.info("Risk limits prevent new %s position", symbol)
                     RISK_LIMITS_BREACHED.labels(limit_type="position_size").inc()
+                    # Send Telegram alert for position size risk breach
+                    if self._telegram:
+                        try:
+                            exposure_pct = (self._portfolio.total_exposure / self._portfolio.balance * 100) if self._portfolio.balance > 0 else 0.0
+                            alert_msg = f"⚠️ *RISK ALERT*\n\nPosition size limit exceeded\\!\nSymbol: `{symbol}`\nRequested: `${notional:.2f}`\nCurrent Exposure: `{exposure_pct:.2f}%`\nBalance: `${self._portfolio.balance:.2f}`\n\nTrade blocked by risk management."
+                            await self._telegram.send_message(alert_msg)
+                        except Exception as exc:
+                            logger.warning(f"Failed to send position size risk Telegram alert: {exc}")
                     await self._streams.publish_reasoning(
                         {
                             "bot_id": self._settings.bot_id,
@@ -1440,19 +1950,33 @@ class TradingService:
                     paper_quantity = notional / snapshot.price if snapshot.price else 0.0
                     if self._telegram:
                         try:
-                            await self._telegram.send_trade_notification(
+                            # Generate AI analysis for the trade
+                            ai_analysis = None
+                            if self._ai_analyzer:
+                                analysis_result = await self._ai_analyzer.analyze_trade(
+                                    symbol=symbol,
+                                    side=decision,
+                                    price=snapshot.price,
+                                    volume=paper_quantity,
+                                    market_data={
+                                        'volatility': snapshot.volatility,
+                                        'volume': snapshot.volume_24h,
+                                        'trend': 'bullish' if snapshot.price > snapshot.sma_20 else 'bearish'
+                                    }
+                                )
+                                ai_analysis = analysis_result.get('rationale', '')
+
+                            # Create trade notification (paper trading)
+                            # Use simple notification format
+                            await TELEGRAM_BREAKER.call(
+                                self._telegram.send_trade_notification,
                                 symbol=symbol,
                                 side=decision,
                                 price=snapshot.price,
                                 quantity=paper_quantity,
                                 notional=notional,
-                                decision_reason="AI momentum strategy (Paper Trading)",
-                                model_used=agent_model_for_symbol,
-                                confidence=self._settings.expected_win_rate,
                                 take_profit=take_profit,
-                                stop_loss=stop_loss,
-                                portfolio_balance=self._portfolio.balance,
-                                risk_percentage=(notional / self._portfolio.balance) * 100 if self._portfolio.balance > 0 else 0,
+                                stop_loss=stop_loss
                             )
                             TELEGRAM_NOTIFICATIONS_SENT.labels(category="trade", status="success").inc()
                         except Exception as exc:
@@ -1495,6 +2019,65 @@ class TradingService:
                 # Continue to next symbol
                 continue
 
+    async def _process_vpin_batches(self) -> None:
+        """Process VPIN tick batches from the data streamer."""
+        if not self._vpin_agent:
+            return
+
+        while not self._stop_event.is_set():
+            try:
+                # Check rate limits before processing VPIN (highest priority throttling)
+                if self._rate_limit_manager and self._rate_limit_manager.should_throttle_agent("vpin-hft"):
+                    logger.debug("VPIN agent throttled due to rate limits, skipping batch processing")
+                    await asyncio.sleep(1)  # Brief pause before checking again
+                    continue
+
+                batch_data = await self._vpin_tick_batch_queue.get()
+                symbol = batch_data.get("symbol")
+                batch = batch_data.get("batch")
+
+                if not symbol or not batch:
+                    continue
+
+                vpin_result = self._vpin_agent.calculate_vpin(batch)
+                # calculate_vpin returns a dict, extract vpin value for execute_trade
+                if isinstance(vpin_result, dict):
+                    vpin_signal = vpin_result.get('vpin', 0.0)
+                else:
+                    vpin_signal = float(vpin_result) if vpin_result else 0.0
+                await self._vpin_agent.execute_trade(vpin_signal, symbol)
+
+            except asyncio.CancelledError:
+                logger.info("VPIN processing task cancelled.")
+                break
+            except Exception as e:
+                logger.error(f"Error in VPIN processing loop: {e}")
+                # Avoid tight loop on continuous errors
+                await asyncio.sleep(5)
+
+
+    async def _execute_fallback_strategies(self) -> None:
+        """Executes fallback strategies when rate limits are hit."""
+        logger.warning("Executing fallback strategies...")
+        market = await self._fetch_market() # This might also be rate limited
+        if not market:
+            return
+
+        for symbol, snapshot in market.items():
+            position = self._portfolio.positions.get(symbol)
+            decision = await self._fallback_strategy_selector.select_and_execute(symbol, position)
+            
+            # The fallback strategies currently only return HOLD.
+            # If they returned BUY or SELL, I would need to execute the trades here.
+            # For now, I will just log the decision.
+            logger.info(f"Fallback strategy for {symbol}: {decision}")
+
+    async def _execute_standard_agents_only(self) -> None:
+        """Executes a trading tick for standard agents, throttling VPIN."""
+        # The VPIN agent runs in a separate task, so we just need to run the
+        # standard agent logic here.
+        await self._execute_all_agents()
+
     async def _generate_trade_thesis(
         self,
         agent_id: Optional[str],
@@ -1516,19 +2099,16 @@ class TradingService:
             if candidate not in agents_to_query:
                 agents_to_query.append(candidate)
 
-        # Query multiple agents in parallel using the open-source analyst
+        # Query multiple agents in parallel
         agent_results: List[Dict[str, Any]] = []
         if agents_to_query:
-            tasks = [
-                self._open_source_analyst.generate_thesis(
-                    agent,
-                    symbol,
-                    side,
-                    price,
-                    market_context,
-                )
-                for agent in agents_to_query
-            ]
+            tasks = []
+            for agent in agents_to_query:
+                # Agent-specific logic removed - all agents now use unified processing
+                tasks.append(self._query_vertex_agent(
+                    agent, symbol, side, price, market_context, take_profit, stop_loss
+                ))
+
             results = await asyncio.gather(*tasks, return_exceptions=True)
             
             for i, result in enumerate(results):
@@ -1561,14 +2141,8 @@ class TradingService:
         elif len(agent_results) == 1:
             analysis = agent_results[0]
         elif agent_id:
-            # Fallback to single agent query
-            analysis = await self._open_source_analyst.generate_thesis(
-                agent_id,
-                symbol,
-                side,
-                price,
-                market_context,
-            )
+            # Fallback removed - all agents now use Vertex AI exclusively
+            analysis = None
         else:
             analysis = None
 
@@ -1607,45 +2181,8 @@ class TradingService:
                     return thesis_text
 
             if not risk_rejected:
-                # For FinGPT-specific validation
-                if source == "FinGPT":
-                    if risk_score is None or risk_score >= self._settings.fingpt_min_risk_score:
-                        extras: list[str] = []
-                        if isinstance(risk_score, (int, float)):
-                            extras.append(f"risk {risk_score:.2f}")
-                        if isinstance(confidence, (int, float)):
-                            extras.append(f"confidence {confidence:.2f}")
-                        if extras:
-                            thesis_text = f"{thesis_text} [{' | '.join(extras)}]"
-                        return thesis_text
-                    logger.info(
-                        "FinGPT thesis for %s discarded (risk_score %.2f < %.2f)",
-                        symbol,
-                        risk_score,
-                        self._settings.fingpt_min_risk_score,
-                    )
-                # For Lag-Llama-specific validation
-                elif source == "Lag-LLaMA":
-                    ci_span = analysis.get("ci_span")
-                    if ci_span is not None and ci_span > self._settings.lagllama_max_ci_span:
-                        logger.info(
-                            "Lag-LLaMA thesis for %s discarded (CI span %.2f > %.2f)",
-                            symbol,
-                            ci_span,
-                            self._settings.lagllama_max_ci_span,
-                        )
-                    else:
-                        extras = []
-                        if isinstance(ci_span, (int, float)):
-                            extras.append(f"CI span {ci_span:.2%}")
-                        anomaly = analysis.get("anomaly_score")
-                        if isinstance(anomaly, (int, float)):
-                            extras.append(f"anomaly {anomaly:.2f}")
-                        if isinstance(confidence, (int, float)):
-                            extras.append(f"confidence {confidence:.2f}")
-                        if extras:
-                            thesis_text = f"{thesis_text} [{' | '.join(extras)}]"
-                        return thesis_text
+                # Agent-specific validation removed - all agents now use unified validation
+                pass
 
         change_24h = market_context.get('change_24h', 0)
         volume = market_context.get('volume', 0)
@@ -1691,14 +2228,174 @@ class TradingService:
         stop_loss: float,
     ) -> Dict[str, Any]:
         """Query a Vertex AI agent for trading analysis."""
-        # Vertex AI temporarily disabled - return fallback analysis
-        return {
-            "thesis": f"Agent {agent_id} analysis for {symbol}: {side} position with entry at ${price:.2f}, take profit ${take_profit:.2f}, stop loss ${stop_loss:.2f}",
-            "confidence": 0.7,
-            "source": agent_id,
-            "risk_score": 0.3,
-            "inference_time": 0.1,
-        }
+        cache = await get_cache()
+        # Bucket price to the nearest 100 to make the cache more effective
+        price_bucket = round(price / 100) * 100
+        cache_key = f"agent:vertex:{agent_id}:{symbol}:{side}:{price_bucket}"
+        cached_result = await cache.get(cache_key)
+        if cached_result:
+            return cached_result
+
+        if not self._vertex_client:
+            logger.warning("Vertex AI client not available for agent %s", agent_id)
+            return {
+                "thesis": f"Fallback analysis for {symbol}: {side} position.",
+                "confidence": 0.5,
+                "source": "fallback",
+                "risk_score": 0.5,
+            }
+
+        # Borrowing prompt structure from OpenSourceAnalyst
+        change = market_context.get("change_24h", 0)
+        volume = market_context.get("volume", 0)
+        atr = market_context.get("atr")
+
+        volatility_regime = "high"
+        if atr and price > 0:
+            atr_pct = (atr / price) * 100
+            if atr_pct < 1.0:
+                volatility_regime = "low"
+            elif atr_pct < 2.0:
+                volatility_regime = "moderate"
+
+        prompt = f"""You are a trading agent with ID {agent_id}.
+Generate a concise thesis for a {side.upper()} trade on {symbol} at price {price:.4f}.
+
+Market Context:
+- 24h change: {change:.2f}%
+- Volume: ${volume:,.0f}
+- ATR: {atr if atr is not None else 'N/A'}
+- Volatility Regime: {volatility_regime}
+
+Your analysis should include a "thesis", a "risk_score" (0-1), and a "confidence" (0-1).
+The output should be a JSON object with these keys.
+"""
+
+        try:
+            start_time = time.time()
+            # Get agent model for metrics
+            agent_model = None
+            for agent_def in AGENT_DEFINITIONS:
+                if agent_def["id"] == agent_id:
+                    agent_model = agent_def.get("vertex_model", "unknown")
+                    break
+            
+            # Use circuit breaker for Vertex AI calls
+            prediction = await VERTEX_AI_BREAKER.call(
+                self._vertex_client.predict_with_fallback,
+                agent_id=agent_id,
+                prompt=prompt,
+                max_tokens=512,
+                temperature=0.7,
+            )
+            inference_time = time.time() - start_time
+
+            # Record per-agent metrics
+            if agent_model:
+                AGENT_INFERENCE_TIME.labels(agent_id=agent_id, model=agent_model).observe(inference_time)
+                AGENT_LAST_INFERENCE_TIME.labels(agent_id=agent_id).set(inference_time)
+                AGENT_INFERENCE_COUNT.labels(agent_id=agent_id, model=agent_model).inc()
+            
+            # Record general LLM metrics
+            LLM_INFERENCE_TIME.observe(inference_time)
+            
+            # Get response text
+            response_text = prediction.get("response", "")
+            
+            # Get token counts if available
+            metadata = prediction.get("metadata", {})
+            input_tokens = metadata.get("input_tokens", metadata.get("prompt_token_count", 0))
+            output_tokens = metadata.get("output_tokens", metadata.get("candidates_token_count", 0))
+            
+            # If token counts not available, estimate from text length (rough: ~4 characters per token)
+            if input_tokens == 0:
+                input_tokens = len(prompt) // 4
+            if output_tokens == 0:
+                output_tokens = len(response_text) // 4
+            
+            if agent_model and input_tokens > 0:
+                AGENT_INFERENCE_TOKENS.labels(agent_id=agent_id, model=agent_model, type="input").observe(input_tokens)
+            if agent_model and output_tokens > 0:
+                AGENT_INFERENCE_TOKENS.labels(agent_id=agent_id, model=agent_model, type="output").observe(output_tokens)
+            
+            # Estimate cost (Gemini pricing: varies by model)
+            estimated_cost = 0.0
+            if agent_model and input_tokens > 0 and output_tokens > 0:
+                # Pricing estimates per 1M tokens (varies by model)
+                # Gemini 2.0 Flash Exp: ~$0.075 per 1M input tokens, ~$0.30 per 1M output tokens
+                # Gemini Exp 1206: ~$0.10 per 1M input tokens, ~$0.40 per 1M output tokens
+                # Codey: ~$0.05 per 1M input tokens, ~$0.15 per 1M output tokens
+                if "flash" in agent_model.lower():
+                    input_cost_per_m = 0.075
+                    output_cost_per_m = 0.30
+                elif "exp" in agent_model.lower() or "1206" in agent_model.lower():
+                    input_cost_per_m = 0.10
+                    output_cost_per_m = 0.40
+                elif "codey" in agent_model.lower():
+                    input_cost_per_m = 0.05
+                    output_cost_per_m = 0.15
+                else:
+                    # Default pricing (Gemini 1.5 Flash)
+                    input_cost_per_m = 0.075
+                    output_cost_per_m = 0.30
+                
+                estimated_cost = (input_tokens / 1_000_000) * input_cost_per_m + (output_tokens / 1_000_000) * output_cost_per_m
+                
+                if agent_model:
+                    AGENT_INFERENCE_COST.labels(agent_id=agent_id, model=agent_model).observe(estimated_cost)
+
+            try:
+                analysis = json.loads(response_text)
+            except json.JSONDecodeError:
+                analysis = {"thesis": response_text}
+
+            confidence = analysis.get("confidence", prediction.get("confidence", 0.5))
+            analysis["source"] = f"vertex-ai-{agent_id}"
+            analysis.setdefault("confidence", confidence)
+            analysis.setdefault("risk_score", 0.5) # Default risk score
+            analysis["inference_time"] = inference_time
+
+            # Record confidence metrics
+            LLM_CONFIDENCE.observe(confidence)
+            # Update average confidence (would need to calculate from history in production)
+            # For now, just set the current confidence
+            AGENT_AVG_CONFIDENCE.labels(agent_id=agent_id).set(confidence)
+            
+            # Record success
+            AGENT_THROUGHPUT.labels(agent_id=agent_id).inc()
+            
+            # Record in metrics tracker
+            metrics_tracker = get_metrics_tracker()
+            metrics_tracker.record_inference(
+                agent_id=agent_id,
+                inference_time=inference_time,
+                model=agent_model or "unknown",
+                input_tokens=input_tokens if input_tokens > 0 else None,
+                output_tokens=output_tokens if output_tokens > 0 else None,
+                cost=estimated_cost if estimated_cost > 0 else None,
+                confidence=confidence,
+            )
+            metrics_tracker.record_success(agent_id)
+            metrics_tracker.record_decision(agent_id, inference_time)
+
+            await cache.set(cache_key, analysis, ttl=60) # Cache for 60 seconds
+            return analysis
+
+        except Exception as e:
+            logger.error(f"Vertex AI query failed for agent {agent_id}: {e}")
+            # Record error
+            AGENT_ERROR_RATE.labels(agent_id=agent_id, error_type=type(e).__name__).inc()
+            
+            # Record in metrics tracker
+            metrics_tracker = get_metrics_tracker()
+            metrics_tracker.record_error(agent_id, type(e).__name__)
+            
+            return {
+                "thesis": f"Error during analysis for {symbol}. Fallback initiated.",
+                "confidence": 0.4,
+                "source": "error_fallback",
+                "risk_score": 0.8,
+            }
 
     def _can_send_notification(
         self,
@@ -1897,6 +2594,39 @@ class TradingService:
                     logger.info("Submitting order payload: %s", order_payload)
                     await self._exchange.place_order(**order_payload)
                     
+                    # Execute paper trading order in parallel if enabled
+                    if self._paper_exchange:
+                        try:
+                            paper_tag = f"{order_tag}_paper"
+                            paper_order_payload = {
+                                **order_payload,
+                                "new_client_order_id": paper_tag,
+                            }
+                            await self._paper_exchange.place_order(**paper_order_payload)
+                            logger.info(
+                                "Placed paper %s order for %s (notional %.2f) [PAPER]",
+                                side,
+                                symbol,
+                                final_notional,
+                            )
+                            # Log paper trade to BigQuery with mode='paper'
+                            if self._bigquery:
+                                await self._bigquery.stream_trade(
+                                    symbol=symbol,
+                                    side=side,
+                                    price=execution_price,
+                                    quantity=float(final_quantity_dec),
+                                    notional=final_notional,
+                                    mode='paper',
+                                    agent_id=agent_id,
+                                    timestamp=datetime.utcnow(),
+                                )
+                            # Increment paper trades metric
+                            PAPER_TRADES_TOTAL.labels(symbol=symbol.upper(), side=side.upper()).inc()
+                        except Exception as paper_exc:
+                            # Paper trading failures don't affect live trading
+                            logger.warning(f"Paper trading order failed for {symbol}: {paper_exc}")
+                    
                     # Record API success
                     self._safeguards.record_success('api')
                     self._safeguards.record_success('orders')
@@ -2031,22 +2761,32 @@ class TradingService:
                 risk_reward_ratio = reward_amount / risk_amount if risk_amount > 0 else 0
 
                 try:
+                    # Generate AI analysis for the trade
+                    ai_analysis = None
+                    if self._ai_analyzer:
+                        analysis_result = await self._ai_analyzer.analyze_trade(
+                            symbol=symbol,
+                            side=side,
+                            price=execution_price,
+                            volume=quantity,
+                            market_data={
+                                'volatility': market_context.get('atr', 0.02),
+                                'volume': market_context.get('volume', 0),
+                                'trend': 'bullish' if market_context.get('change_24h', 0) > 0 else 'bearish'
+                            }
+                        )
+                        ai_analysis = f"{analysis_result.get('rationale', '')}\n\nTrade Thesis: {trade_thesis}"
+
+                    # Send trade notification
+                    # Simple service works with kwargs, enhanced service also supports kwargs
                     await self._telegram.send_trade_notification(
                         symbol=symbol,
                         side=side,
                         price=execution_price,
                         quantity=quantity,
                         notional=notional,
-                        decision_reason=f"Advanced momentum analysis with {self._settings.expected_win_rate:.1%} confidence",
-                        model_used=agent_model,
-                        confidence=self._settings.expected_win_rate,
                         take_profit=take_profit,
-                        stop_loss=stop_loss,
-                        portfolio_balance=self._portfolio.balance,
-                        risk_percentage=risk_pct,
-                        market_context=market_context,
-                        trade_thesis=trade_thesis,
-                        risk_reward_ratio=risk_reward_ratio,
+                        stop_loss=stop_loss
                     )
                     TELEGRAM_NOTIFICATIONS_SENT.labels(category="trade", status="success").inc()
                 except Exception as exc:
@@ -2174,7 +2914,12 @@ class TradingService:
         
         try:
             fetch_start = time.time()
-            all_tickers = await self._exchange.get_all_tickers()
+            # Use circuit breaker for exchange API calls with graceful degradation
+            all_tickers = await self._degradation_manager.execute_with_fallback(
+                "exchange_api",
+                EXCHANGE_API_BREAKER.call,
+                self._exchange.get_all_tickers
+            )
             fetch_duration = time.time() - fetch_start
             logger.info("Fetched %d tickers in %.2fs", len(all_tickers), fetch_duration)
             MARKET_FEED_LATENCY.labels(symbol="ALL").observe(fetch_duration)
@@ -2776,7 +3521,7 @@ class TradingService:
         # Write to persistent storage
         if self._storage:
             try:
-                await self._storage.insert_trade(
+                await DATABASE_BREAKER.call(self._storage.insert_trade,
                     timestamp=timestamp_value,
                     symbol=symbol,
                     side=side,
@@ -3212,6 +3957,65 @@ class TradingService:
                     # Find which strategy opened this position
                     strategy_name = getattr(position, 'strategy', 'momentum')
                     self._strategy_selector.update_performance(strategy_name, pnl_pct / 100)
+
+                # Update performance auto-adjuster
+                if hasattr(self, '_performance_adjuster') and self._performance_adjuster:
+                    try:
+                        # Determine which agent/bot handled this trade
+                        agent_id = getattr(position, 'agent_id', None)
+                        if not agent_id and hasattr(self, '_symbol_to_agent'):
+                            agent_id = self._symbol_to_agent.get(symbol)
+
+                        if agent_id:
+                            # Record trade outcome for performance tracking
+                            pnl_decimal = pnl_pct / 100.0  # Convert percentage to decimal
+                            win = pnl_decimal > 0
+                            confidence = getattr(position, 'confidence', 0.5)  # Default confidence if not available
+
+                            self._performance_adjuster.record_trade_outcome(
+                                agent_id=agent_id,
+                                pnl=pnl_decimal,
+                                win=win,
+                                confidence=confidence
+                            )
+                            logger.debug(f"Recorded trade outcome for agent {agent_id}: P&L={pnl_decimal:.4f}, win={win}")
+                    except Exception as e:
+                        logger.warning(f"Failed to record trade outcome with performance adjuster: {e}")
+
+                # Create agent memory of trade outcome
+                if hasattr(self, '_memory_manager') and self._memory_manager:
+                    try:
+                        agent_id = getattr(position, 'agent_id', None)
+                        if not agent_id and hasattr(self, '_symbol_to_agent'):
+                            agent_id = self._symbol_to_agent.get(symbol)
+
+                        if agent_id:
+                            from .agent_memory import AgentMemory, MemoryType, MemoryImportance
+
+                            trade_memory = AgentMemory(
+                                memory_id=f"trade_{symbol}_{get_timestamp_us()}",
+                                agent_id=agent_id,
+                                memory_type=MemoryType.TRADE_OUTCOME,
+                                content={
+                                    "symbol": symbol,
+                                    "pnl_pct": pnl_pct,
+                                    "reason": reason,
+                                    "position_size": abs(position.notional),
+                                    "entry_price": getattr(position, 'entry_price', 0),
+                                    "exit_price": result.get("price", 0) if result else 0,
+                                    "duration_ms": getattr(position, 'duration_ms', 0),
+                                    "strategy": getattr(position, 'strategy', 'unknown')
+                                },
+                                importance=MemoryImportance.HIGH if abs(pnl_pct) > 2.0 else MemoryImportance.MEDIUM,
+                                confidence=getattr(position, 'confidence', 0.5),
+                                timestamp_us=get_timestamp_us(),
+                                tags={"trade", symbol, reason, "outcome"}
+                            )
+
+                            await self._memory_manager.store_memory(trade_memory)
+                            logger.debug(f"Stored trade memory for agent {agent_id}: {pnl_pct:.2f}% P&L")
+                    except Exception as e:
+                        logger.warning(f"Failed to store trade memory: {e}")
                     
                     # Update RL models with reward if applicable
                     if self._strategy_selector.rl_manager and strategy_name in ['ml_dqn', 'ml_ppo']:
@@ -3263,6 +4067,24 @@ class TradingService:
                     quantity=close_quantity,
                     metadata={"source": "auto_close", "reason": reason},
                 )
+
+                # Broadcast trade update via WebSocket
+                if hasattr(self, '_websocket_manager') and self._websocket_manager:
+                    try:
+                        from .websocket_manager import broadcast_trade_update
+                        trade_data = {
+                            "symbol": symbol,
+                            "side": close_side,
+                            "price": result.get("price", 0.0),
+                            "quantity": close_quantity,
+                            "notional": abs(position.notional),
+                            "pnl_pct": pnl_pct,
+                            "reason": reason,
+                            "timestamp_us": get_timestamp_us()
+                        }
+                        await broadcast_trade_update(trade_data, priority=2)
+                    except Exception as e:
+                        logger.warning(f"Failed to broadcast trade update: {e}")
         except Exception as e:
             logger.error(f"Failed to close position for {symbol}: {e}")
 
@@ -3388,6 +4210,21 @@ class TradingService:
             quantity=quantity,
             metadata=metadata,
         )
+        
+        # Send Telegram trade notification
+        if self._telegram:
+            try:
+                await self._telegram.send_trade_notification(
+                    symbol=symbol,
+                    side=side,
+                    price=price,
+                    notional=notional,
+                    take_profit=take_profit,
+                    stop_loss=stop_loss,
+                    pnl=unrealized_pnl if unrealized_pnl != 0.0 else None,
+                )
+            except Exception as exc:
+                logger.warning(f"Failed to send trade Telegram notification: {exc}")
 
     async def _auto_delever(self, symbol: str, snapshot: MarketSnapshot, notional: float) -> float:
         threshold = self._settings.volatility_delever_threshold
@@ -3518,6 +4355,23 @@ class TradingService:
         if self._peak_balance > 0:
             drawdown = max((self._peak_balance - balance) / self._peak_balance, 0.0)
         PORTFOLIO_DRAWDOWN.set(drawdown)
+        
+        # Send Telegram alert if drawdown exceeds 5% threshold
+        if drawdown > 0.05 and self._telegram:
+            try:
+                # Track last alert time to avoid spam
+                if not hasattr(self, '_last_drawdown_alert'):
+                    self._last_drawdown_alert = 0.0
+                
+                # Alert if drawdown > 5% and we haven't alerted in the last hour
+                current_time = time.time()
+                if current_time - self._last_drawdown_alert > 3600:  # 1 hour cooldown
+                    drawdown_pct = drawdown * 100
+                    alert_msg = f"⚠️ *DRAWDOWN WARNING*\n\nDrawdown: `{drawdown_pct:.2f}%`\nBalance: `${balance:.2f}`\nPeak: `${self._peak_balance:.2f}`\nExposure: `${total_exposure:.2f}`\n\nMonitor positions closely\\."
+                    await self._telegram.send_message(alert_msg)
+                    self._last_drawdown_alert = current_time
+            except Exception as exc:
+                logger.warning(f"Failed to send drawdown warning Telegram alert: {exc}")
 
         # Update position metrics
         for symbol, position in positions.items():
@@ -3542,19 +4396,76 @@ class TradingService:
             logger.warning("Failed to dispatch test Telegram message: %s", exc)
 
     # Agent Management Methods
+    async def _is_agent_enabled_in_redis(self, agent_id: str) -> Optional[bool]:
+        """Check if agent is enabled in Redis (returns None if not set in Redis)."""
+        if not self._cache:
+            return None
+        
+        try:
+            key = f"agent:enabled:{agent_id}"
+            value = await self._cache.get(key)
+            if value is None:
+                return None  # Not set in Redis, use settings default
+            return bool(value) if isinstance(value, (bool, int, str)) else None
+        except Exception as exc:
+            logger.warning(f"Failed to check agent enable status in Redis for {agent_id}: {exc}")
+            return None
+    
+    async def _set_agent_enabled_in_redis(self, agent_id: str, enabled: bool) -> bool:
+        """Set agent enable/disable flag in Redis (persistent across restarts)."""
+        if not self._cache:
+            logger.warning("Cache not available, cannot persist agent enable/disable flag")
+            return False
+        
+        try:
+            key = f"agent:enabled:{agent_id}"
+            # Set with no TTL (persistent)
+            success = await self._cache.set(key, "1" if enabled else "0", ttl=None)
+            if success:
+                logger.info(f"Set agent {agent_id} enabled={enabled} in Redis")
+            return success
+        except Exception as exc:
+            logger.error(f"Failed to set agent enable status in Redis for {agent_id}: {exc}")
+            return False
+    
+    async def _is_agent_enabled(self, agent_id: str) -> bool:
+        """Check if agent is enabled (checks Redis first, falls back to settings)."""
+        # Check Redis first (persistent override)
+        redis_enabled = await self._is_agent_enabled_in_redis(agent_id)
+        if redis_enabled is not None:
+            return redis_enabled
+        
+        # Fall back to settings
+        return agent_id in self._settings.enabled_agents
+    
     async def enable_agent(self, agent_id: str) -> bool:
-        """Enable a specific agent for autonomous trading."""
-        if agent_id in [agent["id"] for agent in AGENT_DEFINITIONS]:
-            if agent_id not in self._settings.enabled_agents:
-                self._settings.enabled_agents.append(agent_id)
-                # Reinitialize agents to include the newly enabled one
-                await self._initialize_agents()
-                logger.info(f"Enabled agent: {agent_id}")
-                return True
-        return False
+        """Enable a specific agent for autonomous trading (persisted in Redis)."""
+        if agent_id not in [agent["id"] for agent in AGENT_DEFINITIONS]:
+            logger.warning(f"Invalid agent_id: {agent_id}")
+            return False
+        
+        # Persist in Redis
+        await self._set_agent_enabled_in_redis(agent_id, True)
+        
+        # Update settings (non-persistent, but needed for immediate effect)
+        if agent_id not in self._settings.enabled_agents:
+            self._settings.enabled_agents.append(agent_id)
+            # Reinitialize agents to include the newly enabled one
+            await self._initialize_agents()
+            logger.info(f"Enabled agent: {agent_id}")
+        
+        return True
 
     async def disable_agent(self, agent_id: str) -> bool:
-        """Disable a specific agent from autonomous trading."""
+        """Disable a specific agent from autonomous trading (persisted in Redis)."""
+        if agent_id not in [agent["id"] for agent in AGENT_DEFINITIONS]:
+            logger.warning(f"Invalid agent_id: {agent_id}")
+            return False
+        
+        # Persist in Redis
+        await self._set_agent_enabled_in_redis(agent_id, False)
+        
+        # Update settings (non-persistent, but needed for immediate effect)
         if agent_id in self._settings.enabled_agents:
             self._settings.enabled_agents.remove(agent_id)
             # Remove from active agents

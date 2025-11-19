@@ -133,18 +133,9 @@ class AgentPersonality:
         return horizon_map.get(role, "short_term")
 
     def _get_preferred_assets(self, role: AgentRole) -> List[str]:
-        """Get preferred assets for each role."""
-        assets_map = {
-            AgentRole.MOMENTUM_TRADER: ["BTCUSDT", "ETHUSDT", "SOLUSDT"],
-            AgentRole.MEAN_REVERSION_TRADER: ["BTCUSDT", "ETHUSDT", "AVAXUSDT", "ARBUSDT"],
-            AgentRole.SENTIMENT_ANALYST: ["BTCUSDT", "ETHUSDT"],  # Major assets with most news
-            AgentRole.VOLATILITY_SPECIALIST: ["BTCUSDT", "ETHUSDT"],  # High volatility assets
-            AgentRole.TECHNICAL_ANALYST: ["all"],  # All assets
-            AgentRole.MARKET_MAKER: ["BTCUSDT", "ETHUSDT"],  # High volume pairs
-            AgentRole.RISK_MANAGER: ["all"],  # Portfolio-wide
-            AgentRole.PORTFOLIO_OPTIMIZER: ["all"]  # Portfolio-wide
-        }
-        return assets_map.get(role, ["BTCUSDT", "ETHUSDT"])
+        """Get preferred assets for each role - all roles can trade any symbols."""
+        # All agents can trade any available symbols
+        return ["all"]
 
 
 class PortfolioOrchestrator:
@@ -166,12 +157,12 @@ class PortfolioOrchestrator:
         # This would be called when agents register with the system
         # For now, we'll define the standard agent set
         standard_agents = {
-            "deepseek-v3": AgentRole.MOMENTUM_TRADER,
-            "qwen-7b": AgentRole.MEAN_REVERSION_TRADER,
-            "fingpt-alpha": AgentRole.SENTIMENT_ANALYST,
-            "lagllama-degen": AgentRole.VOLATILITY_SPECIALIST,
-            "freqtrade-hft": AgentRole.TECHNICAL_ANALYST,
-            "hummingbot-mm": AgentRole.MARKET_MAKER,
+            "trend-momentum-agent": AgentRole.MOMENTUM_TRADER,
+            "strategy-optimization-agent": AgentRole.PORTFOLIO_OPTIMIZER,
+            "financial-sentiment-agent": AgentRole.SENTIMENT_ANALYST,
+            "market-prediction-agent": AgentRole.TECHNICAL_ANALYST,
+            "volume-microstructure-agent": AgentRole.TECHNICAL_ANALYST,
+            "vpin-hft": AgentRole.VOLATILITY_SPECIALIST,
         }
 
         for agent_id, role in standard_agents.items():

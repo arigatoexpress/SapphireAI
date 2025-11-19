@@ -74,9 +74,20 @@ class ChatMessage(BaseModel):
 
 
 class ChatCompletionRequest(BaseModel):
-    model: str = "deepseek-coder"
+    model: str = "gemini-1.5-flash"  # Google Cloud AI default
     messages: List[ChatMessage]
     max_tokens: int = Field(default=256, ge=1, le=2048)
     temperature: float = Field(default=0.2, ge=0, le=2)
     endpoint: Optional[str] = None
+
+
+class AIStrategyResponse(BaseModel):
+    """Structured response from AI trading analysis."""
+    direction: Literal["BUY", "SELL", "HOLD"] = Field(description="Trading direction")
+    confidence: float = Field(ge=0.0, le=1.0, description="Confidence score 0-1")
+    rationale: str = Field(min_length=10, description="Trading rationale")
+    risk_assessment: Optional[str] = Field(default=None, description="Risk assessment")
+    position_size_recommendation: Optional[float] = Field(
+        default=None, ge=0.0, le=0.05, description="Recommended position size as fraction of portfolio"
+    )
 

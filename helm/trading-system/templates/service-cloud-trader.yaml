@@ -1,0 +1,20 @@
+{{- if .Values.cloudTrader.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "trading-system.fullname" . }}-cloud-trader
+  namespace: trading
+  labels:
+    {{- include "trading-system.labels" . | nindent 4 }}
+    app: cloud-trader
+spec:
+  type: {{ .Values.cloudTrader.service.type }}
+  ports:
+    - port: {{ .Values.cloudTrader.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "trading-system.selectorLabels" . | nindent 4 }}
+    app: cloud-trader
+{{- end }}

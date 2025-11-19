@@ -1,24 +1,27 @@
+import { Container, Box, Typography, Grid, Alert, Button } from "@mui/material";
 import React from 'react';
-import { Box, Alert, Button, Container, Typography } from '@mui/material';
 import { useTrading } from '../contexts/TradingContext';
-import EnhancedMetrics from '../components/EnhancedMetrics';
-import AgentActivityGrid from '../components/AgentActivityGrid';
-import PortfolioChart from '../components/PortfolioChart';
+import StreamlinedHeader from '../components/StreamlinedHeader';
+import LiveMetricsPanel from '../components/LiveMetricsPanel';
+import AgentDashboard from '../components/AgentDashboard';
+import MarketAnalysis from '../components/MarketAnalysis';
+import LiveTrades from '../components/LiveTrades';
+import MCPChat from '../components/MCPChat';
 
 const Dashboard: React.FC = () => {
   const { error, refreshData } = useTrading();
 
   return (
     <Container maxWidth="xl" sx={{ py: 2 }} className="fade-in-up">
-      {error && (
+      {error && !error.includes('demo data') && (
         <Alert
-          severity="error"
+          severity="warning"
           sx={{
             mb: 3,
             borderRadius: 2,
             backdropFilter: 'blur(10px)',
-            background: 'rgba(255, 87, 87, 0.1)',
-            border: '1px solid rgba(255, 87, 87, 0.2)',
+            background: 'rgba(255, 193, 7, 0.1)',
+            border: '1px solid rgba(255, 193, 7, 0.2)',
             '& .MuiAlert-message': { width: '100%' }
           }}
           action={
@@ -39,89 +42,55 @@ const Dashboard: React.FC = () => {
         >
           <Box>
             <Typography variant="body1" sx={{ fontWeight: 600, mb: 0.5 }}>
-              Connection Error
+              Backend Connection
             </Typography>
             <Typography variant="body2">
-              {error} - Click retry to refresh data from the trading system.
+              {error.includes('backend not available')
+                ? 'Connecting to trading system...'
+                : error} - Click retry to refresh data.
             </Typography>
           </Box>
         </Alert>
       )}
 
-      {/* System Overview */}
-      <Box sx={{ mb: 4, textAlign: 'center' }}>
-        <Typography
-          variant="h3"
-          sx={{
-            mb: 2,
-            fontWeight: 800,
-            background: 'linear-gradient(135deg, #00d4aa 0%, #8a2be2 50%, #00f5d4 100%)',
-            backgroundClip: 'text',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            textAlign: 'center',
-            animation: 'float 6s ease-in-out infinite',
-          }}
-        >
-          💎 Sapphire Trading Operations Center
-        </Typography>
-        <Typography
-          variant="h6"
-          sx={{
-            color: 'rgba(255, 255, 255, 0.7)',
-            maxWidth: '600px',
-            mx: 'auto',
-            lineHeight: 1.6,
-            fontWeight: 400,
-          }}
-        >
-          Enterprise-grade autonomous trading system with real-time monitoring,
-          AI-driven decision making, and institutional-grade risk management.
-        </Typography>
-      </Box>
+      {/* Streamlined Header - Single Section */}
+      <StreamlinedHeader />
 
-      {/* Key Performance Indicators */}
-      <EnhancedMetrics />
+      {/* Main Layout: Primary Content + Side Panel */}
+      <Grid container spacing={3}>
+        {/* Primary Content Area */}
+        <Grid item xs={12} md={9}>
+          {/* Market Analysis */}
+          <MarketAnalysis />
 
-      {/* Portfolio Performance */}
-      <PortfolioChart />
+          {/* Live Trades */}
+          <LiveTrades />
 
-      {/* AI Agent Activity */}
-      <AgentActivityGrid />
+          {/* Unified Agent Dashboard */}
+          <AgentDashboard />
+        </Grid>
 
-      {/* System Status */}
-      <Box
-        sx={{
-          mt: 4,
-          p: 3,
-          borderRadius: 2,
-          bgcolor: 'background.paper',
-          border: '1px solid',
-          borderColor: 'divider',
-        }}
-      >
-        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-          System Status
-        </Typography>
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 2 }}>
-          <Box>
-            <Typography variant="body2" color="text.secondary">Architecture</Typography>
-            <Typography variant="body1" sx={{ fontWeight: 600 }}>Kubernetes + GCP</Typography>
+        {/* Side Panel */}
+        <Grid item xs={12} md={3}>
+          {/* Live Metrics Panel */}
+          <LiveMetricsPanel />
+
+          {/* MCP Chat - Real-time Agent Communication */}
+          <Box sx={{ mt: 3 }}>
+            <Typography
+              variant="h6"
+              sx={{
+                fontWeight: 700,
+                mb: 2,
+                color: '#00ffff',
+              }}
+            >
+              Agent Communication
+            </Typography>
+            <MCPChat />
           </Box>
-          <Box>
-            <Typography variant="body2" color="text.secondary">Uptime Target</Typography>
-            <Typography variant="body1" sx={{ fontWeight: 600 }}>99.9%</Typography>
-          </Box>
-          <Box>
-            <Typography variant="body2" color="text.secondary">AI Agents</Typography>
-            <Typography variant="body1" sx={{ fontWeight: 600 }}>6 Active</Typography>
-          </Box>
-          <Box>
-            <Typography variant="body2" color="text.secondary">Last Updated</Typography>
-            <Typography variant="body1" sx={{ fontWeight: 600 }}>{new Date().toLocaleTimeString()}</Typography>
-          </Box>
-        </Box>
-      </Box>
+        </Grid>
+      </Grid>
     </Container>
   );
 };

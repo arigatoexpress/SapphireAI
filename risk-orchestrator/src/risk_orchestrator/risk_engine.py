@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from typing import Tuple
 
-from loguru import logger
+import logging
+logger = logging.getLogger(__name__)
 
 from .config import settings
 from .models import OrderIntent, RiskCheckResponse
@@ -15,12 +16,14 @@ def _to_float(value, default: float = 0.0) -> float:
         return default
 
 
-# Per-agent allocation limits (in USD)
+# Per-agent allocation limits (in USD) - 6 specialized AI agents configuration
 AGENT_ALLOCATIONS = {
-    "deepseek-v3": 125.0,
-    "qwen-7b": 125.0,
-    "deepseek-v3-alt": 125.0,
-    "qwen-7b-alt": 125.0,
+    "trend-momentum-agent": 500.0,           # Gemini 2.0 Flash Experimental
+    "strategy-optimization-agent": 500.0,    # Gemini Experimental 1206
+    "financial-sentiment-agent": 500.0,      # Gemini 2.0 Flash Experimental
+    "market-prediction-agent": 500.0,        # Gemini Experimental 1206
+    "volume-microstructure-agent": 500.0,    # Codey 001
+    "vpin-hft": 500.0,                       # Gemini 2.0 Flash Experimental
 }
 
 # Default allocation applied when an agent is not explicitly listed above

@@ -21,6 +21,29 @@ from pythonjsonlogger import jsonlogger
 class TradingLogger:
     """Advanced logging system for trading operations."""
 
+    def _add_service_info(self, logger, method_name, event_dict):
+        """Add service metadata to all log entries."""
+        event_dict.update({
+            "service": self.service_name,
+            "version": "1.0.0",
+            "environment": "production",
+        })
+        return event_dict
+
+    def _add_correlation_id(self, logger, method_name, event_dict):
+        """Add correlation ID for request tracing."""
+        correlation_id = getattr(self.correlation_id, 'value', None)
+        if correlation_id:
+            event_dict["correlation_id"] = correlation_id
+        return event_dict
+
+    def _add_request_context(self, logger, method_name, event_dict):
+        """Add request context information."""
+        context = getattr(self.request_context, 'value', {})
+        if context:
+            event_dict.update(context)
+        return event_dict
+
     def __init__(self, service_name: str, log_level: str = "INFO"):
         self.service_name = service_name
         self.correlation_id = threading.local()
@@ -98,29 +121,6 @@ class TradingLogger:
         root_logger.addHandler(console_handler)
         root_logger.addHandler(file_handler)
         root_logger.addHandler(error_handler)
-
-    def _add_service_info(self, logger, method_name, event_dict):
-        """Add service metadata to all log entries."""
-        event_dict.update({
-            "service": self.service_name,
-            "version": "1.0.0",
-            "environment": "production",
-        })
-        return event_dict
-
-    def _add_correlation_id(self, logger, method_name, event_dict):
-        """Add correlation ID for request tracing."""
-        correlation_id = getattr(self.correlation_id, 'value', None)
-        if correlation_id:
-            event_dict["correlation_id"] = correlation_id
-        return event_dict
-
-    def _add_request_context(self, logger, method_name, event_dict):
-        """Add request context information."""
-        context = getattr(self.request_context, 'value', {})
-        if context:
-            event_dict.update(context)
-        return event_dict
 
     def set_correlation_id(self, correlation_id: str):
         """Set correlation ID for current thread."""

@@ -65,11 +65,11 @@ class Settings(BaseSettings):
 
     # Trading configuration
     symbols: List[str] = Field(
-        default_factory=lambda: ["BTCUSDT", "ETHUSDT", "SOLUSDT", "SUIUSDT", "AVAXUSDT", "ARBUSDT"]
+        default_factory=list  # Load all available symbols from exchange by default
     )
-    decision_interval_seconds: int = Field(default=15, ge=5, le=300)
-    max_position_risk: float = Field(default=0.10, gt=0, le=0.5)
-    max_drawdown: float = Field(default=0.20, gt=0, le=0.8)
+    decision_interval_seconds: int = Field(default=10, ge=5, le=300)  # Faster decisions for PvP trading
+    max_position_risk: float = Field(default=0.15, gt=0, le=0.5)  # Higher risk per position for PvP
+    max_drawdown: float = Field(default=0.25, gt=0, le=0.8)     # Higher drawdown tolerance for aggressive trading
     volatility_delever_threshold: float = Field(default=4.0, ge=0)
     auto_delever_factor: float = Field(default=0.5, gt=0, le=1)
     bandit_epsilon: float = Field(default=0.1, ge=0, le=1)
@@ -105,9 +105,9 @@ class Settings(BaseSettings):
 
     # Agent configuration
     enabled_agents: List[str] = Field(
-        default_factory=lambda: ["deepseek-v3", "qwen-7b", "fingpt-alpha", "lagllama-degen", "profit-maximizer", "kimi-chat"],
+        default_factory=lambda: ["trend-momentum-agent", "strategy-optimization-agent", "financial-sentiment-agent", "market-prediction-agent", "volume-microstructure-agent", "vpin-hft"],
         validation_alias="ENABLED_AGENTS",
-        description="List of agent IDs to enable for autonomous trading"
+        description="List of 6 advanced AI agents for autonomous trading"
     )
     max_symbols_per_agent: int = Field(default=10, ge=1, le=50)
     agent_parallel_execution: bool = Field(default=True, validation_alias="AGENT_PARALLEL_EXECUTION")
@@ -118,37 +118,19 @@ class Settings(BaseSettings):
     vertex_ai_region: str = Field(default="us-central1", validation_alias="VERTEX_AI_REGION")
     vertex_ai_project: str | None = Field(default=None, validation_alias="VERTEX_AI_PROJECT")
 
-    # Agent-specific Vertex AI endpoints
-    deepseek_vertex_endpoint: str | None = Field(
-        default="https://us-central1-aiplatform.googleapis.com/v1/projects/quant-ai-trader-credits/locations/us-central1/endpoints/deepseek-momentum-endpoint",
-        validation_alias="DEEPSEEK_VERTEX_ENDPOINT"
-    )
-    qwen_vertex_endpoint: str | None = Field(
-        default="https://us-central1-aiplatform.googleapis.com/v1/projects/quant-ai-trader-credits/locations/us-central1/endpoints/qwen-adaptive-endpoint",
-        validation_alias="QWEN_VERTEX_ENDPOINT"
-    )
-    fingpt_vertex_endpoint: str | None = Field(
-        default="https://us-central1-aiplatform.googleapis.com/v1/projects/quant-ai-trader-credits/locations/us-central1/endpoints/fingpt-alpha-endpoint",
-        validation_alias="FINGPT_VERTEX_ENDPOINT"
-    )
-    lagllama_vertex_endpoint: str | None = Field(
-        default="https://us-central1-aiplatform.googleapis.com/v1/projects/quant-ai-trader-credits/locations/us-central1/endpoints/lagllama-degenerate-endpoint",
-        validation_alias="LAGLLAMA_VERTEX_ENDPOINT"
-    )
+    # Prompt Engineering Configuration
+    prompt_version: str = Field(default="v1.0", validation_alias="PROMPT_VERSION")
+    prompt_ab_test_split: float = Field(default=0.0, ge=0.0, le=1.0, validation_alias="PROMPT_AB_TEST_SPLIT", description="Percentage (0-1) of requests to route to new prompt version for A/B testing")
+
+    # Agent-specific Vertex AI endpoints removed - now using unified Google Cloud AI
 
     # LLM Configuration (fallback)
     enable_llm_trading: bool = Field(default=False, validation_alias="ENABLE_LLM_TRADING")
     min_llm_confidence: float = Field(default=0.7, ge=0, le=1, description="Minimum confidence threshold for LLM decisions")
-    llm_endpoint: str = Field(default="https://deepseek-trader-880429861698.us-central1.run.app", validation_alias="LLM_ENDPOINT")
+    llm_endpoint: str = Field(default="https://api.sapphiretrade.xyz", validation_alias="LLM_ENDPOINT")
     llm_timeout_seconds: int = Field(default=30, ge=5, le=120)
 
-    # Open-source analyst endpoints
-    fingpt_endpoint: str | None = Field(default=None, validation_alias="FINGPT_ENDPOINT")
-    fingpt_api_key: str | None = Field(default=None, validation_alias="FINGPT_API_KEY")
-    lagllama_endpoint: str | None = Field(default=None, validation_alias="LAGLLAMA_ENDPOINT")
-    lagllama_api_key: str | None = Field(default=None, validation_alias="LAGLLAMA_API_KEY")
-    fingpt_min_risk_score: float = Field(default=0.4, ge=0, le=1, validation_alias="FINGPT_MIN_RISK_SCORE")
-    lagllama_max_ci_span: float = Field(default=0.25, ge=0, validation_alias="LAGLLAMA_MAX_CI_SPAN")
+    # Open-source analyst endpoints removed - now using Google Cloud AI
     max_position_pct: float = Field(default=0.02, gt=0, le=0.1, description="Maximum position size as % of portfolio")
     min_position_size: float = Field(default=0.001, gt=0, description="Minimum viable position size")
 
@@ -183,9 +165,23 @@ class Settings(BaseSettings):
     max_symbols_per_agent: int = Field(default=50, ge=1, le=200, validation_alias="MAX_SYMBOLS_PER_AGENT", description="Maximum symbols each agent can monitor")
 
     # Feature flags
-    enable_paper_trading: bool = Field(default=True, validation_alias="ENABLE_PAPER_TRADING")
+    enable_paper_trading: bool = Field(default=False, validation_alias="ENABLE_PAPER_TRADING")
+    paper_trading_enabled: bool = Field(default=False, validation_alias="PAPER_TRADING_ENABLED", description="Enable parallel paper trading mode alongside live trading")
     enable_arbitrage: bool = Field(default=True, validation_alias="ENABLE_ARBITRAGE", description="Enable arbitrage scanning and execution")
     enable_rl_strategies: bool = Field(default=True, validation_alias="ENABLE_RL_STRATEGIES", description="Enable reinforcement learning strategies")
+    
+    # Paper trading testnet configuration
+    aster_testnet_api_key: str | None = Field(default=None, validation_alias="ASTER_TESTNET_API_KEY")
+    aster_testnet_api_secret: str | None = Field(default=None, validation_alias="ASTER_TESTNET_SECRET_KEY")
+    aster_testnet_rest_url: str = Field(default="https://testnet-api.asterdex.com", validation_alias="ASTER_TESTNET_REST_URL")
+    aster_testnet_ws_url: str = Field(default="wss://testnet-fstream.asterdex.com", validation_alias="ASTER_TESTNET_WS_URL")
+    
+    # Telegram enhanced features
+    telegram_daily_recap_enabled: bool = Field(default=True, validation_alias="TELEGRAM_DAILY_RECAP_ENABLED", description="Enable daily performance summaries via Telegram")
+    telegram_recap_time_utc: str = Field(default="00:00", validation_alias="TELEGRAM_RECAP_TIME_UTC", description="Daily recap time in UTC (HH:MM format)")
+    
+    # GPU acceleration configuration
+    gpu_acceleration_threshold: float = Field(default=2.0, ge=0.0, validation_alias="GPU_ACCELERATION_THRESHOLD", description="ATR multiplier threshold for GPU/TPU routing")
     
     # Redis cache
     redis_url: str | None = Field(default=None, validation_alias="REDIS_URL", description="Redis connection URL")

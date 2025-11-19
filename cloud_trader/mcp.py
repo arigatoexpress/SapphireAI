@@ -4,7 +4,7 @@ import asyncio
 import json
 import logging
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import httpx
 from httpx import HTTPStatusError
@@ -26,6 +26,11 @@ class MCPMessageType(str, Enum):
     ORDER_EXECUTION = "order_execution"
     RISK_UPDATE = "risk_update"
     STRATEGY_ADJUSTMENT = "strategy_adjustment"
+    # Additional trading types
+    LIQUIDITY_UPDATE = "liquidity_update"
+    MARKET_MAKING_STATUS = "market_making_status"
+    PORTFOLIO_REBALANCE = "portfolio_rebalance"
+    STRATEGY_PERFORMANCE = "strategy_performance"
 
 
 class MCPProposalPayload(BaseModel):
@@ -45,14 +50,14 @@ class MCPResponsePayload(BaseModel):
 
 
 class MCPHFTSignalPayload(BaseModel):
-    """HFT trading signal from Freqtrade or Hummingbot."""
+    """HFT trading signal from specialized AI agents."""
     symbol: str
     side: str  # "buy", "sell", "hold"
     confidence: float
     notional: float
     price: Optional[float] = None
     rationale: str
-    source: str  # "freqtrade", "hummingbot"
+    source: str  # Agent ID (e.g., "vpin-hft", "trend-momentum-agent")
     strategy: str
     indicators: Optional[Dict[str, Any]] = None
 
@@ -77,7 +82,7 @@ class MCPOrderExecutionPayload(BaseModel):
     order_id: str
     timestamp: str
     status: str  # "filled", "partial", "cancelled"
-    source: str  # "freqtrade", "hummingbot"
+    source: str  # Agent ID
     fees: Optional[float] = None
 
 
@@ -99,8 +104,59 @@ class MCPStrategyAdjustmentPayload(BaseModel):
     old_value: Any
     new_value: Any
     reason: str
-    source: str  # "freqtrade", "hummingbot", "coordinator"
+    source: str  # Agent ID or "coordinator"
     timestamp: str
+
+
+
+
+class MCPLiquidityUpdatePayload(BaseModel):
+    """Liquidity provision updates."""
+    symbol: str
+    bid_orders: List[Dict[str, Any]]
+    ask_orders: List[Dict[str, Any]]
+    total_liquidity: float
+    imbalance_ratio: float
+    timestamp: str
+    source: str
+
+
+class MCPMarketMakingStatusPayload(BaseModel):
+    """Market making operational status."""
+    symbol: str
+    active: bool
+    spread_bps: float
+    inventory_ratio: float
+    pnl_24h: float
+    order_count: int
+    last_update: str
+    issues: Optional[List[str]] = None
+
+
+class MCPPortfolioRebalancePayload(BaseModel):
+    """Portfolio rebalancing instructions."""
+    target_allocations: Dict[str, float]
+    current_allocations: Dict[str, float]
+    rebalance_trades: List[Dict[str, Any]]
+    reason: str
+    expected_impact: Dict[str, float]
+    timestamp: str
+
+
+class MCPStrategyPerformancePayload(BaseModel):
+    """Strategy performance metrics."""
+    strategy_name: str
+    symbol: str
+    timeframe: str
+    total_trades: int
+    win_rate: float
+    profit_factor: float
+    max_drawdown: float
+    sharpe_ratio: Optional[float] = None
+    sortino_ratio: Optional[float] = None
+    calmar_ratio: Optional[float] = None
+    period_start: str
+    period_end: str
 
 
 logger = logging.getLogger(__name__)
@@ -341,7 +397,7 @@ class MCPClient:
                 {
                     "id": f"msg_{i}",
                     "type": "observation" if i % 4 == 0 else "proposal" if i % 4 == 1 else "critique" if i % 4 == 2 else "consensus",
-                    "sender": ["deepseek-v3", "qwen-7b", "fingpt-alpha", "lagllama-degen"][i % 4],
+                    "sender": ["trend-momentum-agent", "strategy-optimization-agent", "financial-sentiment-agent", "market-prediction-agent"][i % 4],
                     "timestamp": str(current_time - (i * 60)),  # One per minute
                     "content": f"Agent analysis for market conditions - confidence: {0.6 + (i % 4) * 0.1:.1f}",
                     "context": f"Market regime: {'bull' if i % 2 == 0 else 'bear'}"

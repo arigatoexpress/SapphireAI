@@ -1,0 +1,146 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sapphire-trading-service
+  namespace: trading-system-live
+  labels:
+    app: sapphire-trading-service
+    component: trading-engine
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sapphire-trading-service
+  template:
+    metadata:
+      labels:
+        app: sapphire-trading-service
+        component: trading-engine
+    spec:
+      initContainers:
+        - name: time-sync
+          image: alpine:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              apk add --no-cache chrony
+              chronyd -d -s &
+              sleep 3
+              timeout 10 chronyc waitsync 10 || echo "NTP sync timeout, proceeding..."
+              date
+          securityContext:
+            privileged: true
+      containers:
+        - name: trading-engine
+          image: us-central1-docker.pkg.dev/sapphireinfinite/cloud-run-source-deploy/cloud-trader:latest
+          # Use start.py which handles initialization properly
+          command: ["python3", "start.py"]
+          ports:
+            - containerPort: 8080
+          env:
+            - name: ENABLE_PAPER_TRADING
+              value: "false"
+            - name: LOG_LEVEL
+              value: "INFO"
+            - name: MCP_URL
+              value: "http://coordinator-service:8080"
+            - name: CAPITAL_ALLOCATION
+              value: "500"
+            - name: ENABLE_VERTEX_AI
+              value: "true"
+            - name: GCP_PROJECT_ID
+              value: "sapphireinfinite"
+            - name: PROMPT_VERSION
+              value: "v1.0"
+            - name: PROMPT_AB_TEST_SPLIT
+              value: "0.0"
+            # Trading Strategy Settings - Optimized for Regular Trading
+            - name: DECISION_INTERVAL_SECONDS
+              value: "15"
+            - name: MIN_CONFIDENCE_THRESHOLD
+              value: "0.30"  # Increased for safer live trading
+            - name: MOMENTUM_THRESHOLD
+              value: "0.25"
+            - name: NOTIONAL_FRACTION
+              value: "0.03"  # Reduced for more conservative position sizing
+            - name: MAX_SLIPPAGE_BPS
+              value: "30"  # Reduced for tighter execution
+            - name: RISK_THRESHOLD
+              value: "0.20"  # Increased for more conservative risk management
+            - name: EXPECTED_WIN_RATE
+              value: "0.55"
+            - name: REWARD_TO_RISK
+              value: "2.0"
+            # Telegram Notifications
+            - name: TELEGRAM_BOT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: cloud-trader-secrets
+                  key: TELEGRAM_BOT_TOKEN
+            - name: TELEGRAM_CHAT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: cloud-trader-secrets
+                  key: TELEGRAM_CHAT_ID
+            - name: TELEGRAM_ENABLE_MARKET_OBSERVER
+              value: "true"
+            - name: TELEGRAM_SUMMARY_INTERVAL_SECONDS
+              value: "3600"
+            - name: TELEGRAM_TRADE_COOLDOWN_SECONDS
+              value: "60"
+            # API Credentials
+            - name: ASTER_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: cloud-trader-secrets
+                  key: ASTER_API_KEY
+            - name: ASTER_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: cloud-trader-secrets
+                  key: ASTER_SECRET_KEY
+            # Redis Configuration
+            - name: REDIS_URL
+              value: "redis://redis:6379"
+            - name: CACHE_BACKEND
+              value: "redis"
+            # Database Configuration
+            - name: DATABASE_URL
+              value: "postgresql+asyncpg://trader:trading123@postgres:5432/trading"
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 2000m
+              memory: 4Gi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sapphire-trading-service
+  namespace: trading-system-live
+  labels:
+    app: sapphire-trading-service
+    component: trading-engine
+spec:
+  selector:
+    app: sapphire-trading-service
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+  type: ClusterIP

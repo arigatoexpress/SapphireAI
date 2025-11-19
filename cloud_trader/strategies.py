@@ -15,6 +15,7 @@ from decimal import Decimal
 from .config import get_settings
 from .strategy import MarketSnapshot
 from .rl_strategies import RLStrategyManager
+from .cache import get_cache, BaseCache
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,12 @@ class TradingStrategy(ABC):
     def __init__(self, name: str):
         self.name = name
         self.settings = get_settings()
+        self._cache: Optional[BaseCache] = None
+        
+    async def get_cache(self) -> BaseCache:
+        if self._cache is None:
+            self._cache = await get_cache()
+        return self._cache
         
     @abstractmethod
     async def evaluate(self, symbol: str, market_data: MarketSnapshot, 
@@ -109,23 +116,34 @@ class MeanReversionStrategy(TradingStrategy):
     async def evaluate(self, symbol: str, market_data: MarketSnapshot, 
                       historical_data: Optional[pd.DataFrame] = None) -> StrategySignal:
         """Evaluate mean reversion signal using Bollinger Bands."""
-        if historical_data is None or len(historical_data) < self.bb_period:
-            return StrategySignal(
-                strategy_name=self.name,
-                symbol=symbol,
-                direction="HOLD",
-                confidence=0.0,
-                position_size=0.0,
-                reasoning="Insufficient historical data for BB calculation",
-                metadata={}
-            )
-        
-        # Calculate Bollinger Bands
-        closes = historical_data['close'].tail(self.bb_period)
-        sma = closes.mean()
-        std = closes.std()
-        upper_band = sma + (self.bb_std * std)
-        lower_band = sma - (self.bb_std * std)
+        cache = await self.get_cache()
+        cache_key = f"strategy:mean_reversion:bb:{symbol}"
+        cached_bands = await cache.get(cache_key)
+
+        if cached_bands:
+            upper_band = cached_bands['upper']
+            lower_band = cached_bands['lower']
+            sma = cached_bands['sma']
+        else:
+            if historical_data is None or len(historical_data) < self.bb_period:
+                return StrategySignal(
+                    strategy_name=self.name,
+                    symbol=symbol,
+                    direction="HOLD",
+                    confidence=0.0,
+                    position_size=0.0,
+                    reasoning="Insufficient historical data for BB calculation",
+                    metadata={}
+                )
+            
+            # Calculate Bollinger Bands
+            closes = historical_data['close'].tail(self.bb_period)
+            sma = closes.mean()
+            std = closes.std()
+            upper_band = sma + (self.bb_std * std)
+            lower_band = sma - (self.bb_std * std)
+            
+            await cache.set(cache_key, {"upper": upper_band, "lower": lower_band, "sma": sma}, ttl=60)
         
         current_price = market_data.price
         
@@ -243,19 +261,27 @@ class DQNStrategy(TradingStrategy):
     async def evaluate(self, symbol: str, market_data: MarketSnapshot, 
                       historical_data: Optional[pd.DataFrame] = None) -> StrategySignal:
         """Evaluate using DQN model (simulated for MVP)."""
-        if historical_data is None or len(historical_data) < self.state_size:
-            return StrategySignal(
-                strategy_name=self.name,
-                symbol=symbol,
-                direction="HOLD",
-                confidence=0.0,
-                position_size=0.0,
-                reasoning="Insufficient data for state construction",
-                metadata={}
-            )
-        
-        # Construct state features
-        state = self._construct_state(market_data, historical_data)
+        cache = await self.get_cache()
+        cache_key = f"strategy:dqn:state:{symbol}"
+        cached_state = await cache.get(cache_key)
+
+        if cached_state:
+            state = np.array(cached_state)
+        else:
+            if historical_data is None or len(historical_data) < self.state_size:
+                return StrategySignal(
+                    strategy_name=self.name,
+                    symbol=symbol,
+                    direction="HOLD",
+                    confidence=0.0,
+                    position_size=0.0,
+                    reasoning="Insufficient data for state construction",
+                    metadata={}
+                )
+            
+            # Construct state features
+            state = self._construct_state(market_data, historical_data)
+            await cache.set(cache_key, state.tolist(), ttl=60)
         
         # Simulate Q-values (in production, use neural network)
         q_values = self._get_q_values(state)
@@ -379,26 +405,51 @@ class PPOStrategy(TradingStrategy):
     async def evaluate(self, symbol: str, market_data: MarketSnapshot, 
                       historical_data: Optional[pd.DataFrame] = None) -> StrategySignal:
         """Evaluate using PPO model (simulated for MVP)."""
-        if historical_data is None or len(historical_data) < 20:
-            return StrategySignal(
-                strategy_name=self.name,
-                symbol=symbol,
-                direction="HOLD",
-                confidence=0.0,
-                position_size=0.0,
-                reasoning="Insufficient data for PPO evaluation",
-                metadata={}
-            )
-        
-        # Calculate market regime indicators
-        returns = historical_data['close'].pct_change().tail(20)
-        trend = np.polyfit(range(len(returns)), returns.fillna(0), 1)[0]
-        volatility = returns.std()
-        
+        cache = await self.get_cache()
+        cache_key = f"strategy:ppo:features:{symbol}"
+        cached_features = await cache.get(cache_key)
+
+        if cached_features:
+            trend = cached_features['trend']
+            volatility = cached_features['volatility']
+            returns_mean = cached_features['returns_mean']
+            returns_std = cached_features['returns_std']
+            latest_return = cached_features['latest_return']
+            ma_return = cached_features['ma_return']
+        else:
+            if historical_data is None or len(historical_data) < 20:
+                return StrategySignal(
+                    strategy_name=self.name,
+                    symbol=symbol,
+                    direction="HOLD",
+                    confidence=0.0,
+                    position_size=0.0,
+                    reasoning="Insufficient data for PPO evaluation",
+                    metadata={}
+                )
+            
+            # Calculate market regime indicators
+            returns = historical_data['close'].pct_change().tail(20)
+            trend = np.polyfit(range(len(returns)), returns.fillna(0), 1)[0]
+            volatility = returns.std()
+            returns_mean = returns.mean()
+            returns_std = returns.std()
+            latest_return = returns.iloc[-1]
+            ma_return = returns.iloc[-5:].mean()
+
+            await cache.set(cache_key, {
+                "trend": trend, 
+                "volatility": volatility,
+                "returns_mean": returns_mean,
+                "returns_std": returns_std,
+                "latest_return": latest_return,
+                "ma_return": ma_return,
+            }, ttl=60)
+
         # Use actual RL model if available
         if self.rl_manager:
-            state = np.array([trend, volatility, returns.mean(), returns.std(), 
-                            returns.iloc[-1], returns.iloc[-5:].mean(),
+            state = np.array([trend, volatility, returns_mean, returns_std, 
+                            latest_return, ma_return,
                             market_data.change_24h / 100, market_data.volume / 1e6,
                             0.5, 0.5])[:10]  # Ensure state size
             
@@ -470,6 +521,18 @@ class StrategySelector:
         """Select the best strategy for current market conditions."""
         signals = await self.evaluate_all_strategies(symbol, market_data, historical_data)
         
+        # Add AI analysis for enhanced decision making
+        try:
+            logger.debug(f"Attempting AI analysis for {symbol} with {len(signals)} existing signals")
+            ai_signal = await self._get_ai_analysis_signal(symbol, market_data, historical_data, signals)
+            if ai_signal:
+                logger.info(f"✅ AI analysis successful for {symbol}: {ai_signal.direction} (confidence: {ai_signal.confidence:.2f})")
+                signals.append(ai_signal)
+            else:
+                logger.debug(f"AI analysis returned None for {symbol}")
+        except Exception as e:
+            logger.warning(f"AI analysis failed for {symbol}: {e}", exc_info=True)
+
         # Filter out HOLD signals
         active_signals = [s for s in signals if s.direction != "HOLD"]
         
@@ -482,6 +545,119 @@ class StrategySelector:
         
         return best_signal
     
+    async def _get_ai_analysis_signal(self, symbol: str, market_data: MarketSnapshot,
+                                     historical_data: Optional[pd.DataFrame],
+                                     existing_signals: List[StrategySignal]) -> Optional[StrategySignal]:
+        """Get AI-powered analysis signal using Vertex AI with prompt engineering."""
+        try:
+            # Import here to avoid circular imports
+            from .vertex_ai_client import get_vertex_client
+            from .prompt_engineer import PromptBuilder, ResponseValidator, PromptContext
+
+            logger.info(f"🤖 Starting AI analysis for {symbol}")
+            vertex_client = get_vertex_client()
+            if not vertex_client:
+                logger.warning(f"Vertex AI client not available for {symbol}")
+                return None
+            
+            logger.debug(f"Vertex AI client obtained for {symbol}, existing signals: {len(existing_signals)}")
+
+            # Determine agent type from existing signals
+            agent_type = "general"
+            if existing_signals:
+                signal_names = [s.strategy_name.lower() for s in existing_signals]
+                if any("momentum" in name for name in signal_names):
+                    agent_type = "momentum"
+                elif any("reversion" in name or "mean" in name for name in signal_names):
+                    agent_type = "mean_reversion"
+                elif any("sentiment" in name for name in signal_names):
+                    agent_type = "sentiment"
+                elif any("volatility" in name or "vpin" in name for name in signal_names):
+                    agent_type = "volatility"
+
+            # Build prompt using PromptBuilder
+            logger.debug(f"Building prompt for {symbol} with agent type: {agent_type}")
+            prompt_builder = PromptBuilder(prompt_version=self.settings.prompt_version)
+            context = PromptContext(
+                symbol=symbol,
+                market_data=market_data,
+                historical_data=historical_data,
+                technical_signals=[{
+                    "strategy_name": s.strategy_name,
+                    "direction": s.direction,
+                    "confidence": s.confidence,
+                    "reasoning": s.reasoning
+                } for s in existing_signals],
+                agent_type=agent_type
+            )
+            prompt = prompt_builder.build_prompt(context)
+            logger.debug(f"Prompt built for {symbol}, length: {len(prompt)} chars")
+
+            # Call Vertex AI
+            logger.info(f"📤 Calling Vertex AI for {symbol}...")
+            response = await vertex_client.predict_with_fallback(
+                agent_id="market-analysis",
+                prompt=prompt,
+                max_tokens=512  # Increased for better responses
+            )
+            logger.debug(f"📥 Received Vertex AI response for {symbol}")
+
+            if response and isinstance(response, dict):
+                # Use ResponseValidator to parse and validate
+                validator = ResponseValidator()
+                validated_response = validator.validate_and_parse(response, symbol)
+                
+                if validated_response:
+                    # Convert to StrategySignal
+                    return StrategySignal(
+                        strategy_name="ai_analysis",
+                        symbol=symbol,
+                        direction=validated_response.direction,
+                        confidence=validated_response.confidence,
+                        position_size=validated_response.position_size_recommendation or 0.02,
+                        reasoning=validated_response.rationale,
+                        metadata={
+                            "ai_analysis": True,
+                            "model": "gemini",
+                            "prompt_version": self.settings.prompt_version,
+                            "risk_assessment": validated_response.risk_assessment
+                        }
+                    )
+                else:
+                    # Create fallback signal on validation failure
+                    fallback = validator.create_fallback_signal(symbol, "Response validation failed")
+                    logger.warning(f"AI response validation failed for {symbol}, using fallback")
+                    return StrategySignal(
+                        strategy_name="ai_analysis",
+                        symbol=symbol,
+                        direction=fallback.direction,
+                        confidence=fallback.confidence,
+                        position_size=fallback.position_size_recommendation or 0.0,
+                        reasoning=fallback.rationale,
+                        metadata={"ai_analysis": True, "fallback": True}
+                    )
+
+        except Exception as e:
+            logger.warning(f"Vertex AI analysis failed for {symbol}: {e}", exc_info=True)
+            # Return fallback on exception
+            try:
+                from .prompt_engineer import ResponseValidator
+                validator = ResponseValidator()
+                fallback = validator.create_fallback_signal(symbol, f"Exception: {str(e)}")
+                return StrategySignal(
+                    strategy_name="ai_analysis",
+                    symbol=symbol,
+                    direction=fallback.direction,
+                    confidence=fallback.confidence,
+                    position_size=0.0,
+                    reasoning=fallback.rationale,
+                    metadata={"ai_analysis": True, "fallback": True, "error": str(e)}
+                )
+            except Exception:
+                return None
+
+        return None
+
     def _score_signal(self, signal: StrategySignal) -> float:
         """Score a signal based on confidence and historical performance."""
         base_score = signal.confidence
