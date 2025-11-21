@@ -58,5 +58,4 @@ spec:
             httpGet:
               path: /healthz
               port: 8080
-            initialDelaySeconds: 5
-            periodSeconds: 5
+            {{- include "trading-system.readinessProbe" $ | nindent 12 }}

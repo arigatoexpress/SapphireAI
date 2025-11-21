@@ -6,14 +6,16 @@ import asyncio
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Callable, Awaitable
 from datetime import datetime, timedelta
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
+
 
 @dataclass
 class HealthCheck:
     """Represents a health check for a system component."""
+
     name: str
     check_func: Callable[[], Awaitable[bool]]
     interval: float = 30.0  # seconds
@@ -28,14 +30,17 @@ class HealthCheck:
     last_success: Optional[float] = None
     healthy: bool = True
 
+
 @dataclass
 class SelfHealingConfig:
     """Configuration for self-healing behavior."""
+
     health_check_interval: float = 30.0
     recovery_cooldown: float = 300.0  # 5 minutes between recovery attempts
     max_recovery_attempts: int = 5
     enable_auto_recovery: bool = True
     alert_on_failures: bool = True
+
 
 class SelfHealingManager:
     """Manages self-healing operations for the trading system."""
@@ -100,12 +105,14 @@ class SelfHealingManager:
             success = await asyncio.wait_for(check.recovery_func(), timeout=60.0)
 
             # Record recovery attempt
-            self.recovery_history.append({
-                'timestamp': datetime.now(),
-                'component': check.name,
-                'success': success,
-                'failures_before_recovery': check.failures
-            })
+            self.recovery_history.append(
+                {
+                    "timestamp": datetime.now(),
+                    "component": check.name,
+                    "success": success,
+                    "failures_before_recovery": check.failures,
+                }
+            )
 
             if success:
                 logger.info(f"Successfully recovered {check.name}")
@@ -125,12 +132,16 @@ class SelfHealingManager:
         healthy = await self.perform_health_check(check)
 
         if not healthy:
-            logger.warning(f"Health check failed for {check.name} (failures: {check.failures}/{check.max_failures})")
+            logger.warning(
+                f"Health check failed for {check.name} (failures: {check.failures}/{check.max_failures})"
+            )
 
             # Check if we should attempt recovery
-            if (self.config.enable_auto_recovery and
-                check.failures >= check.max_failures and
-                check.recovery_func):
+            if (
+                self.config.enable_auto_recovery
+                and check.failures >= check.max_failures
+                and check.recovery_func
+            ):
 
                 success = await self.attempt_recovery(check)
                 if success:
@@ -158,9 +169,14 @@ class SelfHealingManager:
             # Try to send telegram alert (will fail gracefully if not configured)
             try:
                 from .enhanced_telegram import create_enhanced_telegram_service
-                telegram = await create_enhanced_telegram_service(None)  # Will use environment config
+
+                telegram = await create_enhanced_telegram_service(
+                    None
+                )  # Will use environment config
                 if telegram:
-                    await telegram.send_message(alert_message, priority=NotificationPriority.CRITICAL)
+                    await telegram.send_message(
+                        alert_message, priority=NotificationPriority.CRITICAL
+                    )
             except Exception:
                 pass  # Telegram not configured or failed
 
@@ -174,10 +190,7 @@ class SelfHealingManager:
         while self.monitoring_active:
             try:
                 # Run all health checks concurrently
-                tasks = [
-                    self.check_and_recover(check)
-                    for check in self.health_checks.values()
-                ]
+                tasks = [self.check_and_recover(check) for check in self.health_checks.values()]
 
                 await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -202,7 +215,9 @@ class SelfHealingManager:
             logger.info("Self-healing health monitoring started")
         except RuntimeError:
             # No event loop running, schedule for later
-            logger.warning("No event loop available, self-healing monitoring will start when loop is available")
+            logger.warning(
+                "No event loop available, self-healing monitoring will start when loop is available"
+            )
             self.monitoring_active = False
 
     def stop_monitoring(self):
@@ -215,25 +230,33 @@ class SelfHealingManager:
     async def get_health_status(self) -> Dict[str, Any]:
         """Get comprehensive health status of all components."""
         status = {
-            'timestamp': datetime.now(),
-            'overall_healthy': all(check.healthy for check in self.health_checks.values()),
-            'components': {},
-            'recovery_history': self.recovery_history[-10:]  # Last 10 recovery attempts
+            "timestamp": datetime.now(),
+            "overall_healthy": all(check.healthy for check in self.health_checks.values()),
+            "components": {},
+            "recovery_history": self.recovery_history[-10:],  # Last 10 recovery attempts
         }
 
         for name, check in self.health_checks.items():
-            status['components'][name] = {
-                'healthy': check.healthy,
-                'failures': check.failures,
-                'last_check': datetime.fromtimestamp(check.last_check) if check.last_check else None,
-                'last_success': datetime.fromtimestamp(check.last_success) if check.last_success else None,
-                'last_failure': datetime.fromtimestamp(check.last_failure) if check.last_failure else None,
+            status["components"][name] = {
+                "healthy": check.healthy,
+                "failures": check.failures,
+                "last_check": (
+                    datetime.fromtimestamp(check.last_check) if check.last_check else None
+                ),
+                "last_success": (
+                    datetime.fromtimestamp(check.last_success) if check.last_success else None
+                ),
+                "last_failure": (
+                    datetime.fromtimestamp(check.last_failure) if check.last_failure else None
+                ),
             }
 
         return status
 
+
 # Global self-healing manager instance
 _healing_manager: Optional[SelfHealingManager] = None
+
 
 def get_self_healing_manager() -> SelfHealingManager:
     """Get the global self-healing manager instance."""
@@ -242,12 +265,13 @@ def get_self_healing_manager() -> SelfHealingManager:
         _healing_manager = SelfHealingManager()
     return _healing_manager
 
+
 # Convenience functions for common recovery operations
 async def recover_database_connection() -> bool:
     """Attempt to recover database connection."""
     try:
         # Import here to avoid circular imports
-        from . import get_storage, close_storage
+        from . import close_storage, get_storage
 
         # Close existing connection
         await close_storage()
@@ -265,11 +289,12 @@ async def recover_database_connection() -> bool:
         logger.error(f"Database recovery failed: {e}")
         return False
 
+
 async def recover_redis_connection() -> bool:
     """Attempt to recover Redis connection."""
     try:
         # Import here to avoid circular imports
-        from . import get_cache, close_cache
+        from . import close_cache, get_cache
 
         # Close existing connection
         await close_cache()
@@ -286,6 +311,7 @@ async def recover_redis_connection() -> bool:
     except Exception as e:
         logger.error(f"Redis recovery failed: {e}")
         return False
+
 
 async def recover_vertex_ai_connection() -> bool:
     """Attempt to recover Vertex AI connection."""

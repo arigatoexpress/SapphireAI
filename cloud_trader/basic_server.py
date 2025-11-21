@@ -6,13 +6,14 @@ Ultra-minimal HTTP server using only Python standard library.
 Provides basic API endpoints for system demonstration.
 """
 
-import json
 import http.server
+import json
 import socketserver
-from datetime import datetime
 import urllib.parse
+from datetime import datetime
 
 PORT = 8080
+
 
 class TradingAPIHandler(http.server.BaseHTTPRequestHandler):
     """Basic HTTP request handler for trading API"""
@@ -46,97 +47,99 @@ class TradingAPIHandler(http.server.BaseHTTPRequestHandler):
     def send_json_response(self, status_code, data):
         """Send JSON response"""
         self.send_response(status_code)
-        self.send_header('Content-Type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
         self.wfile.write(json.dumps(data).encode())
 
     def get_portfolio_data(self):
         """Get portfolio status data"""
         return {
-            'total_capital': 3500,
-            'agent_capital': 500,
-            'agent_count': 6,
-            'status': 'operational',
-            'timestamp': datetime.utcnow().isoformat(),
-            'agents': {
-                'trend-momentum-agent': {'status': 'active', 'last_trade': None},
-                'strategy-optimization-agent': {'status': 'active', 'last_trade': None},
-                'financial-sentiment-agent': {'status': 'active', 'last_trade': None},
-                'market-prediction-agent': {'status': 'active', 'last_trade': None},
-                'volume-microstructure-agent': {'status': 'active', 'last_trade': None},
-                'vpin-hft': {'status': 'active', 'last_trade': None}
-            }
+            "total_capital": 3500,
+            "agent_capital": 500,
+            "agent_count": 6,
+            "status": "operational",
+            "timestamp": datetime.utcnow().isoformat(),
+            "agents": {
+                "trend-momentum-agent": {"status": "active", "last_trade": None},
+                "strategy-optimization-agent": {"status": "active", "last_trade": None},
+                "financial-sentiment-agent": {"status": "active", "last_trade": None},
+                "market-prediction-agent": {"status": "active", "last_trade": None},
+                "volume-microstructure-agent": {"status": "active", "last_trade": None},
+                "vpin-hft": {"status": "active", "last_trade": None},
+            },
         }
 
     def get_agent_activities(self):
         """Get agent activities data"""
         agents = [
-            'trend-momentum-agent',
-            'strategy-optimization-agent',
-            'financial-sentiment-agent',
-            'market-prediction-agent',
-            'volume-microstructure-agent',
-            'vpin-hft'
+            "trend-momentum-agent",
+            "strategy-optimization-agent",
+            "financial-sentiment-agent",
+            "market-prediction-agent",
+            "volume-microstructure-agent",
+            "vpin-hft",
         ]
 
         activities = []
         for agent in agents:
-            activities.append({
-                'agent_id': f'{agent}-1',
-                'agent_type': agent,
-                'agent_name': agent.replace('-', ' ').title(),
-                'activity_score': 0.5 + (hash(agent) % 50) / 100,
-                'communication_count': hash(agent) % 20,
-                'trading_count': 0,
-                'last_activity': datetime.utcnow().isoformat(),
-                'participation_threshold': 0.7,
-                'specialization': {
-                    'trend-momentum-agent': 'Momentum Analysis',
-                    'strategy-optimization-agent': 'Strategy Optimization',
-                    'financial-sentiment-agent': 'Sentiment Analysis',
-                    'market-prediction-agent': 'Market Prediction',
-                    'volume-microstructure-agent': 'Volume Analysis',
-                    'vpin-hft': 'VPIN High-Frequency Trading'
-                }.get(agent, 'Trading Agent'),
-                'color': {
-                    'trend-momentum-agent': '#06b6d4',
-                    'strategy-optimization-agent': '#8b5cf6',
-                    'financial-sentiment-agent': '#ef4444',
-                    'market-prediction-agent': '#f59e0b',
-                    'volume-microstructure-agent': '#ec4899',
-                    'vpin-hft': '#06b6d4'
-                }.get(agent, '#6b7280'),
-                'status': 'active'
-            })
+            activities.append(
+                {
+                    "agent_id": f"{agent}-1",
+                    "agent_type": agent,
+                    "agent_name": agent.replace("-", " ").title(),
+                    "activity_score": 0.5 + (hash(agent) % 50) / 100,
+                    "communication_count": hash(agent) % 20,
+                    "trading_count": 0,
+                    "last_activity": datetime.utcnow().isoformat(),
+                    "participation_threshold": 0.7,
+                    "specialization": {
+                        "trend-momentum-agent": "Momentum Analysis",
+                        "strategy-optimization-agent": "Strategy Optimization",
+                        "financial-sentiment-agent": "Sentiment Analysis",
+                        "market-prediction-agent": "Market Prediction",
+                        "volume-microstructure-agent": "Volume Analysis",
+                        "vpin-hft": "VPIN High-Frequency Trading",
+                    }.get(agent, "Trading Agent"),
+                    "color": {
+                        "trend-momentum-agent": "#06b6d4",
+                        "strategy-optimization-agent": "#8b5cf6",
+                        "financial-sentiment-agent": "#ef4444",
+                        "market-prediction-agent": "#f59e0b",
+                        "volume-microstructure-agent": "#ec4899",
+                        "vpin-hft": "#06b6d4",
+                    }.get(agent, "#6b7280"),
+                    "status": "active",
+                }
+            )
 
         return activities
 
     def get_system_status(self):
         """Get system status data"""
         return {
-            'service': 'sapphire_trade_basic',
-            'status': 'operational',
-            'version': '1.0.0-basic',
-            'uptime': 'N/A',
-            'total_capital': 3500,
-            'active_agents': 6,
-            'features': [
-                'Basic portfolio tracking',
-                'Agent status monitoring',
-                'Static data demonstration',
-                'Emergency fallback mode',
-                'Standard library only'
+            "service": "sapphire_trade_basic",
+            "status": "operational",
+            "version": "1.0.0-basic",
+            "uptime": "N/A",
+            "total_capital": 3500,
+            "active_agents": 6,
+            "features": [
+                "Basic portfolio tracking",
+                "Agent status monitoring",
+                "Static data demonstration",
+                "Emergency fallback mode",
+                "Standard library only",
             ],
-            'limitations': [
-                'No real-time trading',
-                'Static demonstration data',
-                'No complex analytics',
-                'Basic functionality only',
-                'No external dependencies'
-            ]
+            "limitations": [
+                "No real-time trading",
+                "Static demonstration data",
+                "No complex analytics",
+                "Basic functionality only",
+                "No external dependencies",
+            ],
         }
 
     def get_trading_signals(self):
@@ -144,7 +147,7 @@ class TradingAPIHandler(http.server.BaseHTTPRequestHandler):
         return {
             "signals": [],
             "message": "Basic server - demonstration mode",
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
     def get_root_data(self):
@@ -155,12 +158,13 @@ class TradingAPIHandler(http.server.BaseHTTPRequestHandler):
             "capital": "$3,500 allocated",
             "agents": "6 AI agents configured",
             "service": "basic_http_server",
-            "version": "1.0.0-basic"
+            "version": "1.0.0-basic",
         }
 
     def log_message(self, format, *args):
         """Override logging to be quieter"""
         pass
+
 
 if __name__ == "__main__":
     print("🚀 Starting Sapphire Trade Basic Server on port", PORT)

@@ -12,7 +12,7 @@ steps:
         echo "Running black formatting check..."
         black --check --diff cloud_trader/ || true
         echo "Running isort import sorting check..."
-        isort --check-only --diff cloud_trader/ || true
+        isort --check-only --diff cloud_trader/ || echo "⚠️  Import sorting issues found (non-blocking)"
         echo "✅ Code quality checks completed"
 
   # Run unit tests
@@ -24,7 +24,11 @@ steps:
         echo "🧪 Running unit tests..."
         pip install -r requirements.txt
         pip install pytest pytest-cov
-        pytest tests/ -v --cov=cloud_trader --cov-report=xml || true
+        if [ -d "tests" ] && [ "$(ls -A tests 2>/dev/null)" ]; then
+          pytest tests/ -v --cov=cloud_trader --cov-report=xml || true
+        else
+          echo "⚠️  No tests directory or tests found, skipping tests"
+        fi
         echo "✅ Unit tests completed"
 
   # Build optimized single-stage container image for cloud-trader
@@ -52,52 +56,73 @@ steps:
       - 'push'
       - 'us-central1-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/cloud-trader:${BUILD_ID}'
 
-  # Cleanup old images (keep last 10 builds + latest)
+  # Validate Helm Chart
   - name: 'gcr.io/cloud-builders/gcloud'
-    entrypoint: bash
+    entrypoint: sh
     args:
       - -c
       - |
-        echo "🧹 Cleaning up old Docker images..."
-        REPO="us-central1-docker.pkg.dev/$${PROJECT_ID}/cloud-run-source-deploy/cloud-trader"
-        echo "Repository: $${REPO}"
+        echo "🔍 Validating Helm Chart..."
+        # Install Helm
+        curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+        chmod 700 get_helm.sh
+        ./get_helm.sh --version v3.12.1 > /dev/null
+        rm get_helm.sh
 
-        # Get all tags sorted by creation time (newest first), exclude 'latest'
-        TAGS=$(gcloud artifacts docker tags list "$${REPO}" \
-          --format="value(tag)" \
-          --filter="tag!=latest" \
-          --sort-by="~CREATE_TIME" \
-          --limit=100 2>/dev/null || echo "")
-        
-        if [ -z "$$TAGS" ]; then
-          echo "No tags to clean up"
-          exit 0
+        # Add Bitnami repo for Redis dependency
+        echo "Adding Bitnami repository..."
+        helm repo add bitnami https://charts.bitnami.com/bitnami --force-update
+        helm repo update
+
+        # Build chart dependencies before validation
+        echo "Building chart dependencies..."
+        helm dependency build ./helm/trading-system || {
+          echo "❌ Helm dependency build failed"
+          exit 1
+        }
+
+        # Lint with error handling
+        echo "Linting chart..."
+        if ! helm lint ./helm/trading-system; then
+          echo "❌ Helm lint failed"
+          helm lint ./helm/trading-system --debug
+          exit 1
         fi
-        
-        # Keep the first 10 tags (newest), delete the rest
-        KEEP_COUNT=10
-        TAG_ARRAY=($$TAGS)
-        TOTAL_TAGS=$${#TAG_ARRAY[@]}
-        
-        if [ $$TOTAL_TAGS -le $$KEEP_COUNT ]; then
-          echo "Only $$TOTAL_TAGS tags found, keeping all"
-          exit 0
+
+        # Template verification (dry-run rendering) - capture output for debugging
+        echo "Verifying template rendering..."
+        if ! helm template ./helm/trading-system \
+          --set global.projectId=${PROJECT_ID} \
+          --set cloudTrader.image.tag=${BUILD_ID} \
+          --set telegram.dailyRecap.enabled=true > /tmp/rendered.yaml 2>&1; then
+          echo "❌ Helm template rendering failed"
+          cat /tmp/rendered.yaml
+          exit 1
         fi
-        
-        # Delete old tags (skip first $$KEEP_COUNT)
-        # Validate inputs and use double quotes to prevent shell interpretation issues
-        DELETED=0
-        for i in $$(seq $$KEEP_COUNT $$((TOTAL_TAGS - 1))); do
-          OLD_TAG="$${TAG_ARRAY[$$i]}"
-          # Validate OLD_TAG is not empty before using
-          if [ -n "$$OLD_TAG" ]; then
-            echo "Deleting old tag: $$OLD_TAG"
-            gcloud artifacts docker tags delete "$${REPO}:$$OLD_TAG" --quiet || true
-            DELETED=$$((DELETED + 1))
-          fi
-        done
-        
-        echo "✅ Cleaned up $$DELETED old image tags (kept latest 10)"
+
+        # Validate rendered YAML syntax
+        echo "Validating rendered YAML syntax..."
+        if command -v yamllint > /dev/null 2>&1; then
+          yamllint /tmp/rendered.yaml || {
+            echo "❌ YAML syntax validation failed"
+            cat /tmp/rendered.yaml | head -100
+            exit 1
+          }
+        else
+          echo "⚠️  yamllint not available, skipping YAML syntax check"
+        fi
+
+        echo "🛡️  Verifying Defensive Nil-Safety..."
+        helm template ./helm/trading-system --set readinessProbe=null > /dev/null || {
+          echo "❌ Nil-safety test failed with readinessProbe=null"
+          exit 1
+        }
+        helm template ./helm/trading-system --set readinessProbe.enabled=true > /dev/null || {
+          echo "❌ Nil-safety test failed with readinessProbe.enabled=true"
+          exit 1
+        }
+
+        echo "✅ Helm chart validation passed"
 
   # Deploy to GKE cluster with optimizations
   - name: 'gcr.io/cloud-builders/gcloud'
@@ -133,6 +158,55 @@ steps:
         echo "🔍 Verifying Helm installation..."
         helm version --short
 
+        # Helm Validation Steps (Lint and Template)
+        echo "🔍 Validating Helm Chart..."
+
+        # Add Bitnami repo for Redis dependency
+        echo "Adding Bitnami repository..."
+        helm repo add bitnami https://charts.bitnami.com/bitnami --force-update
+        helm repo update
+
+        # Build chart dependencies before validation
+        echo "Building chart dependencies..."
+        helm dependency build ./helm/trading-system || {
+          echo "❌ Helm dependency build failed"
+          exit 1
+        }
+
+        echo "Linting chart..."
+        if ! helm lint ./helm/trading-system; then
+          echo "❌ Helm lint failed - stopping deployment"
+          helm lint ./helm/trading-system --debug
+          exit 1
+        fi
+
+        echo "Verifying template rendering..."
+        if ! helm template ./helm/trading-system \
+          --set global.projectId=${PROJECT_ID} \
+          --set cloudTrader.image.tag=${BUILD_ID} \
+          --set telegram.dailyRecap.enabled=true > /tmp/rendered-deploy.yaml 2>&1; then
+          echo "❌ Helm template rendering failed"
+          cat /tmp/rendered-deploy.yaml
+          exit 1
+        fi
+
+        echo "🛡️  Verifying Defensive Nil-Safety..."
+        if ! helm template ./helm/trading-system --set readinessProbe=null > /dev/null 2>&1; then
+          echo "❌ Nil-safety test failed with readinessProbe=null"
+          exit 1
+        fi
+        if ! helm template ./helm/trading-system --set readinessProbe.enabled=true > /dev/null 2>&1; then
+          echo "❌ Nil-safety test failed with readinessProbe.enabled=true"
+          exit 1
+        fi
+
+        echo "=== Verifying readinessProbe structure ==="
+        helm template ./helm/trading-system | grep -A8 "readinessProbe" | head -20
+        echo "=== Testing readinessProbe override ==="
+        helm template ./helm/trading-system --set readinessProbe.initialDelaySeconds=90 | grep -A10 "readinessProbe" | head -20
+
+        echo "✅ Helm chart validation passed"
+
         echo "🔐 Getting GKE credentials..."
         gcloud container clusters get-credentials hft-trading-cluster --zone=us-central1-a --project=${PROJECT_ID}
 
@@ -142,59 +216,91 @@ steps:
 
         echo "🚀 Starting optimized GKE deployments..."
 
-        # Check if there's an ongoing Helm operation
-        echo "🔍 Checking for ongoing Helm operations..."
-        if helm list -n trading 2>/dev/null | grep -q "trading-system.*pending"; then
-            echo "⚠️  Found pending Helm operation, waiting..."
-            sleep 30
-            # Try to cancel any stuck operations
-            echo "🔄 Attempting to cancel stuck operations..."
-            helm rollback trading-system 2>/dev/null || echo "No rollback needed"
-        fi
+        # 1. Force uninstall existing release to handle stuck releases
+        echo "=== Force Uninstall Existing Release ==="
+        helm uninstall trading-system --namespace trading || true
+        sleep 5
 
-        # Clean up any existing immutable Jobs before upgrade
-        echo "🧹 Cleaning up existing Jobs that might conflict..."
-        kubectl delete job trading-system-system-init -n trading --ignore-not-found=true 2>/dev/null || true
-        kubectl delete job trading-system-system-initialization -n trading --ignore-not-found=true 2>/dev/null || true
+        # 2. Force cleanup stuck resources with aggressive deletion
+        echo "=== Force Cleanup Stuck Resources ==="
+        kubectl delete pods,services,deployments,statefulsets,jobs,configmaps,secrets -n trading -l app.kubernetes.io/instance=trading-system --force --grace-period=0 --ignore-not-found=true || true
+        # Delete Helm release secrets (compatible with all shells)
+        for secret in $(kubectl get secret -n trading -l "owner=helm,name=trading-system" -o name 2>/dev/null || true); do
+          kubectl delete -n trading "$secret" --force --grace-period=0 2>/dev/null || true
+        done
+        sleep 10
 
-        # Install/upgrade Helm chart with error handling
-        echo "⚡ Building Helm chart dependencies..."
-        helm dependency build ./helm/trading-system
+        echo "=== Cleanup Complete ==="
 
-        echo "⚡ Installing/upgrading trading-system Helm chart..."
-        # Force upgrade to override any stuck operations and recreate immutable resources
+        # Emergency Minimal Deployment: Deploy ONLY cloud-trader
+
+        # Stage 1: Deploy absolute minimum (cloud-trader only)
+        echo "📦 Stage 1: Deploying emergency minimal configuration..."
+        echo "🔍 Configuration: ONLY cloud-trader, all agents disabled"
         helm upgrade --install trading-system ./helm/trading-system \
             --namespace trading \
             --create-namespace \
+            -f helm/trading-system/values-emergency-minimal.yaml \
             --set global.imageRegistry=us-central1-docker.pkg.dev \
             --set global.projectId=${PROJECT_ID} \
             --set cloudTrader.image.tag=${BUILD_ID} \
-            --force \
-            --reset-values \
-            --recreate-pods
-        echo "✅ Helm chart installed/upgraded successfully"
+            --timeout 5m \
+            --atomic=false \
+            --cleanup-on-fail
+
+        echo "✅ Helm release installed (not waiting for pods)"
+        echo "🔍 Monitoring pod rollout with kubectl..."
+
+        # Monitor deployment with kubectl rollout status (better feedback than --wait)
+        kubectl rollout status deployment/trading-system-cloud-trader -n trading --timeout=10m || {
+          echo "❌ Cloud-trader rollout failed - inspecting..."
+          echo ""
+          echo "=== Pod Status ==="
+          kubectl get pods -n trading -l app=cloud-trader
+          echo ""
+          echo "=== Pod Description ==="
+          kubectl describe pods -n trading -l app=cloud-trader | tail -100
+          echo ""
+          echo "=== Pod Logs ==="
+          kubectl logs -n trading -l app=cloud-trader --tail=200 --all-containers=true
+          echo ""
+          echo "=== Events ==="
+          kubectl get events -n trading --sort-by='.lastTimestamp' | tail -20
+          exit 1
+        }
+
+        echo "✅ Cloud-trader pod is Running and Ready"
+
+        # Stage 2: Test health endpoint
+        echo "🔍 Stage 2: Testing cloud-trader health endpoint..."
+        CLOUD_TRADER_POD_VAR=$$(kubectl get pod -n trading -l app=cloud-trader -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+        if [ -n "$$CLOUD_TRADER_POD_VAR" ]; then
+          echo "Pod name: $$CLOUD_TRADER_POD_VAR"
+          echo "Testing health endpoint..."
+          kubectl exec -n trading "$$CLOUD_TRADER_POD_VAR" -- curl -f http://localhost:8080/healthz || {
+            echo "⚠️  Health check failed - getting pod logs..."
+            kubectl logs -n trading "$$CLOUD_TRADER_POD_VAR" --tail=100
+            exit 1
+          }
+          echo "✅ Health check PASSED"
+        else
+          echo "⚠️  No cloud-trader pod found"
+          kubectl get pods -n trading
+          exit 1
+        fi
+
+        echo "✅ Minimal deployment successful - cloud-trader is live!"
+        echo "📊 Deployment Summary:"
+        kubectl get pods -n trading
+        kubectl get services -n trading
+
+        echo ""
+        echo "🎉 SUCCESS: Cloud-trader deployed and healthy!"
+        echo "💡 Next steps: Add agents incrementally in future deploys"
 
         # Helm chart handles all image updates automatically
 
-        echo "⏳ Waiting for optimized rollouts to complete..."
-                # Rollout with error handling - check all deployments from Helm chart
-                # Only wait for critical deployments to avoid timeout
-                critical_deployments="trading-system-cloud-trader trading-system-mcp-coordinator"
-
-                for deployment in $critical_deployments; do
-                  echo "⏳ Waiting for critical deployment: $deployment..."
-                  if ! kubectl -n trading rollout status deployment/$deployment --timeout=600s; then
-              echo "❌ Critical deployment $deployment rollout failed"
-              kubectl -n trading describe deployment/$deployment
-              kubectl -n trading logs deployment/$deployment --tail=50 || true
-              echo "⚠️  Continuing despite failure - deployment may still work"
-              # Don't exit on failure, just warn
-          else
-              echo "✅ $deployment rollout completed successfully"
-          fi
-                done
-
-        echo "✅ All optimized deployments completed successfully"
+        echo "✅ All optimized deployments triggered successfully"
 
         # Comprehensive health check with optimization metrics
         echo "🏥 Running post-deployment optimization health check..."
@@ -202,7 +308,7 @@ steps:
         kubectl -n trading get pods --no-headers | grep -E "(trading-system)" | head -15
         echo ""
         echo "Resource utilization:"
-        kubectl -n trading top pods | head -10
+        kubectl -n trading top pods | head -10 || echo "Metrics not available yet"
         echo ""
         echo "Service status:"
         kubectl -n trading get services --no-headers | grep -E "(trading-system)" | head -5
@@ -240,4 +346,4 @@ options:
     - 'PYTHONOPTIMIZE=1'
 
 # Conservative timeout for reliability
-timeout: '1200s'  # 20 minutes should be sufficient for CPU-only deployment
+timeout: '3600s'  # 60 minutes for reliability

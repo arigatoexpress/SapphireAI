@@ -1,17 +1,25 @@
-"""Vertex AI client for model inference and management."""
+"""Vertex AI client for model inference and management with Gemini API fallback."""
 
 from __future__ import annotations
 
 import asyncio
 import json
 import logging
-from typing import Any, Dict, Optional, Union
 import time
+from typing import Any, Dict, Optional, Union
 
+import httpx
 from google.api_core.exceptions import GoogleAPIError
 from google.cloud import aiplatform
 from vertexai.preview.generative_models import GenerativeModel
-import httpx
+
+# Try to import Google Generative AI (for API key mode)
+try:
+    import google.generativeai as genai
+
+    HAS_GENAI = True
+except ImportError:
+    HAS_GENAI = False
 
 from .config import get_settings
 
@@ -39,117 +47,166 @@ class VertexAIClient:
         self._performance_metrics: Dict[str, List[float]] = {}
         self._max_metrics_history = 100
 
-        if self._settings.enable_vertex_ai and self._project_id:
+        # Mode detection
+        self._use_api_key = False
+
+        if self._settings.gemini_api_key:
+            if HAS_GENAI:
+                logger.info("Initializing Gemini API client with provided API key")
+                genai.configure(api_key=self._settings.gemini_api_key)
+                self._use_api_key = True
+            else:
+                logger.warning(
+                    "GEMINI_API_KEY present but google-generativeai package not installed"
+                )
+
+        if not self._use_api_key and self._settings.enable_vertex_ai and self._project_id:
             try:
                 aiplatform.init(project=self._project_id, location=self._region)
                 logger.info("Vertex AI initialized successfully")
             except Exception as e:
                 logger.error(f"Failed to initialize Vertex AI: {e}")
-                raise
+                if not self._use_api_key:
+                    raise
 
         # Initialize endpoint mappings
         self._initialize_endpoints()
 
+        # Model mapping for Direct API Mode
+        self._model_map = {
+            "trend-momentum-agent": "gemini-2.0-flash-exp",
+            "strategy-optimization-agent": "gemini-exp-1206",
+            "financial-sentiment-agent": "gemini-2.0-flash-exp",
+            "market-prediction-agent": "gemini-exp-1206",
+            "volume-microstructure-agent": "gemini-2.0-flash-exp",  # Fallback from Codey
+            "vpin-hft": "gemini-2.0-flash-exp",
+        }
+
     def _initialize_endpoints(self) -> None:
         """Initialize Vertex AI endpoint mappings for each agent."""
-        settings = self._settings
-        # Vertex AI endpoints removed - now using unified Google Cloud AI models
+        # In API Key mode, we don't need endpoints, but we keep this structure compatible
         self._endpoints = {}
 
-        # Filter out None endpoints
-        self._endpoints = {k: v for k, v in self._endpoints.items() if v is not None}
+        # In a real Vertex AI setup, we would fetch these or load from config
+        # For now, if using API key, we rely on _model_map
 
     async def predict(self, agent_id: str, prompt: str, **kwargs) -> Dict[str, Any]:
         """Make prediction using specified agent model with circuit breaker protection."""
-        if not self._settings.enable_vertex_ai:
-            raise ValueError("Vertex AI is disabled in configuration")
-
-        endpoint_url = self._endpoints.get(agent_id)
-        if not endpoint_url:
-            raise ValueError(f"No Vertex AI endpoint configured for agent: {agent_id}")
+        if not self._settings.enable_vertex_ai and not self._use_api_key:
+            raise ValueError("Both Vertex AI and Gemini API Key modes are disabled")
 
         # Check circuit breaker
         if self._is_circuit_open(agent_id):
             raise RuntimeError(f"Circuit breaker open for {agent_id} - too many failures")
 
-        # Check health cache
-        if not await self._is_endpoint_healthy(agent_id):
+        # Dispatch based on mode
+        try:
+            if self._use_api_key:
+                return await self._predict_with_api_key(agent_id, prompt, **kwargs)
+            else:
+                return await self._predict_with_vertex(agent_id, prompt, **kwargs)
+
+        except Exception as e:
             self._record_failure(agent_id)
-            raise RuntimeError(f"Vertex AI endpoint for {agent_id} is unhealthy")
+            logger.error(f"Prediction error for {agent_id}: {e}")
+            raise RuntimeError(f"Prediction failed: {e}")
+
+    async def _predict_with_api_key(self, agent_id: str, prompt: str, **kwargs) -> Dict[str, Any]:
+        """Make prediction using Google AI Studio API Key."""
+        model_name = self._model_map.get(agent_id, "gemini-2.0-flash-exp")
 
         try:
-            # Prepare prediction payload
-            payload = {
-                "instances": [{
+            model = genai.GenerativeModel(model_name)
+
+            generation_config = genai.types.GenerationConfig(
+                max_output_tokens=kwargs.get("max_tokens", 512),
+                temperature=kwargs.get("temperature", 0.7),
+                top_p=kwargs.get("top_p", 0.9),
+                top_k=kwargs.get("top_k", 40),
+            )
+
+            start_time = time.time()
+            # Run in executor to avoid blocking async loop
+            response = await asyncio.get_event_loop().run_in_executor(
+                None, lambda: model.generate_content(prompt, generation_config=generation_config)
+            )
+            inference_time = time.time() - start_time
+
+            self._record_success(agent_id)
+            self._record_performance_metric(agent_id, inference_time)
+
+            text_response = response.text if response.parts else ""
+
+            return {
+                "response": text_response,
+                "confidence": 0.9,  # API doesn't strictly return confidence in this mode
+                "metadata": {
+                    "inference_time": inference_time,
+                    "model": model_name,
+                    "mode": "api_key",
+                    "circuit_breaker": "healthy",
+                },
+            }
+
+        except Exception as e:
+            logger.error(f"Gemini API Key prediction failed for {agent_id}: {e}")
+            raise
+
+    async def _predict_with_vertex(self, agent_id: str, prompt: str, **kwargs) -> Dict[str, Any]:
+        """Make prediction using Vertex AI Endpoint."""
+        endpoint_url = self._endpoints.get(agent_id)
+        if not endpoint_url:
+            raise ValueError(f"No Vertex AI endpoint configured for agent: {agent_id}")
+
+        # ... (Existing Vertex Logic would go here, but since endpoints are empty in current codebase, this path will fail unless endpoints are populated)
+        # For safety, I'll preserve the original logic structure if endpoints existed
+
+        # Extract endpoint ID from URL
+        endpoint_id = endpoint_url.split("/")[-1]
+
+        # Use Vertex AI SDK for prediction
+        endpoint = aiplatform.Endpoint(endpoint_name=endpoint_id)
+
+        payload = {
+            "instances": [
+                {
                     "prompt": prompt,
                     "max_tokens": kwargs.get("max_tokens", 512),
                     "temperature": kwargs.get("temperature", 0.7),
                     "top_p": kwargs.get("top_p", 0.9),
                     "top_k": kwargs.get("top_k", 40),
-                }]
-            }
-
-            # Extract endpoint ID from URL
-            endpoint_id = endpoint_url.split("/")[-1]
-
-            # Use Vertex AI SDK for prediction
-            endpoint = aiplatform.Endpoint(endpoint_name=endpoint_id)
-
-            start_time = time.time()
-            response = endpoint.predict(instances=payload["instances"])
-            inference_time = time.time() - start_time
-
-            # Record success and performance
-            self._record_success(agent_id)
-            self._record_performance_metric(agent_id, inference_time)
-
-            # Parse response
-            if response.predictions:
-                prediction = response.predictions[0]
-                result = {
-                    "response": prediction.get("generated_text", ""),
-                    "confidence": prediction.get("confidence", 0.5),
-                    "metadata": {
-                        "inference_time": inference_time,
-                        "model": agent_id,
-                        "endpoint": endpoint_id,
-                        "circuit_breaker": "healthy",
-                    }
                 }
+            ]
+        }
 
-                # Validate response quality
-                if self._validate_response_quality(result):
-                    return result
-                else:
-                    logger.warning(f"Low quality response from {agent_id}, but returning anyway")
-                    return result
+        start_time = time.time()
+        response = endpoint.predict(instances=payload["instances"])
+        inference_time = time.time() - start_time
 
+        self._record_success(agent_id)
+        self._record_performance_metric(agent_id, inference_time)
+
+        if response.predictions:
+            prediction = response.predictions[0]
             return {
-                "response": "",
-                "confidence": 0.0,
+                "response": prediction.get("generated_text", ""),
+                "confidence": prediction.get("confidence", 0.5),
                 "metadata": {
                     "inference_time": inference_time,
-                    "error": "No predictions returned",
-                    "circuit_breaker": "healthy"
-                }
+                    "model": agent_id,
+                    "endpoint": endpoint_id,
+                    "circuit_breaker": "healthy",
+                },
             }
 
-        except GoogleAPIError as e:
-            self._record_failure(agent_id)
-            logger.error(f"Vertex AI prediction error for {agent_id}: {e}")
-            raise RuntimeError(f"Vertex AI prediction failed: {e}")
-
-        except Exception as e:
-            self._record_failure(agent_id)
-            logger.error(f"Unexpected error in Vertex AI prediction for {agent_id}: {e}")
-            raise RuntimeError(f"Vertex AI prediction failed: {e}")
+        return {"response": "", "confidence": 0.0, "metadata": {"error": "No predictions"}}
 
     async def predict_with_fallback(self, agent_id: str, prompt: str, **kwargs) -> Dict[str, Any]:
-        """Make prediction with LLM fallback if Vertex AI fails."""
+        """Make prediction with LLM fallback if Vertex AI/Gemini fails."""
         try:
             return await self.predict(agent_id, prompt, **kwargs)
         except Exception as e:
-            logger.warning(f"Vertex AI failed for {agent_id}, falling back to LLM: {e}")
+            logger.warning(f"Primary inference failed for {agent_id}, falling back to LLM: {e}")
 
             # Fallback to LLM endpoint if configured
             if self._settings.llm_endpoint and self._settings.enable_llm_trading:
@@ -173,12 +230,14 @@ class VertexAIClient:
                 if response.status_code == 200:
                     data = response.json()
                     return {
-                        "response": data.get("choices", [{}])[0].get("message", {}).get("content", ""),
+                        "response": data.get("choices", [{}])[0]
+                        .get("message", {})
+                        .get("content", ""),
                         "confidence": 0.5,  # Default confidence for fallback
                         "metadata": {
                             "fallback": True,
                             "model": "llm-fallback",
-                        }
+                        },
                     }
 
                 raise RuntimeError(f"LLM fallback failed with status {response.status_code}")
@@ -189,6 +248,9 @@ class VertexAIClient:
 
     async def _is_endpoint_healthy(self, agent_id: str) -> bool:
         """Check if Vertex AI endpoint is healthy."""
+        if self._use_api_key:
+            return True  # Assume healthy if using API key (could check list_models but simple is better)
+
         cache_key = f"{agent_id}_health"
         now = time.time()
 
@@ -207,10 +269,7 @@ class VertexAIClient:
             # Simple health check - try to get endpoint info
             endpoint_id = endpoint_url.split("/")[-1]
             endpoint = aiplatform.Endpoint(endpoint_name=endpoint_id)
-
-            # Try to get endpoint info (this will fail if endpoint doesn't exist)
-            endpoint.display_name  # This property access will trigger API call
-
+            endpoint.display_name  # Trigger API call
             healthy = True
 
         except Exception as e:
@@ -218,19 +277,24 @@ class VertexAIClient:
             healthy = False
 
         # Cache result
-        self._health_cache[cache_key] = {
-            "healthy": healthy,
-            "timestamp": now
-        }
+        self._health_cache[cache_key] = {"healthy": healthy, "timestamp": now}
 
         return healthy
 
     async def health_check(self) -> bool:
         """Perform a basic health check of Vertex AI connectivity."""
+        if self._use_api_key:
+            try:
+                # Check if we can list models
+                await asyncio.get_event_loop().run_in_executor(None, genai.list_models)
+                return True
+            except Exception as e:
+                logger.error(f"Gemini API health check failed: {e}")
+                return False
+
         try:
             # Try to list available models as a basic connectivity test
             aiplatform.init(project=self._project_id, location=self._region)
-            # If we get here without exception, Vertex AI is accessible
             return True
         except Exception as e:
             logger.error(f"Vertex AI health check failed: {e}")
@@ -238,6 +302,17 @@ class VertexAIClient:
 
     async def get_model_info(self, agent_id: str) -> Dict[str, Any]:
         """Get information about a deployed model."""
+        if self._use_api_key:
+            model_name = self._model_map.get(agent_id, "unknown")
+            return {
+                "model_id": agent_id,
+                "endpoint_id": "api_key",
+                "display_name": model_name,
+                "deployed_models": [{"model": model_name, "display_name": model_name}],
+                "traffic_split": {"100": 1},
+                "healthy": True,
+            }
+
         try:
             endpoint_url = self._endpoints.get(agent_id)
             if not endpoint_url:
@@ -269,8 +344,12 @@ class VertexAIClient:
     async def list_all_models(self) -> Dict[str, Any]:
         """List all Vertex AI models and their status."""
         result = {}
-        for agent_id in self._endpoints.keys():
-            result[agent_id] = await self.get_model_info(agent_id)
+        if self._use_api_key:
+            for agent_id in self._model_map.keys():
+                result[agent_id] = await self.get_model_info(agent_id)
+        else:
+            for agent_id in self._endpoints.keys():
+                result[agent_id] = await self.get_model_info(agent_id)
         return result
 
     def _is_circuit_open(self, agent_id: str) -> bool:
@@ -293,12 +372,10 @@ class VertexAIClient:
 
     def _record_success(self, agent_id: str) -> None:
         """Record successful prediction."""
-        breaker = self._circuit_breakers.setdefault(agent_id, {
-            "state": "closed",
-            "failures": 0,
-            "half_open_successes": 0,
-            "last_failure": 0
-        })
+        breaker = self._circuit_breakers.setdefault(
+            agent_id,
+            {"state": "closed", "failures": 0, "half_open_successes": 0, "last_failure": 0},
+        )
 
         if breaker["state"] == "half-open":
             breaker["half_open_successes"] += 1
@@ -312,12 +389,10 @@ class VertexAIClient:
 
     def _record_failure(self, agent_id: str) -> None:
         """Record failed prediction."""
-        breaker = self._circuit_breakers.setdefault(agent_id, {
-            "state": "closed",
-            "failures": 0,
-            "half_open_successes": 0,
-            "last_failure": 0
-        })
+        breaker = self._circuit_breakers.setdefault(
+            agent_id,
+            {"state": "closed", "failures": 0, "half_open_successes": 0, "last_failure": 0},
+        )
 
         breaker["failures"] += 1
         breaker["last_failure"] = time.time()
@@ -328,7 +403,9 @@ class VertexAIClient:
             logger.warning(f"Circuit breaker for {agent_id} opened due to half-open failure")
         elif breaker["failures"] >= self._failure_threshold:
             breaker["state"] = "open"
-            logger.warning(f"Circuit breaker for {agent_id} opened after {breaker['failures']} failures")
+            logger.warning(
+                f"Circuit breaker for {agent_id} opened after {breaker['failures']} failures"
+            )
 
     def _record_performance_metric(self, agent_id: str, inference_time: float) -> None:
         """Record performance metric for monitoring."""
@@ -367,12 +444,10 @@ class VertexAIClient:
 
     def get_circuit_breaker_status(self, agent_id: str) -> Dict[str, Any]:
         """Get circuit breaker status for an agent."""
-        breaker = self._circuit_breakers.get(agent_id, {
-            "state": "closed",
-            "failures": 0,
-            "half_open_successes": 0,
-            "last_failure": 0
-        })
+        breaker = self._circuit_breakers.get(
+            agent_id,
+            {"state": "closed", "failures": 0, "half_open_successes": 0, "last_failure": 0},
+        )
 
         return {
             "agent_id": agent_id,
@@ -381,7 +456,7 @@ class VertexAIClient:
             "half_open_successes": breaker.get("half_open_successes", 0),
             "last_failure": time.time() - breaker.get("last_failure", 0),
             "failure_threshold": self._failure_threshold,
-            "recovery_timeout": self._recovery_timeout
+            "recovery_timeout": self._recovery_timeout,
         }
 
     def get_performance_metrics(self, agent_id: str) -> Dict[str, Any]:
@@ -392,6 +467,7 @@ class VertexAIClient:
             return {"agent_id": agent_id, "metrics": "no_data"}
 
         import statistics
+
         return {
             "agent_id": agent_id,
             "count": len(metrics),
@@ -400,7 +476,7 @@ class VertexAIClient:
             "min": min(metrics),
             "max": max(metrics),
             "p95": sorted(metrics)[int(len(metrics) * 0.95)] if len(metrics) > 1 else max(metrics),
-            "latest": metrics[-1] if metrics else None
+            "latest": metrics[-1] if metrics else None,
         }
 
     def reset_circuit_breaker(self, agent_id: str) -> bool:
@@ -410,7 +486,7 @@ class VertexAIClient:
                 "state": "closed",
                 "failures": 0,
                 "half_open_successes": 0,
-                "last_failure": 0
+                "last_failure": 0,
             }
             logger.info(f"Circuit breaker reset for {agent_id}")
             return True
@@ -419,15 +495,23 @@ class VertexAIClient:
     def get_all_circuit_breakers(self) -> Dict[str, Dict[str, Any]]:
         """Get circuit breaker status for all agents."""
         result = {}
-        for agent_id in self._endpoints.keys():
-            result[agent_id] = self.get_circuit_breaker_status(agent_id)
+        if self._use_api_key:
+            for agent_id in self._model_map.keys():
+                result[agent_id] = self.get_circuit_breaker_status(agent_id)
+        else:
+            for agent_id in self._endpoints.keys():
+                result[agent_id] = self.get_circuit_breaker_status(agent_id)
         return result
 
     def get_all_performance_metrics(self) -> Dict[str, Dict[str, Any]]:
         """Get performance metrics for all agents."""
         result = {}
-        for agent_id in self._endpoints.keys():
-            result[agent_id] = self.get_performance_metrics(agent_id)
+        if self._use_api_key:
+            for agent_id in self._model_map.keys():
+                result[agent_id] = self.get_performance_metrics(agent_id)
+        else:
+            for agent_id in self._endpoints.keys():
+                result[agent_id] = self.get_performance_metrics(agent_id)
         return result
 
 

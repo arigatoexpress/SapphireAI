@@ -1,8 +1,10 @@
 """Trading strategy logic."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Dict, Literal, Optional
+
 
 @dataclass
 class MarketSnapshot:
@@ -11,12 +13,14 @@ class MarketSnapshot:
     change_24h: float
     atr: Optional[float] = field(default=None)
 
+
 def parse_market_payload(payload: Dict[str, float]) -> MarketSnapshot:
     return MarketSnapshot(
         price=payload.get("price", 0.0),
         volume=payload.get("volume", 0.0),
         change_24h=payload.get("change_24h", 0.0),
     )
+
 
 class MomentumStrategy:
     def __init__(self, threshold: float, notional_fraction: float):
@@ -34,12 +38,14 @@ class MomentumStrategy:
         if snapshot.change_24h < -aggressive_threshold:
             return "SELL"
         return "HOLD"
-    
-    def allocate_notional(self, portfolio_balance: float, expected_return: float, volatility: float) -> float:
+
+    def allocate_notional(
+        self, portfolio_balance: float, expected_return: float, volatility: float
+    ) -> float:
         """Allocate 10% of portfolio for asymmetric bets with higher frequency trading."""
         if volatility <= 0:
             return 0.0
-        
+
         # Use asymmetric Kelly Criterion for more aggressive allocation
         # Higher edge assumption for asymmetric bets
         asymmetric_edge = expected_return * 1.5  # 50% more aggressive

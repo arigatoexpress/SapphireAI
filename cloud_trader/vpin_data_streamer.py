@@ -1,8 +1,9 @@
 import asyncio
 import json
 import time
-import websockets
 from typing import Any, Dict, List
+
+import websockets
 
 # Handle websockets exceptions import - version compatibility
 try:
@@ -19,6 +20,7 @@ except (ImportError, AttributeError):
 
 from .exchange import AsterClient
 
+
 class VPINDataStreamer:
     def __init__(self, output_queue: asyncio.Queue, batch_size: int = 50):
         self.output_queue = output_queue
@@ -31,11 +33,12 @@ class VPINDataStreamer:
     async def _get_all_symbols(self) -> List[str]:
         try:
             # Add timeout to prevent hanging during startup
-            symbols_info = await asyncio.wait_for(
-                self.rest_client.get_all_symbols(),
-                timeout=10.0
-            )
-            return [info['symbol'] for info in symbols_info if info.get('symbol') and info.get('status') == 'TRADING']
+            symbols_info = await asyncio.wait_for(self.rest_client.get_all_symbols(), timeout=10.0)
+            return [
+                info["symbol"]
+                for info in symbols_info
+                if info.get("symbol") and info.get("status") == "TRADING"
+            ]
         except asyncio.TimeoutError:
             print("Timeout fetching symbols for VPIN streamer, using empty list")
             return []
@@ -45,22 +48,22 @@ class VPINDataStreamer:
 
     async def _handle_message(self, message: str):
         data = json.loads(message)
-        stream_data = data.get('data', {})
-        
-        if stream_data.get('e') == 'aggTrade':
-            symbol = stream_data.get('s')
+        stream_data = data.get("data", {})
+
+        if stream_data.get("e") == "aggTrade":
+            symbol = stream_data.get("s")
             if not symbol:
                 return
 
             tick = {
-                'price': float(stream_data.get('p', 0.0)),
-                'volume': float(stream_data.get('q', 0.0)),
-                'timestamp': stream_data.get('T'),
+                "price": float(stream_data.get("p", 0.0)),
+                "volume": float(stream_data.get("q", 0.0)),
+                "timestamp": stream_data.get("T"),
             }
 
             if symbol not in self.tick_buffer:
                 self.tick_buffer[symbol] = []
-            
+
             self.tick_buffer[symbol].append(tick)
 
             if len(self.tick_buffer[symbol]) >= self.batch_size:
@@ -84,7 +87,7 @@ class VPINDataStreamer:
 
                 async with websockets.connect(stream_url) as websocket:
                     print(f"Connected to WebSocket stream for {len(streams[:100])} symbols.")
-                    backoff_time = 5 # Reset backoff time on successful connection
+                    backoff_time = 5  # Reset backoff time on successful connection
                     while not self._stop_event.is_set():
                         message = await websocket.recv()
                         await self._handle_message(message)
@@ -93,20 +96,22 @@ class VPINDataStreamer:
                 print(f"WebSocket connection error: {e}")
             except Exception as e:
                 print(f"An unexpected error occurred in data streamer: {e}")
-            
+
             if not self._stop_event.is_set():
                 print(f"Disconnected. Reconnecting in {backoff_time} seconds...")
                 await asyncio.sleep(backoff_time)
-                backoff_time = min(backoff_time * 2, 60) # Exponential backoff
+                backoff_time = min(backoff_time * 2, 60)  # Exponential backoff
 
     def stop(self):
         self._stop_event.set()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
+
     async def main():
         q = asyncio.Queue()
         streamer = VPINDataStreamer(output_queue=q)
-        
+
         async def consumer():
             while True:
                 try:
@@ -119,7 +124,7 @@ if __name__ == '__main__':
         consumer_task = asyncio.create_task(consumer())
 
         try:
-            await asyncio.sleep(60) # Run for 60 seconds
+            await asyncio.sleep(60)  # Run for 60 seconds
         finally:
             streamer.stop()
             await streamer_task

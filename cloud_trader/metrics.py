@@ -1,4 +1,5 @@
 """Prometheus metrics definitions."""
+
 from prometheus_client import Counter, Gauge, Histogram
 
 # General API metrics
@@ -311,4 +312,19 @@ STRATEGY_ADJUSTMENTS = Counter(
     ["component", "parameter", "reason"],
 )
 
+# Grok 4.1 Arbitration metrics
+GROK_ARBITRATION_COUNT = Counter(
+    "grok_arbitration_total", "Total number of Grok arbitrations", ["outcome"]
+)
 
+GROK_ARBITRATION_LATENCY = Histogram(
+    "grok_arbitration_latency_seconds",
+    "Grok API call latency",
+    buckets=[0.5, 1.0, 2.0, 5.0, 10.0, 20.0],
+)
+
+AGENT_CONFLICT_SCORE = Histogram(
+    "agent_conflict_score",
+    "Disagreement score between agents",
+    buckets=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
+)

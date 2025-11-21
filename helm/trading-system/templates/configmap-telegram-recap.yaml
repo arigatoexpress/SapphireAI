@@ -1,0 +1,29 @@
+{{- if .Values.telegram.dailyRecap.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "trading-system.fullname" . }}-telegram-recap-script
+  namespace: {{ .Values.global.namespace | default "trading" }}
+  labels:
+    {{- include "trading-system.labels" . | nindent 4 }}
+    app: telegram-recap
+data:
+  recap.py: |
+    import asyncio
+    import os
+    from cloud_trader.config import get_settings
+    from cloud_trader.telegram_recaps import create_recap_service
+
+    async def main():
+        settings = get_settings()
+        service = await create_recap_service(settings)
+        if service:
+            hours = int(os.getenv('RECAP_HOURS', '24'))
+            await service.send_recap(hours=hours, include_chart=True)
+            print(f"✅ Daily recap sent successfully ({hours}h)")
+        else:
+            print("❌ Recap service not available")
+
+    if __name__ == "__main__":
+        asyncio.run(main())
+{{- end }}

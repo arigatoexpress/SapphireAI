@@ -7,10 +7,10 @@ import logging
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Callable, Awaitable, Tuple, Set
 from enum import Enum
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Set, Tuple
 
-from .time_sync import get_timestamp_us, get_precision_clock
+from .time_sync import get_precision_clock, get_timestamp_us
 
 logger = logging.getLogger(__name__)
 

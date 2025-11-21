@@ -1,0 +1,161 @@
+# Minimal core deployment values for Sapphire AI
+# This file contains only essential services for initial deployment
+# Use this for staged deployment: deploy core first, then add agents
+
+global:
+  imageRegistry: us-central1-docker.pkg.dev
+  projectId: sapphireinfinite
+  imagePullPolicy: Always
+
+# Global readiness probe configuration for AI agent warm-up
+readinessProbe:
+  initialDelaySeconds: 60
+  periodSeconds: 30
+  timeoutSeconds: 20
+  failureThreshold: 3
+  successThreshold: 1
+
+# Trading configuration
+trading:
+  enabled: true
+  capitalAllocation: 3500
+  riskMultiplier: 0.02
+  maxLeverage: 10
+  disableRateLimiter: true
+
+# Simplified trader disabled in core
+simplifiedTrader:
+  enabled: false
+
+# Vertex AI configuration - minimal for core services
+vertexAI:
+  enabled: true
+  project: "sapphireinfinite"
+  location: "us-central1"
+  orchestrator:
+    enabled: true
+  mlops:
+    enabled: false  # Disable MLOps for core deployment
+
+tpu:
+  enabled: false
+
+# Redis configuration - enabled for core services
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: true
+  master:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+  replica:
+    replicaCount: 0  # No replicas for minimal deployment
+  metrics:
+    enabled: true
+  persistence:
+    enabled: true
+    size: 4Gi  # Smaller size for core deployment
+  redisConfig:
+    maxmemory: "256mb"
+    maxmemory-policy: "allkeys-lru"
+
+# Cloud Trader API Service - CORE
+cloudTrader:
+  enabled: true
+  replicaCount: 1  # Single replica for core
+  image:
+    repository: cloud-run-source-deploy/cloud-trader
+    tag: "latest"
+  service:
+    type: ClusterIP
+    port: 8080
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+  env:
+    - name: ENABLE_PAPER_TRADING
+      value: "false"
+    - name: PAPER_TRADING_ENABLED
+      value: "false"
+    - name: LOG_LEVEL
+      value: "INFO"
+    - name: MCP_ENABLED
+      value: "true"
+
+# MCP Coordinator Service - CORE
+mcpCoordinator:
+  enabled: true
+  replicaCount: 1  # Single replica for core
+  image:
+    repository: cloud-run-source-deploy/cloud-trader
+    tag: "latest"
+  service:
+    type: ClusterIP
+    port: 8081
+  resources:
+    requests:
+      cpu: 500m  # Reduced for core
+      memory: 1Gi  # Reduced for core
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+  env:
+    - name: LOG_LEVEL
+      value: "INFO"
+    - name: MCP_ENABLED
+      value: "true"
+
+# LLM Agent Services - ALL DISABLED FOR CORE
+agents:
+  enabled: false  # Disable all agents for core deployment
+
+# All individual agents disabled
+  trend-momentum-agent:
+    enabled: false
+  financial-sentiment-agent:
+    enabled: false
+  strategy-optimization-agent:
+    enabled: false
+  market-prediction-agent:
+    enabled: false
+  volume-microstructure-agent:
+    enabled: false
+  vpin-hft-agent:
+    enabled: false
+
+# Telegram features disabled for core
+telegram:
+  dailyRecap:
+    enabled: false
+
+# System initialization disabled for core
+systemInitialization:
+  enabled: false
+
+# Service account configuration
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# Security context
+securityContext: {}
+
+# Node selector (optional)
+nodeSelector: {}
+
+# Tolerations (optional)
+tolerations: []
+
+# Affinity rules (optional)
+affinity: {}

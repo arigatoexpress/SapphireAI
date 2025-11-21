@@ -4,12 +4,20 @@ global:
   projectId: sapphireinfinite
   imagePullPolicy: Always
 
+# Global readiness probe configuration for AI agent warm-up
+readinessProbe:
+  initialDelaySeconds: 60  # Give AI agents time to warm up Vertex AI connections
+  periodSeconds: 30
+  timeoutSeconds: 20
+  failureThreshold: 3
+  successThreshold: 1
+
 # Trading configuration
 trading:
   enabled: true
-  capitalAllocation: 3500  # $3,500 total = $500 per agent
-  riskMultiplier: 0.02
-  maxLeverage: 10
+  capitalAllocation: 600  # $600 total = $100 per agent (safer testing)
+  riskMultiplier: 0.01    # Very conservative for testing
+  maxLeverage: 3          # Reduced from 10 for safety
   disableRateLimiter: true  # Emergency bypass for deployment
 
 # Simplified trader for emergency deployment
@@ -21,9 +29,9 @@ simplifiedTrader:
   replicas: 1
   env:
     - name: TOTAL_CAPITAL
-      value: "3000"  # 6 agents × $500 each
+      value: "600"  # 6 agents × $100 each
     - name: AGENT_CAPITAL
-      value: "500"  # Fixed $500 per trading agent
+      value: "100"  # $100 per trading agent - each gets full capital
 
 # Vertex AI and TPU configuration - Full Google AI optimization
 vertexAI:
@@ -108,15 +116,13 @@ cloudTrader:
       memory: 1Gi
   env:
     - name: ENABLE_PAPER_TRADING
-      value: "true"
+      value: "false"
+    - name: PAPER_TRADING_ENABLED
+      value: "false"
     - name: LOG_LEVEL
       value: "WARNING"
     - name: MCP_ENABLED
       value: "true"
-    - name: TELEGRAM_BOT_TOKEN
-      value: ""  # Will be overridden by secret
-    - name: TELEGRAM_CHAT_ID
-      value: ""  # Will be overridden by secret
 
 # MCP Coordinator Service - Vertex AI Orchestrator
 mcpCoordinator:
@@ -549,6 +555,23 @@ serviceAccount:
   annotations:
     iam.gke.io/gcp-service-account: trading-system@sapphireinfinite.iam.gserviceaccount.com
 
+# GCP Secret Manager integration
+secrets:
+  syncFromGcp: true
+  gcpSecrets:
+    - name: ASTER_API_KEY
+      key: ASTER_API_KEY
+    - name: ASTER_SECRET_KEY
+      key: ASTER_SECRET_KEY
+    - name: TELEGRAM_BOT_TOKEN
+      key: TELEGRAM_BOT_TOKEN
+    - name: TELEGRAM_CHAT_ID
+      key: TELEGRAM_CHAT_ID
+    - name: GROK4_API_KEY
+      key: GROK4_API_KEY
+    - name: GEMINI_API_KEY
+      key: GEMINI_API_KEY
+
 # Security Context
 securityContext:
   runAsNonRoot: true
@@ -571,9 +594,17 @@ affinity:
             - cloud-trader
         topologyKey: kubernetes.io/hostname
 
+# Global readiness probe configuration
+readinessProbe:
+  initialDelaySeconds: 60
+  periodSeconds: 30
+  timeoutSeconds: 20
+  failureThreshold: 3
+  successThreshold: 1
+
 # System Initialization Job
 systemInitialization:
-  enabled: true  # Temporarily disabled to speed up deployment
+  enabled: false  # Disabled as initialization is now handled by the main service
   image:
     repository: cloud-run-source-deploy/cloud-trader
     tag: "latest"

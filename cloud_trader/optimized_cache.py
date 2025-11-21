@@ -1,14 +1,15 @@
 """Optimized multi-level caching system for cloud native AI."""
 
 from __future__ import annotations
+
 import asyncio
+import hashlib
 import json
 import logging
-import hashlib
-from datetime import datetime, timedelta
-from typing import Any, Dict, Optional, Union, Callable
-from functools import wraps
 import pickle
+from datetime import datetime, timedelta
+from functools import wraps
+from typing import Any, Callable, Dict, Optional, Union
 
 try:
     import aioredis  # type: ignore
@@ -72,10 +73,7 @@ class OptimizedCache:
 
     def _make_cache_key(self, *args, **kwargs) -> str:
         """Create deterministic cache key from function arguments."""
-        key_data = {
-            "args": args,
-            "kwargs": sorted(kwargs.items())
-        }
+        key_data = {"args": args, "kwargs": sorted(kwargs.items())}
         key_str = json.dumps(key_data, default=str, sort_keys=True)
         return hashlib.sha256(key_str.encode()).hexdigest()[:16]
 
@@ -105,7 +103,7 @@ class OptimizedCache:
                 try:
                     redis_data = await asyncio.wait_for(
                         self._redis_client.get(f"cache:{key}"),
-                        timeout=2.0  # 2 second timeout for Redis
+                        timeout=2.0,  # 2 second timeout for Redis
                     )
                     if redis_data:
                         self._stats["l2_hits"] += 1
@@ -116,7 +114,7 @@ class OptimizedCache:
                                 # Promote to L1
                                 self._memory_cache[key] = {
                                     "value": data["value"],
-                                    "expires": datetime.fromisoformat(data["expires"])
+                                    "expires": datetime.fromisoformat(data["expires"]),
                                 }
                                 return data["value"]
                             else:
@@ -156,10 +154,7 @@ class OptimizedCache:
 
             # L1: Memory cache (always try this first)
             try:
-                self._memory_cache[key] = {
-                    "value": value,
-                    "expires": expires
-                }
+                self._memory_cache[key] = {"value": value, "expires": expires}
             except Exception as e:
                 logger.error(f"Failed to set L1 cache for key {key}: {e}")
                 return False
@@ -167,17 +162,12 @@ class OptimizedCache:
             # L2: Redis cache
             if self._redis_client:
                 try:
-                    cache_data = {
-                        "value": value,
-                        "expires": expires.isoformat()
-                    }
+                    cache_data = {"value": value, "expires": expires.isoformat()}
                     await asyncio.wait_for(
                         self._redis_client.setex(
-                            f"cache:{key}",
-                            ttl_seconds,
-                            json.dumps(cache_data, default=str)
+                            f"cache:{key}", ttl_seconds, json.dumps(cache_data, default=str)
                         ),
-                        timeout=2.0  # 2 second timeout
+                        timeout=2.0,  # 2 second timeout
                     )
                 except asyncio.TimeoutError:
                     logger.warning(f"Redis set timeout for key {key}")
@@ -229,8 +219,7 @@ class OptimizedCache:
 
                 now = datetime.now()
                 expired_keys = [
-                    key for key, entry in self._memory_cache.items()
-                    if now >= entry["expires"]
+                    key for key, entry in self._memory_cache.items() if now >= entry["expires"]
                 ]
 
                 for key in expired_keys:
@@ -257,7 +246,7 @@ class OptimizedCache:
                     "value": json.dumps(value, default=str),
                     "expires": expires,
                     "size_bytes": len(pickle.dumps(value)),
-                }
+                },
             )
         except Exception as e:
             logger.debug(f"BigQuery cache write error: {e}")
@@ -281,6 +270,7 @@ class OptimizedCache:
 
 def optimized_cache(ttl_seconds: Optional[int] = None, key_func: Optional[Callable] = None):
     """Decorator for optimized caching of async functions."""
+
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
@@ -311,15 +301,13 @@ def optimized_cache(ttl_seconds: Optional[int] = None, key_func: Optional[Callab
             return result
 
         return wrapper
+
     return decorator
 
 
 def _make_cache_key(*args, **kwargs) -> str:
     """Create cache key from function arguments."""
-    key_data = {
-        "args": args,
-        "kwargs": sorted(kwargs.items())
-    }
+    key_data = {"args": args, "kwargs": sorted(kwargs.items())}
     key_str = json.dumps(key_data, default=str, sort_keys=True)
     return hashlib.sha256(key_str.encode()).hexdigest()[:16]
 
@@ -351,6 +339,7 @@ async def get_market_data(symbol: str, timeframe: str) -> Dict[str, Any]:
     """Example cached function for market data."""
     # Implementation would fetch from exchange
     return {"symbol": symbol, "price": 50000.0}
+
 
 @optimized_cache(ttl_seconds=60)  # 1 minute
 async def get_portfolio_status() -> Dict[str, Any]:

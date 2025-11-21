@@ -350,6 +350,49 @@ Before committing:
 - ✅ Run `./scripts/setup-security-hooks.sh` to install security hooks
 - ✅ See [CONTRIBUTING.md](CONTRIBUTING.md) for full security guidelines
 
+## 🏗️ Production Architecture & Operations
+
+### Current Deployment Status
+
+✅ **LIVE ON GKE** - November 21, 2025
+
+```
+Cluster: hft-trading-cluster (us-central1-a)
+Namespace: trading
+Status: Running (1/1 pods Ready)
+Build: 34ba9ecc-b6e7-4389-8fa1-00eb654e1785
+```
+
+### Infrastructure
+
+- **GKE**: 3-node cluster, Kubernetes 1.33.5
+- **Cloud-trader**: Running and healthy
+- **AI Agents**: Ready for incremental rollout
+- **Monitoring**: Prometheus metrics available
+
+### Quick Operations
+
+```bash
+# Check system health
+./scripts/health-check-all.sh
+
+# Deploy agents incrementally
+./scripts/deploy-agents-incrementally.sh
+
+# View live logs
+kubectl logs -f -l app=cloud-trader -n trading
+
+# Scale trading service
+kubectl scale deployment trading-system-cloud-trader -n trading --replicas=1
+```
+
+### Deployment Timeline
+
+- **Phase 1**: ✅ Core service deployed (cloud-trader)
+- **Phase 2**: ⏭️ Add 6 AI agents incrementally
+- **Phase 3**: ⏭️ Enable Grok 4.1 arbitration
+- **Phase 4**: ⏭️ Full $3,500 capital allocation
+
 ## 📄 License
 
 See [LICENSE](LICENSE) file for details.

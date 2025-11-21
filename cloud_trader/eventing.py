@@ -9,7 +9,6 @@ from typing import Any, Dict, Optional
 import orjson
 from redis.asyncio import Redis
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -43,7 +42,9 @@ class RedisEventPublisher:
 
         data = orjson.dumps(payload)
         async with self._lock:
-            await self._redis.xadd(stream, {b"payload": data}, maxlen=self._maxlen, approximate=True)
+            await self._redis.xadd(
+                stream, {b"payload": data}, maxlen=self._maxlen, approximate=True
+            )
 
     async def publish_decision(self, payload: Dict[str, Any]) -> None:
         await self.publish("decision", payload)
@@ -73,4 +74,3 @@ class NullEventPublisher(RedisEventPublisher):
 
     async def publish_reasoning(self, payload: Dict[str, Any]) -> None:  # type: ignore[override]
         return None
-

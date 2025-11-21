@@ -7,7 +7,7 @@ import logging
 import statistics
 from collections import deque
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple, Deque
+from typing import Deque, Dict, List, Optional, Tuple
 
 from .time_sync import get_timestamp_us
 
@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class TradeAnomaly:
     """Represents a detected trading anomaly."""
+
     anomaly_type: str
     severity: str  # 'low', 'medium', 'high', 'critical'
     confidence: float
@@ -42,10 +43,10 @@ class SpoofingDetector:
 
         # ML-based detection thresholds
         self.spoofing_thresholds = {
-            'cancel_ratio': 0.8,  # 80%+ orders cancelled
-            'layering_score': 2.5,  # Z-score for layered orders
-            'momentum_spike': 3.0,  # Z-score for sudden momentum changes
-            'volume_anomaly': 2.0   # Z-score for unusual volume patterns
+            "cancel_ratio": 0.8,  # 80%+ orders cancelled
+            "layering_score": 2.5,  # Z-score for layered orders
+            "momentum_spike": 3.0,  # Z-score for sudden momentum changes
+            "volume_anomaly": 2.0,  # Z-score for unusual volume patterns
         }
 
     def analyze_order_flow(self, order_data: Dict) -> Optional[TradeAnomaly]:
@@ -71,8 +72,11 @@ class SpoofingDetector:
         max_score = max(layering_score, momentum_score, stuffing_score)
 
         if max_score > 2.5:  # Critical threshold
-            anomaly_type = "layering" if layering_score == max_score else \
-                          "momentum_ignition" if momentum_score == max_score else "quote_stuffing"
+            anomaly_type = (
+                "layering"
+                if layering_score == max_score
+                else "momentum_ignition" if momentum_score == max_score else "quote_stuffing"
+            )
 
             severity = "critical" if max_score > 3.5 else "high"
 
@@ -82,13 +86,13 @@ class SpoofingDetector:
                 confidence=min(1.0, max_score / 4.0),
                 description=f"Detected {anomaly_type.replace('_', ' ')} pattern with score {max_score:.2f}",
                 timestamp_us=get_timestamp_us(),
-                symbol=order_data.get('symbol', 'UNKNOWN'),
+                symbol=order_data.get("symbol", "UNKNOWN"),
                 metrics={
-                    'layering_score': layering_score,
-                    'momentum_score': momentum_score,
-                    'stuffing_score': stuffing_score,
-                    'max_score': max_score
-                }
+                    "layering_score": layering_score,
+                    "momentum_score": momentum_score,
+                    "stuffing_score": stuffing_score,
+                    "max_score": max_score,
+                },
             )
 
         return None
@@ -101,19 +105,23 @@ class SpoofingDetector:
         # Count orders at each price level
         price_levels = {}
         for order in list(self.order_history)[-50:]:  # Last 50 orders
-            price = round(order.get('price', 0), 4)  # Round to 4 decimals
+            price = round(order.get("price", 0), 4)  # Round to 4 decimals
             price_levels[price] = price_levels.get(price, 0) + 1
 
         # Calculate layering score based on concentration
         max_orders_at_level = max(price_levels.values())
         avg_orders_per_level = sum(price_levels.values()) / len(price_levels) if price_levels else 1
 
-        layering_ratio = max_orders_at_level / avg_orders_per_level if avg_orders_per_level > 0 else 1
+        layering_ratio = (
+            max_orders_at_level / avg_orders_per_level if avg_orders_per_level > 0 else 1
+        )
 
         # Calculate z-score
         if len(self.order_imbalance) >= 10:
             mean_ratio = statistics.mean(list(price_levels.values())[:10])  # Rough approximation
-            stdev_ratio = statistics.stdev(list(price_levels.values())[:10]) if len(price_levels) > 1 else 1
+            stdev_ratio = (
+                statistics.stdev(list(price_levels.values())[:10]) if len(price_levels) > 1 else 1
+            )
             z_score = (layering_ratio - mean_ratio) / stdev_ratio if stdev_ratio > 0 else 0
             return abs(z_score)
         else:
@@ -132,13 +140,16 @@ class SpoofingDetector:
         total_large_orders = 0
 
         for order in recent_orders:
-            if order.get('quantity', 0) > self._calculate_avg_order_size() * 2:  # Large order
+            if order.get("quantity", 0) > self._calculate_avg_order_size() * 2:  # Large order
                 total_large_orders += 1
 
                 # Check if cancelled within 5 seconds (microseconds)
-                order_time = order.get('timestamp_us', 0)
-                matching_cancels = [c for c in recent_cancels
-                                  if abs(c.get('timestamp_us', 0) - order_time) < 5_000_000]  # 5 seconds
+                order_time = order.get("timestamp_us", 0)
+                matching_cancels = [
+                    c
+                    for c in recent_cancels
+                    if abs(c.get("timestamp_us", 0) - order_time) < 5_000_000
+                ]  # 5 seconds
 
                 if matching_cancels:
                     ignition_events += 1
@@ -161,8 +172,8 @@ class SpoofingDetector:
         if not recent_orders:
             return 0.0
 
-        start_time = recent_orders[0].get('timestamp_us', 0)
-        end_time = recent_orders[-1].get('timestamp_us', 0)
+        start_time = recent_orders[0].get("timestamp_us", 0)
+        end_time = recent_orders[-1].get("timestamp_us", 0)
         total_time_us = end_time - start_time
 
         if total_time_us <= 0:
@@ -172,7 +183,7 @@ class SpoofingDetector:
         ops = len(recent_orders) / (total_time_us / 1_000_000)
 
         # Average order size
-        avg_size = sum(o.get('quantity', 0) for o in recent_orders) / len(recent_orders)
+        avg_size = sum(o.get("quantity", 0) for o in recent_orders) / len(recent_orders)
 
         # Quote stuffing score: high frequency + small size
         frequency_score = min(ops / 10.0, 4.0)  # Cap at 4
@@ -187,7 +198,7 @@ class SpoofingDetector:
         if not self.order_history:
             return 1000.0  # Default
 
-        recent_sizes = [o.get('quantity', 0) for o in list(self.order_history)[-50:]]
+        recent_sizes = [o.get("quantity", 0) for o in list(self.order_history)[-50:]]
         return statistics.mean(recent_sizes) if recent_sizes else 1000.0
 
     def record_cancel(self, cancel_data: Dict):
@@ -204,11 +215,11 @@ class ComplianceMonitor:
 
         # MiFID II / Reg NMS compliance rules
         self.compliance_rules = {
-            'max_position_age': 300_000_000,  # 5 minutes in microseconds
-            'max_leverage': 30.0,
-            'min_order_interval_us': 1000,  # Minimum time between orders (1ms)
-            'max_orders_per_second': 1000,
-            'wash_trade_prevention': True
+            "max_position_age": 300_000_000,  # 5 minutes in microseconds
+            "max_leverage": 30.0,
+            "min_order_interval_us": 1000,  # Minimum time between orders (1ms)
+            "max_orders_per_second": 1000,
+            "wash_trade_prevention": True,
         }
 
     def check_trade_compliance(self, trade_data: Dict) -> List[TradeAnomaly]:
@@ -245,19 +256,21 @@ class ComplianceMonitor:
 
     def _check_hft_limits(self, trade_data: Dict) -> Optional[TradeAnomaly]:
         """Check high-frequency trading rate limits."""
-        symbol = trade_data.get('symbol', 'UNKNOWN')
+        symbol = trade_data.get("symbol", "UNKNOWN")
 
         # Count trades in last second
-        current_time = trade_data.get('timestamp_us', get_timestamp_us())
+        current_time = trade_data.get("timestamp_us", get_timestamp_us())
         one_second_ago = current_time - 1_000_000
 
-        recent_trades = [t for t in self.trade_log
-                        if t.get('symbol') == symbol and
-                        t.get('timestamp_us', 0) >= one_second_ago]
+        recent_trades = [
+            t
+            for t in self.trade_log
+            if t.get("symbol") == symbol and t.get("timestamp_us", 0) >= one_second_ago
+        ]
 
         trades_per_second = len(recent_trades)
 
-        if trades_per_second > self.compliance_rules['max_orders_per_second']:
+        if trades_per_second > self.compliance_rules["max_orders_per_second"]:
             return TradeAnomaly(
                 anomaly_type="compliance_hft_rate_limit",
                 severity="high",
@@ -265,48 +278,53 @@ class ComplianceMonitor:
                 description=f"HFT rate limit exceeded: {trades_per_second} trades/second (max: {self.compliance_rules['max_orders_per_second']})",
                 timestamp_us=current_time,
                 symbol=symbol,
-                metrics={'trades_per_second': trades_per_second}
+                metrics={"trades_per_second": trades_per_second},
             )
 
         return None
 
     def _check_position_limits(self, trade_data: Dict) -> Optional[TradeAnomaly]:
         """Check position size and leverage limits."""
-        position_size = abs(trade_data.get('position_size', 0))
-        leverage = trade_data.get('leverage', 1.0)
+        position_size = abs(trade_data.get("position_size", 0))
+        leverage = trade_data.get("leverage", 1.0)
 
-        if leverage > self.compliance_rules['max_leverage']:
+        if leverage > self.compliance_rules["max_leverage"]:
             return TradeAnomaly(
                 anomaly_type="compliance_leverage_limit",
                 severity="critical",
                 confidence=1.0,
                 description=f"Leverage limit exceeded: {leverage}x (max: {self.compliance_rules['max_leverage']}x)",
-                timestamp_us=trade_data.get('timestamp_us', get_timestamp_us()),
-                symbol=trade_data.get('symbol', 'UNKNOWN'),
-                metrics={'leverage': leverage, 'position_size': position_size}
+                timestamp_us=trade_data.get("timestamp_us", get_timestamp_us()),
+                symbol=trade_data.get("symbol", "UNKNOWN"),
+                metrics={"leverage": leverage, "position_size": position_size},
             )
 
         return None
 
     def _check_wash_trades(self, trade_data: Dict) -> Optional[TradeAnomaly]:
         """Detect potential wash trades (trading with oneself)."""
-        if not self.compliance_rules['wash_trade_prevention']:
+        if not self.compliance_rules["wash_trade_prevention"]:
             return None
 
         # Simple wash trade detection: same account buying and selling rapidly
-        account_id = trade_data.get('account_id', 'unknown')
-        symbol = trade_data.get('symbol', 'UNKNOWN')
-        side = trade_data.get('side', 'unknown')
+        account_id = trade_data.get("account_id", "unknown")
+        symbol = trade_data.get("symbol", "UNKNOWN")
+        side = trade_data.get("side", "unknown")
 
         # Look for opposite side trades by same account within short time
-        current_time = trade_data.get('timestamp_us', get_timestamp_us())
+        current_time = trade_data.get("timestamp_us", get_timestamp_us())
         five_seconds_ago = current_time - 5_000_000
 
-        opposite_trades = [t for t in self.trade_log
-                          if (t.get('account_id') == account_id and
-                              t.get('symbol') == symbol and
-                              t.get('side') != side and
-                              abs(t.get('timestamp_us', 0) - current_time) <= 5_000_000)]
+        opposite_trades = [
+            t
+            for t in self.trade_log
+            if (
+                t.get("account_id") == account_id
+                and t.get("symbol") == symbol
+                and t.get("side") != side
+                and abs(t.get("timestamp_us", 0) - current_time) <= 5_000_000
+            )
+        ]
 
         if opposite_trades:
             return TradeAnomaly(
@@ -316,7 +334,7 @@ class ComplianceMonitor:
                 description="Potential wash trade detected: rapid buy/sell by same account",
                 timestamp_us=current_time,
                 symbol=symbol,
-                metrics={'opposite_trades_count': len(opposite_trades)}
+                metrics={"opposite_trades_count": len(opposite_trades)},
             )
 
         return None
@@ -366,7 +384,7 @@ class AnomalyDetectionEngine:
             "total_anomalies": len(self.anomaly_history),
             "anomaly_types": anomaly_types,
             "severities": severities,
-            "most_recent": self.anomaly_history[-1].anomaly_type if self.anomaly_history else None
+            "most_recent": self.anomaly_history[-1].anomaly_type if self.anomaly_history else None,
         }
 
     def record_cancel(self, cancel_data: Dict):

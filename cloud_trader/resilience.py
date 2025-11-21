@@ -5,35 +5,37 @@ and fault tolerance for high-reliability trading operations.
 """
 
 import asyncio
-import time
 import threading
+import time
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Dict, List, Any, Callable, Optional, Awaitable
-from dataclasses import dataclass
-from contextlib import asynccontextmanager
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from .logging_config import get_trading_logger
 
 
 class CircuitBreakerState(Enum):
-    CLOSED = "closed"      # Normal operation
-    OPEN = "open"         # Failing, requests blocked
+    CLOSED = "closed"  # Normal operation
+    OPEN = "open"  # Failing, requests blocked
     HALF_OPEN = "half_open"  # Testing recovery
 
 
 @dataclass
 class CircuitBreakerConfig:
     """Configuration for circuit breaker."""
+
     failure_threshold: int = 5  # Failures before opening
     recovery_timeout: int = 60  # Seconds before trying recovery
     success_threshold: int = 3  # Successes needed to close
-    timeout: float = 10.0      # Request timeout
+    timeout: float = 10.0  # Request timeout
 
 
 @dataclass
 class HealthCheck:
     """Health check configuration."""
+
     name: str
     check_function: Callable[[], Awaitable[bool]]
     interval: int = 30  # Seconds
@@ -90,7 +92,9 @@ class CircuitBreaker:
 
         if self.failure_count >= self.config.failure_threshold:
             self.state = CircuitBreakerState.OPEN
-            self.logger.warning(f"Circuit breaker {self.name} OPENED after {self.failure_count} failures")
+            self.logger.warning(
+                f"Circuit breaker {self.name} OPENED after {self.failure_count} failures"
+            )
 
     def _should_attempt_recovery(self) -> bool:
         """Check if we should attempt recovery."""
@@ -141,12 +145,14 @@ class HealthChecker:
                 "status": "healthy" if result else "unhealthy",
                 "duration": duration,
                 "timestamp": datetime.now().isoformat(),
-                "consecutive_failures": 0
+                "consecutive_failures": 0,
             }
 
         except Exception as e:
             duration = time.time() - start_time
-            consecutive_failures = self.results.get(check.name, {}).get("consecutive_failures", 0) + 1
+            consecutive_failures = (
+                self.results.get(check.name, {}).get("consecutive_failures", 0) + 1
+            )
 
             status = {
                 "name": check.name,
@@ -154,15 +160,18 @@ class HealthChecker:
                 "error": str(e),
                 "duration": duration,
                 "timestamp": datetime.now().isoformat(),
-                "consecutive_failures": consecutive_failures
+                "consecutive_failures": consecutive_failures,
             }
 
             if consecutive_failures >= check.max_failures:
-                self.logger.error(f"Health check {check.name} failed {consecutive_failures} times", {
-                    "check": check.name,
-                    "error": str(e),
-                    "consecutive_failures": consecutive_failures
-                })
+                self.logger.error(
+                    f"Health check {check.name} failed {consecutive_failures} times",
+                    {
+                        "check": check.name,
+                        "error": str(e),
+                        "consecutive_failures": consecutive_failures,
+                    },
+                )
 
         self.results[check.name] = status
         return status
@@ -177,7 +186,7 @@ class HealthChecker:
             "total_checks": len(self.checks),
             "healthy": 0,
             "unhealthy": 0,
-            "results": {}
+            "results": {},
         }
 
         for result in results:
@@ -191,13 +200,18 @@ class HealthChecker:
             else:
                 summary["unhealthy"] += 1
 
-        overall_status = "healthy" if summary["unhealthy"] == 0 else "degraded" if summary["healthy"] > 0 else "unhealthy"
+        overall_status = (
+            "healthy"
+            if summary["unhealthy"] == 0
+            else "degraded" if summary["healthy"] > 0 else "unhealthy"
+        )
         summary["overall_status"] = overall_status
 
         return summary
 
     def _start_monitoring(self):
         """Start background health monitoring."""
+
         def monitor():
             while not self._shutdown_event.is_set():
                 try:
@@ -213,10 +227,7 @@ class HealthChecker:
 
     def get_status(self) -> Dict[str, Any]:
         """Get current health status."""
-        return {
-            "checks": list(self.results.values()),
-            "summary": self._calculate_summary()
-        }
+        return {"checks": list(self.results.values()), "summary": self._calculate_summary()}
 
     def _calculate_summary(self) -> Dict[str, Any]:
         """Calculate health summary."""
@@ -227,7 +238,7 @@ class HealthChecker:
             "total": total,
             "healthy": healthy,
             "unhealthy": total - healthy,
-            "health_percentage": (healthy / total * 100) if total > 0 else 0
+            "health_percentage": (healthy / total * 100) if total > 0 else 0,
         }
 
 
@@ -244,7 +255,9 @@ class AutoRecovery:
         # Start recovery monitoring
         self._start_recovery_monitor()
 
-    def register_recovery_action(self, service_name: str, action: Callable[[], Awaitable[None]], interval_minutes: int = 5):
+    def register_recovery_action(
+        self, service_name: str, action: Callable[[], Awaitable[None]], interval_minutes: int = 5
+    ):
         """Register a recovery action for a service."""
         self.recovery_actions[service_name] = action
         self.recovery_intervals[service_name] = interval_minutes
@@ -261,7 +274,9 @@ class AutoRecovery:
         if last_attempt:
             elapsed = (datetime.now() - last_attempt).total_seconds() / 60  # minutes
             if elapsed < self.recovery_intervals[service_name]:
-                self.logger.debug(f"Recovery for {service_name} attempted {elapsed:.1f} minutes ago, skipping")
+                self.logger.debug(
+                    f"Recovery for {service_name} attempted {elapsed:.1f} minutes ago, skipping"
+                )
                 return
 
         self.logger.info(f"Attempting recovery for {service_name}: {reason}")
@@ -276,6 +291,7 @@ class AutoRecovery:
 
     def _start_recovery_monitor(self):
         """Start background recovery monitoring."""
+
         def monitor():
             while not self._shutdown_event.is_set():
                 try:
@@ -316,37 +332,38 @@ class ResilienceManager:
 
     def _register_default_health_checks(self):
         """Register default health checks."""
+
         # MCP Coordinator health check
         async def check_mcp_coordinator():
             try:
                 import httpx
+
                 async with httpx.AsyncClient(timeout=5.0) as client:
-                    response = await client.get("http://mcp-coordinator.trading.svc.cluster.local:8081/healthz")
+                    response = await client.get(
+                        "http://mcp-coordinator.trading.svc.cluster.local:8081/healthz"
+                    )
                     return response.status_code == 200
             except:
                 return False
 
-        self.health_checker.add_check(HealthCheck(
-            name="mcp_coordinator",
-            check_function=check_mcp_coordinator,
-            interval=30
-        ))
+        self.health_checker.add_check(
+            HealthCheck(name="mcp_coordinator", check_function=check_mcp_coordinator, interval=30)
+        )
 
         # Database connectivity check
         async def check_bigquery():
             try:
                 from .bigquery_exporter import BigQueryExporter
+
                 exporter = BigQueryExporter()
                 # Simple connectivity test
                 return exporter.client is not None
             except:
                 return False
 
-        self.health_checker.add_check(HealthCheck(
-            name="bigquery_connectivity",
-            check_function=check_bigquery,
-            interval=60
-        ))
+        self.health_checker.add_check(
+            HealthCheck(name="bigquery_connectivity", check_function=check_bigquery, interval=60)
+        )
 
     def get_system_status(self) -> Dict[str, Any]:
         """Get comprehensive system status."""
@@ -358,7 +375,7 @@ class ResilienceManager:
             "timestamp": datetime.now().isoformat(),
             "circuit_breakers": circuit_breakers_status,
             "health": self.health_checker.get_status(),
-            "recovery_actions": list(self.auto_recovery.recovery_actions.keys())
+            "recovery_actions": list(self.auto_recovery.recovery_actions.keys()),
         }
 
     async def graceful_shutdown(self):
@@ -391,26 +408,26 @@ def get_resilience_manager() -> ResilienceManager:
 # Circuit breaker decorator
 def circuit_breaker(name: str):
     """Decorator to apply circuit breaker to functions."""
+
     def decorator(func):
         async def wrapper(*args, **kwargs):
             manager = get_resilience_manager()
             cb = manager.get_circuit_breaker(name)
             return await cb.call(lambda: func(*args, **kwargs))
+
         return wrapper
+
     return decorator
 
 
 # Health check decorator
 def health_check(name: str, interval: int = 30, timeout: float = 5.0):
     """Decorator to register function as health check."""
+
     def decorator(func):
         manager = get_resilience_manager()
-        check = HealthCheck(
-            name=name,
-            check_function=func,
-            interval=interval,
-            timeout=timeout
-        )
+        check = HealthCheck(name=name, check_function=func, interval=interval, timeout=timeout)
         manager.health_checker.add_check(check)
         return func
+
     return decorator

@@ -6,6 +6,7 @@ to provide basic functionality when the main service fails to start.
 """
 
 import logging
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -20,7 +21,7 @@ service = SimplifiedTradingService()
 app = FastAPI(
     title="Sapphire Trade - Simplified API",
     description="Emergency fallback API with basic trading functionality",
-    version="1.0.0-simplified"
+    version="1.0.0-simplified",
 )
 
 # Add CORS middleware
@@ -32,12 +33,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.on_event("startup")
 async def startup_event():
     """Start the simplified trading service on startup"""
     try:
         # Start the service in the background without blocking
         import asyncio
+
         asyncio.create_task(service.start())
         logger.info("✅ Simplified API started successfully")
     except Exception as e:
@@ -45,16 +48,19 @@ async def startup_event():
         # Don't crash the API, just log the error
         logger.info("🚨 API starting in degraded mode without trading service")
 
+
 @app.on_event("shutdown")
 async def shutdown_event():
     """Stop the service on shutdown"""
     await service.stop()
     logger.info("🛑 Simplified API shut down")
 
+
 @app.get("/healthz")
 async def health_check():
     """Basic health check endpoint"""
     return {"status": "healthy", "service": "simplified_api"}
+
 
 @app.get("/portfolio-status")
 async def get_portfolio_status():
@@ -64,6 +70,7 @@ async def get_portfolio_status():
     except Exception as e:
         logger.error(f"Portfolio status error: {e}")
         raise HTTPException(status_code=500, detail="Failed to get portfolio status")
+
 
 @app.get("/agent-activity")
 async def get_agent_activities():
@@ -75,6 +82,7 @@ async def get_agent_activities():
         logger.error(f"Agent activities error: {e}")
         raise HTTPException(status_code=500, detail="Failed to get agent activities")
 
+
 @app.get("/system-status")
 async def get_system_status():
     """Get system status"""
@@ -84,14 +92,16 @@ async def get_system_status():
         logger.error(f"System status error: {e}")
         raise HTTPException(status_code=500, detail="Failed to get system status")
 
+
 @app.get("/trading-signals")
 async def get_trading_signals():
     """Get recent trading signals (simplified version)"""
     return {
         "signals": [],
         "message": "Simplified service - no active trading signals",
-        "timestamp": "2025-01-01T00:00:00Z"
+        "timestamp": "2025-01-01T00:00:00Z",
     }
+
 
 # For compatibility with existing frontend
 @app.get("/")

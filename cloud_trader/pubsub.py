@@ -1,19 +1,19 @@
 """Pub/Sub utilities for event publishing."""
+
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any, Dict, Optional
 
-from google.cloud import pubsub_v1
 from google.api_core.exceptions import NotFound
-
-import logging
+from google.cloud import pubsub_v1
 
 from .config import Settings
 from .metrics import PUBSUB_PUBLISH_FAILURES
 
-
 logger = logging.getLogger(__name__)
+
 
 class PubSubClient:
     """Wrapper around Google Cloud Pub/Sub for event publishing."""
@@ -64,7 +64,7 @@ class PubSubClient:
         future.add_done_callback(_on_publish_done)
         # We can optionally await the future to ensure the message is published.
         # For a fire-and-forget approach, we can just let it run in the background.
-        # future.result() 
+        # future.result()
 
     async def publish_decision(self, payload: Dict[str, Any]) -> None:
         await self._publish(self._decisions_topic, payload)

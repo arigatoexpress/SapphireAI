@@ -7,17 +7,18 @@ import logging
 import statistics
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple, Set, Any
 from enum import Enum
+from typing import Any, Dict, List, Optional, Set, Tuple
 
-from .time_sync import get_timestamp_us
 from .market_regime import MarketRegime, RegimeMetrics
+from .time_sync import get_timestamp_us
 
 logger = logging.getLogger(__name__)
 
 
 class ConsensusMethod(Enum):
     """Methods for reaching consensus among agents."""
+
     MAJORITY_VOTE = "majority_vote"
     WEIGHTED_VOTE = "weighted_vote"
     BAYESIAN_FUSION = "bayesian_fusion"
@@ -27,6 +28,7 @@ class ConsensusMethod(Enum):
 
 class SignalType(Enum):
     """Types of trading signals that can be voted on."""
+
     ENTRY_LONG = "entry_long"
     ENTRY_SHORT = "entry_short"
     EXIT_LONG = "exit_long"
@@ -38,10 +40,11 @@ class SignalType(Enum):
 @dataclass
 class AgentSignal:
     """Individual agent signal with confidence and metadata."""
+
     agent_id: str
     signal_type: SignalType
     confidence: float  # 0-1
-    strength: float    # Signal strength/intensity
+    strength: float  # Signal strength/intensity
     symbol: str
     timestamp_us: int
     reasoning: Optional[str] = None
@@ -57,17 +60,18 @@ class AgentSignal:
             "symbol": self.symbol,
             "timestamp_us": self.timestamp_us,
             "reasoning": self.reasoning,
-            "metadata": self.metadata or {}
+            "metadata": self.metadata or {},
         }
 
 
 @dataclass
 class ConsensusResult:
     """Result of consensus voting among agents."""
+
     winning_signal: Optional[SignalType]
     consensus_confidence: float  # 0-1
-    agreement_level: float       # 0-1 (unanimity level)
-    participation_rate: float    # 0-1 (agents that voted)
+    agreement_level: float  # 0-1 (unanimity level)
+    participation_rate: float  # 0-1 (agents that voted)
     total_votes: int
     method_used: ConsensusMethod
     symbol: str
@@ -87,13 +91,14 @@ class ConsensusResult:
             "symbol": self.symbol,
             "timestamp_us": self.timestamp_us,
             "agent_votes": {aid: signal.to_dict() for aid, signal in self.agent_votes.items()},
-            "reasoning": self.reasoning
+            "reasoning": self.reasoning,
         }
 
 
 @dataclass
 class AgentPerformance:
     """Performance metrics for individual agents."""
+
     agent_id: str
     win_rate: float
     avg_return: float
@@ -140,11 +145,11 @@ class AgentConsensusEngine:
 
         # Regime-specific adjustments
         self.regime_weights = {
-            MarketRegime.TRENDING_UP: {'momentum_agents': 1.3, 'mean_reversion': 0.7},
-            MarketRegime.TRENDING_DOWN: {'momentum_agents': 1.3, 'mean_reversion': 0.7},
-            MarketRegime.RANGING: {'momentum_agents': 0.7, 'mean_reversion': 1.3},
-            MarketRegime.VOLATILE: {'high_confidence_only': True, 'reduce_participation': True},
-            MarketRegime.CALM: {'all_agents_equal': True}
+            MarketRegime.TRENDING_UP: {"momentum_agents": 1.3, "mean_reversion": 0.7},
+            MarketRegime.TRENDING_DOWN: {"momentum_agents": 1.3, "mean_reversion": 0.7},
+            MarketRegime.RANGING: {"momentum_agents": 0.7, "mean_reversion": 1.3},
+            MarketRegime.VOLATILE: {"high_confidence_only": True, "reduce_participation": True},
+            MarketRegime.CALM: {"all_agents_equal": True},
         }
 
         # Signal type compatibility and conflict resolution
@@ -156,7 +161,7 @@ class AgentConsensusEngine:
 
         # Entry conflicts
         conflicts[(SignalType.ENTRY_LONG, SignalType.ENTRY_SHORT)] = 1.0  # Complete conflict
-        conflicts[(SignalType.EXIT_LONG, SignalType.ENTRY_LONG)] = 0.8    # Strong conflict
+        conflicts[(SignalType.EXIT_LONG, SignalType.ENTRY_LONG)] = 0.8  # Strong conflict
         conflicts[(SignalType.EXIT_SHORT, SignalType.ENTRY_SHORT)] = 0.8  # Strong conflict
 
         # Make symmetric
@@ -165,14 +170,15 @@ class AgentConsensusEngine:
 
         return conflicts
 
-    def register_agent(self, agent_id: str, agent_type: str, specialization: str,
-                      base_weight: float = 1.0) -> None:
+    def register_agent(
+        self, agent_id: str, agent_type: str, specialization: str, base_weight: float = 1.0
+    ) -> None:
         """Register an agent in the consensus system."""
         self.agent_registry[agent_id] = {
-            'type': agent_type,
-            'specialization': specialization,
-            'base_weight': base_weight,
-            'registered_at': get_timestamp_us()
+            "type": agent_type,
+            "specialization": specialization,
+            "base_weight": base_weight,
+            "registered_at": get_timestamp_us(),
         }
 
         # Initialize performance tracking
@@ -185,7 +191,7 @@ class AgentConsensusEngine:
             total_trades=0,
             confidence_accuracy=0.5,
             regime_performance={regime: 0.5 for regime in MarketRegime},
-            last_updated=get_timestamp_us()
+            last_updated=get_timestamp_us(),
         )
 
         logger.info(f"Registered agent {agent_id} ({agent_type}: {specialization})")
@@ -201,11 +207,14 @@ class AgentConsensusEngine:
         signal.timestamp_us = signal.timestamp_us or get_timestamp_us()
 
         # Signal will be processed in consensus voting
-        logger.debug(f"Received signal from {signal.agent_id}: {signal.signal_type.value} "
-                    f"({signal.confidence:.2f}) for {signal.symbol}")
+        logger.debug(
+            f"Received signal from {signal.agent_id}: {signal.signal_type.value} "
+            f"({signal.confidence:.2f}) for {signal.symbol}"
+        )
 
-    async def conduct_consensus_vote(self, symbol: str, regime: Optional[RegimeMetrics] = None,
-                                   max_wait_time: int = 1000000) -> Optional[ConsensusResult]:
+    async def conduct_consensus_vote(
+        self, symbol: str, regime: Optional[RegimeMetrics] = None, max_wait_time: int = 1000000
+    ) -> Optional[ConsensusResult]:
         """
         Conduct a consensus vote among all registered agents.
         Waits up to max_wait_time microseconds for agent responses.
@@ -248,7 +257,9 @@ class AgentConsensusEngine:
 
         return signals
 
-    def _generate_mock_signal(self, agent_id: str, agent_info: Dict, symbol: str) -> Optional[AgentSignal]:
+    def _generate_mock_signal(
+        self, agent_id: str, agent_info: Dict, symbol: str
+    ) -> Optional[AgentSignal]:
         """Generate a mock signal for demonstration (replace with actual agent calls)."""
         import random
 
@@ -257,11 +268,11 @@ class AgentConsensusEngine:
         signal_type = random.choice(signal_types)
 
         # Bias signals based on agent specialization
-        if agent_info['specialization'] == 'momentum_trading':
+        if agent_info["specialization"] == "momentum_trading":
             # Momentum agents favor entry signals
             if random.random() < 0.6:
                 signal_type = random.choice([SignalType.ENTRY_LONG, SignalType.ENTRY_SHORT])
-        elif agent_info['specialization'] == 'sentiment_analysis':
+        elif agent_info["specialization"] == "sentiment_analysis":
             # Sentiment agents are more neutral
             if random.random() < 0.4:
                 signal_type = SignalType.HOLD
@@ -277,11 +288,12 @@ class AgentConsensusEngine:
             symbol=symbol,
             timestamp_us=get_timestamp_us(),
             reasoning=f"Mock signal from {agent_info['type']}",
-            metadata={'mock': True, 'agent_type': agent_info['type']}
+            metadata={"mock": True, "agent_type": agent_info["type"]},
         )
 
-    def _apply_regime_filtering(self, signals: List[AgentSignal],
-                               regime: Optional[RegimeMetrics]) -> Tuple[List[AgentSignal], Dict[str, float]]:
+    def _apply_regime_filtering(
+        self, signals: List[AgentSignal], regime: Optional[RegimeMetrics]
+    ) -> Tuple[List[AgentSignal], Dict[str, float]]:
         """Apply regime-specific filtering and weighting to signals."""
 
         filtered_signals = signals.copy()
@@ -296,15 +308,19 @@ class AgentConsensusEngine:
 
                 # Reduce weight for conflicting strategies in certain regimes
                 agent_info = self.agent_registry[signal.agent_id]
-                agent_type = agent_info['specialization']
+                agent_type = agent_info["specialization"]
 
-                if regime.regime == MarketRegime.VOLATILE and regime_adjustments.get('high_confidence_only'):
+                if regime.regime == MarketRegime.VOLATILE and regime_adjustments.get(
+                    "high_confidence_only"
+                ):
                     # In volatile markets, only consider high-confidence signals
                     if signal.confidence < 0.7:
                         filtered_signals.remove(signal)
                         continue
 
-                if regime.regime == MarketRegime.VOLATILE and regime_adjustments.get('reduce_participation'):
+                if regime.regime == MarketRegime.VOLATILE and regime_adjustments.get(
+                    "reduce_participation"
+                ):
                     # Reduce participation in volatile markets
                     base_weight *= 0.8
 
@@ -315,15 +331,18 @@ class AgentConsensusEngine:
 
             # Apply performance-based weighting
             if signal.agent_id in self.agent_performance:
-                performance_weight = self.agent_performance[signal.agent_id].calculate_weight(base_weight)
+                performance_weight = self.agent_performance[signal.agent_id].calculate_weight(
+                    base_weight
+                )
                 weights[signal.agent_id] = performance_weight
             else:
                 weights[signal.agent_id] = base_weight
 
         return filtered_signals, weights
 
-    def _conduct_voting(self, signals: List[AgentSignal], weights: Dict[str, float],
-                       symbol: str) -> ConsensusResult:
+    def _conduct_voting(
+        self, signals: List[AgentSignal], weights: Dict[str, float], symbol: str
+    ) -> ConsensusResult:
         """Conduct the actual consensus voting using the specified method."""
 
         if not signals:
@@ -337,7 +356,7 @@ class AgentConsensusEngine:
                 symbol=symbol,
                 timestamp_us=get_timestamp_us(),
                 agent_votes={},
-                reasoning="No signals received"
+                reasoning="No signals received",
             )
 
         # Group signals by type
@@ -360,10 +379,14 @@ class AgentConsensusEngine:
             participation_factor = total_type_weight / total_weight if total_weight > 0 else 0
 
             signal_scores[signal_type] = {
-                'weighted_confidence': weighted_confidence / total_type_weight if total_type_weight > 0 else 0,
-                'weighted_strength': weighted_strength / total_type_weight if total_type_weight > 0 else 0,
-                'participation': participation_factor,
-                'votes': len(signal_list)
+                "weighted_confidence": (
+                    weighted_confidence / total_type_weight if total_type_weight > 0 else 0
+                ),
+                "weighted_strength": (
+                    weighted_strength / total_type_weight if total_type_weight > 0 else 0
+                ),
+                "participation": participation_factor,
+                "votes": len(signal_list),
             }
 
         # Find winning signal
@@ -374,9 +397,11 @@ class AgentConsensusEngine:
             # Score = confidence * strength * participation
             signal_rankings = {}
             for signal_type, scores in signal_scores.items():
-                score = (scores['weighted_confidence'] *
-                        scores['weighted_strength'] *
-                        scores['participation'])
+                score = (
+                    scores["weighted_confidence"]
+                    * scores["weighted_strength"]
+                    * scores["participation"]
+                )
                 signal_rankings[signal_type] = score
 
             winning_signal = max(signal_rankings, key=signal_rankings.get)
@@ -384,9 +409,11 @@ class AgentConsensusEngine:
 
         # Calculate agreement level (concentration of votes on winning signal)
         if signal_scores and winning_signal:
-            winning_participation = signal_scores[winning_signal]['participation']
-            total_participation = sum(scores['participation'] for scores in signal_scores.values())
-            agreement_level = winning_participation / total_participation if total_participation > 0 else 0
+            winning_participation = signal_scores[winning_signal]["participation"]
+            total_participation = sum(scores["participation"] for scores in signal_scores.values())
+            agreement_level = (
+                winning_participation / total_participation if total_participation > 0 else 0
+            )
         else:
             agreement_level = 0
 
@@ -413,13 +440,17 @@ class AgentConsensusEngine:
             symbol=symbol,
             timestamp_us=get_timestamp_us(),
             agent_votes=agent_votes,
-            reasoning=reasoning
+            reasoning=reasoning,
         )
 
-    def _generate_consensus_reasoning(self, winning_signal: Optional[SignalType],
-                                    max_score: float, agreement_level: float,
-                                    participation_rate: float,
-                                    signal_scores: Dict) -> str:
+    def _generate_consensus_reasoning(
+        self,
+        winning_signal: Optional[SignalType],
+        max_score: float,
+        agreement_level: float,
+        participation_rate: float,
+        signal_scores: Dict,
+    ) -> str:
         """Generate human-readable reasoning for consensus result."""
 
         if not winning_signal:
@@ -454,8 +485,12 @@ class AgentConsensusEngine:
 
         return "; ".join(reasons)
 
-    def update_performance_feedback(self, consensus_result: ConsensusResult,
-                                  actual_outcome: float, regime: Optional[MarketRegime]) -> None:
+    def update_performance_feedback(
+        self,
+        consensus_result: ConsensusResult,
+        actual_outcome: float,
+        regime: Optional[MarketRegime],
+    ) -> None:
         """
         Update agent performance based on consensus outcome.
         actual_outcome: realized P&L or signal accuracy (positive = good outcome)
@@ -473,7 +508,9 @@ class AgentConsensusEngine:
             perf = self.agent_performance[agent_id]
 
             # Update win rate based on signal alignment with outcome
-            signal_correct = self._evaluate_signal_correctness(signal, consensus_result.winning_signal, actual_outcome)
+            signal_correct = self._evaluate_signal_correctness(
+                signal, consensus_result.winning_signal, actual_outcome
+            )
 
             # Exponential moving average for win rate
             alpha = self.adaptive_learning_rate
@@ -481,16 +518,22 @@ class AgentConsensusEngine:
 
             # Update returns
             signal_contribution = signal.confidence * signal.strength
-            perf.avg_return = alpha * (actual_outcome * signal_contribution) + (1 - alpha) * perf.avg_return
+            perf.avg_return = (
+                alpha * (actual_outcome * signal_contribution) + (1 - alpha) * perf.avg_return
+            )
 
             # Update regime-specific performance
             if regime:
                 regime_correct = 1.0 if signal_correct else 0.0
-                perf.regime_performance[regime] = alpha * regime_correct + (1 - alpha) * perf.regime_performance[regime]
+                perf.regime_performance[regime] = (
+                    alpha * regime_correct + (1 - alpha) * perf.regime_performance[regime]
+                )
 
             # Update confidence accuracy
             confidence_alignment = abs(signal.confidence - (1.0 if signal_correct else 0.0))
-            perf.confidence_accuracy = alpha * (1.0 - confidence_alignment) + (1 - alpha) * perf.confidence_accuracy
+            perf.confidence_accuracy = (
+                alpha * (1.0 - confidence_alignment) + (1 - alpha) * perf.confidence_accuracy
+            )
 
             perf.total_trades += 1
             perf.last_updated = get_timestamp_us()
@@ -498,9 +541,9 @@ class AgentConsensusEngine:
         # Update agent weights based on new performance
         self._update_agent_weights()
 
-    def _evaluate_signal_correctness(self, signal: AgentSignal,
-                                   winning_signal: Optional[SignalType],
-                                   actual_outcome: float) -> bool:
+    def _evaluate_signal_correctness(
+        self, signal: AgentSignal, winning_signal: Optional[SignalType], actual_outcome: float
+    ) -> bool:
         """Evaluate if an agent's signal was correct based on outcome."""
 
         if winning_signal is None:
@@ -519,7 +562,7 @@ class AgentConsensusEngine:
         """Update agent weights based on recent performance."""
         for agent_id, perf in self.agent_performance.items():
             if perf.total_trades >= 10:  # Require minimum trades for reliable weights
-                base_weight = self.agent_registry[agent_id]['base_weight']
+                base_weight = self.agent_registry[agent_id]["base_weight"]
                 performance_weight = perf.calculate_weight(base_weight)
                 self.agent_weights[agent_id] = performance_weight
 
@@ -529,15 +572,25 @@ class AgentConsensusEngine:
         if not self.consensus_history:
             return {"total_consensus_events": 0}
 
-        recent_results = self.consensus_history[-100:] if len(self.consensus_history) >= 100 else self.consensus_history
+        recent_results = (
+            self.consensus_history[-100:]
+            if len(self.consensus_history) >= 100
+            else self.consensus_history
+        )
 
         # Calculate success rates and metrics
         winning_signals = [r for r in recent_results if r.winning_signal is not None]
         success_rate = len(winning_signals) / len(recent_results) if recent_results else 0
 
-        avg_confidence = statistics.mean(r.consensus_confidence for r in recent_results) if recent_results else 0
-        avg_agreement = statistics.mean(r.agreement_level for r in recent_results) if recent_results else 0
-        avg_participation = statistics.mean(r.participation_rate for r in recent_results) if recent_results else 0
+        avg_confidence = (
+            statistics.mean(r.consensus_confidence for r in recent_results) if recent_results else 0
+        )
+        avg_agreement = (
+            statistics.mean(r.agreement_level for r in recent_results) if recent_results else 0
+        )
+        avg_participation = (
+            statistics.mean(r.participation_rate for r in recent_results) if recent_results else 0
+        )
 
         # Signal type distribution
         signal_distribution = {}
@@ -550,9 +603,9 @@ class AgentConsensusEngine:
         agent_summary = {}
         for agent_id, perf in self.agent_performance.items():
             agent_summary[agent_id] = {
-                'win_rate': perf.win_rate,
-                'total_trades': perf.total_trades,
-                'current_weight': self.agent_weights[agent_id]
+                "win_rate": perf.win_rate,
+                "total_trades": perf.total_trades,
+                "current_weight": self.agent_weights[agent_id],
             }
 
         return {
@@ -563,7 +616,7 @@ class AgentConsensusEngine:
             "avg_participation": avg_participation,
             "signal_distribution": signal_distribution,
             "agent_performance": agent_summary,
-            "active_agents": len(self.agent_registry)
+            "active_agents": len(self.agent_registry),
         }
 
 

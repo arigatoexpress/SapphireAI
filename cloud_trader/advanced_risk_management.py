@@ -4,24 +4,29 @@ Advanced risk management with portfolio-level controls and market risk assessmen
 
 import asyncio
 import logging
-import numpy as np
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional, Tuple
 from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
+
 class RiskLevel(Enum):
     """Risk assessment levels."""
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
     CRITICAL = "critical"
 
+
 @dataclass
 class PortfolioRiskMetrics:
     """Comprehensive portfolio risk metrics."""
+
     total_exposure: float = 0.0
     max_drawdown: float = 0.0
     sharpe_ratio: float = 0.0
@@ -34,15 +39,18 @@ class PortfolioRiskMetrics:
     liquidity_risk: float = 0.0
     volatility_risk: float = 0.0
 
+
 @dataclass
 class MarketRiskAssessment:
     """Market-wide risk assessment."""
+
     market_volatility: float = 0.0
     market_trend: str = "neutral"
     sector_correlations: Dict[str, float] = field(default_factory=dict)
     systemic_risk_score: float = 0.0
     liquidity_conditions: str = "normal"
     timestamp: datetime = field(default_factory=datetime.now)
+
 
 class AdvancedRiskManager:
     """Advanced risk management with portfolio and market risk controls."""
@@ -52,29 +60,37 @@ class AdvancedRiskManager:
         self.max_correlation = max_correlation
         self.portfolio_history: List[Dict[str, Any]] = []
         self.risk_limits = {
-            'max_drawdown': 0.25,  # 25% max drawdown
-            'max_concentration': 0.15,  # 15% max single position
-            'max_sector_exposure': 0.30,  # 30% max sector exposure
-            'max_volatility': 0.05,  # 5% max portfolio volatility
-            'min_liquidity': 0.70,  # 70% min liquid positions
-            'max_leverage': 2.0,  # 2x max leverage
-            'max_var': 0.10,  # 10% max VaR
+            "max_drawdown": 0.25,  # 25% max drawdown
+            "max_concentration": 0.15,  # 15% max single position
+            "max_sector_exposure": 0.30,  # 30% max sector exposure
+            "max_volatility": 0.05,  # 5% max portfolio volatility
+            "min_liquidity": 0.70,  # 70% min liquid positions
+            "max_leverage": 2.0,  # 2x max leverage
+            "max_var": 0.10,  # 10% max VaR
         }
 
-    async def assess_portfolio_risk(self, positions: Dict[str, Any], market_data: Dict[str, Any]) -> PortfolioRiskMetrics:
+    async def assess_portfolio_risk(
+        self, positions: Dict[str, Any], market_data: Dict[str, Any]
+    ) -> PortfolioRiskMetrics:
         """Comprehensive portfolio risk assessment."""
         metrics = PortfolioRiskMetrics()
 
         try:
             # Calculate basic exposure
-            total_exposure = sum(abs(pos['notional']) for pos in positions.values())
+            total_exposure = sum(abs(pos["notional"]) for pos in positions.values())
             metrics.total_exposure = total_exposure
 
             # Calculate drawdown
             if self.portfolio_history:
-                peak_value = max(h['portfolio_value'] for h in self.portfolio_history[-30:])  # Last 30 days
-                current_value = sum(pos.get('current_value', pos['notional']) for pos in positions.values())
-                metrics.max_drawdown = (peak_value - current_value) / peak_value if peak_value > 0 else 0
+                peak_value = max(
+                    h["portfolio_value"] for h in self.portfolio_history[-30:]
+                )  # Last 30 days
+                current_value = sum(
+                    pos.get("current_value", pos["notional"]) for pos in positions.values()
+                )
+                metrics.max_drawdown = (
+                    (peak_value - current_value) / peak_value if peak_value > 0 else 0
+                )
 
             # Calculate risk metrics
             returns = self._calculate_returns_history()
@@ -112,7 +128,7 @@ class AdvancedRiskManager:
 
         try:
             # Calculate market volatility
-            prices = [data.get('price', 0) for data in market_data.values()]
+            prices = [data.get("price", 0) for data in market_data.values()]
             if len(prices) > 1:
                 returns = np.diff(np.log(prices))
                 assessment.market_volatility = np.std(returns) * np.sqrt(252)  # Annualized
@@ -128,12 +144,17 @@ class AdvancedRiskManager:
                     assessment.market_trend = "neutral"
 
             # Assess systemic risk (simplified)
-            high_vol_assets = sum(1 for data in market_data.values()
-                                if data.get('volatility', 0) > assessment.market_volatility)
-            assessment.systemic_risk_score = high_vol_assets / len(market_data) if market_data else 0
+            high_vol_assets = sum(
+                1
+                for data in market_data.values()
+                if data.get("volatility", 0) > assessment.market_volatility
+            )
+            assessment.systemic_risk_score = (
+                high_vol_assets / len(market_data) if market_data else 0
+            )
 
             # Assess liquidity conditions
-            avg_volume = np.mean([data.get('volume', 0) for data in market_data.values()])
+            avg_volume = np.mean([data.get("volume", 0) for data in market_data.values()])
             if avg_volume > 1000000:  # High liquidity
                 assessment.liquidity_conditions = "excellent"
             elif avg_volume > 100000:
@@ -148,28 +169,35 @@ class AdvancedRiskManager:
 
         return assessment
 
-    def check_risk_limits(self, risk_metrics: PortfolioRiskMetrics, market_risk: MarketRiskAssessment) -> List[str]:
+    def check_risk_limits(
+        self, risk_metrics: PortfolioRiskMetrics, market_risk: MarketRiskAssessment
+    ) -> List[str]:
         """Check if portfolio exceeds risk limits."""
         violations = []
 
         # Portfolio-level limits
-        if risk_metrics.max_drawdown > self.risk_limits['max_drawdown']:
-            violations.append(f"Drawdown limit exceeded: {risk_metrics.max_drawdown:.1%} > {self.risk_limits['max_drawdown']:.1%}")
+        if risk_metrics.max_drawdown > self.risk_limits["max_drawdown"]:
+            violations.append(
+                f"Drawdown limit exceeded: {risk_metrics.max_drawdown:.1%} > {self.risk_limits['max_drawdown']:.1%}"
+            )
 
-        if risk_metrics.concentration_risk > self.risk_limits['max_concentration']:
+        if risk_metrics.concentration_risk > self.risk_limits["max_concentration"]:
             violations.append(f"Concentration risk too high: {risk_metrics.concentration_risk:.1%}")
 
-        if risk_metrics.volatility_risk > self.risk_limits['max_volatility']:
+        if risk_metrics.volatility_risk > self.risk_limits["max_volatility"]:
             violations.append(f"Portfolio volatility too high: {risk_metrics.volatility_risk:.1%}")
 
-        if risk_metrics.value_at_risk_95 > self.risk_limits['max_var']:
+        if risk_metrics.value_at_risk_95 > self.risk_limits["max_var"]:
             violations.append(f"VaR limit exceeded: {risk_metrics.value_at_risk_95:.1%}")
 
-        if risk_metrics.liquidity_risk < self.risk_limits['min_liquidity']:
+        if risk_metrics.liquidity_risk < self.risk_limits["min_liquidity"]:
             violations.append(f"Liquidity risk too high: {risk_metrics.liquidity_risk:.1%}")
 
         # Market condition adjustments
-        if market_risk.market_volatility > 0.05 and risk_metrics.volatility_risk > self.risk_limits['max_volatility'] * 0.8:
+        if (
+            market_risk.market_volatility > 0.05
+            and risk_metrics.volatility_risk > self.risk_limits["max_volatility"] * 0.8
+        ):
             violations.append("High market volatility - reducing position limits")
 
         if market_risk.systemic_risk_score > 0.7:
@@ -177,12 +205,14 @@ class AdvancedRiskManager:
 
         return violations
 
-    async def get_dynamic_position_limits(self, risk_metrics: PortfolioRiskMetrics, market_risk: MarketRiskAssessment) -> Dict[str, float]:
+    async def get_dynamic_position_limits(
+        self, risk_metrics: PortfolioRiskMetrics, market_risk: MarketRiskAssessment
+    ) -> Dict[str, float]:
         """Calculate dynamic position limits based on current risk."""
         base_limits = {
-            'max_position_size': 0.05,  # 5% of portfolio
-            'max_leverage': 2.0,
-            'max_concentration': 0.15,
+            "max_position_size": 0.05,  # 5% of portfolio
+            "max_leverage": 2.0,
+            "max_concentration": 0.15,
         }
 
         # Adjust limits based on risk conditions
@@ -207,9 +237,15 @@ class AdvancedRiskManager:
 
         return dynamic_limits
 
-    def should_halt_trading(self, risk_metrics: PortfolioRiskMetrics, violations: List[str]) -> bool:
+    def should_halt_trading(
+        self, risk_metrics: PortfolioRiskMetrics, violations: List[str]
+    ) -> bool:
         """Determine if trading should be halted due to risk."""
-        critical_violations = [v for v in violations if any(word in v.lower() for word in ['critical', 'exceeded', 'too high'])]
+        critical_violations = [
+            v
+            for v in violations
+            if any(word in v.lower() for word in ["critical", "exceeded", "too high"])
+        ]
 
         # Halt if multiple critical violations or extreme drawdown
         if len(critical_violations) >= 2:
@@ -230,8 +266,8 @@ class AdvancedRiskManager:
 
         returns = []
         for i in range(1, len(self.portfolio_history)):
-            prev_value = self.portfolio_history[i-1]['portfolio_value']
-            curr_value = self.portfolio_history[i]['portfolio_value']
+            prev_value = self.portfolio_history[i - 1]["portfolio_value"]
+            curr_value = self.portfolio_history[i]["portfolio_value"]
             if prev_value > 0:
                 returns.append((curr_value - prev_value) / prev_value)
 
@@ -271,7 +307,9 @@ class AdvancedRiskManager:
 
         return abs(np.percentile(returns, (1 - confidence) * 100))
 
-    def _calculate_expected_shortfall(self, returns: List[float], confidence: float = 0.95) -> float:
+    def _calculate_expected_shortfall(
+        self, returns: List[float], confidence: float = 0.95
+    ) -> float:
         """Calculate Expected Shortfall (Conditional VaR)."""
         if not returns:
             return 0.0
@@ -281,14 +319,16 @@ class AdvancedRiskManager:
 
         return abs(np.mean(tail_losses)) if tail_losses else var
 
-    def _calculate_correlation_matrix(self, positions: Dict[str, Any], market_data: Dict[str, Any]) -> Dict[Tuple[str, str], float]:
+    def _calculate_correlation_matrix(
+        self, positions: Dict[str, Any], market_data: Dict[str, Any]
+    ) -> Dict[Tuple[str, str], float]:
         """Calculate correlation matrix for portfolio positions."""
         # Simplified correlation calculation
         correlations = {}
 
         symbols = list(positions.keys())
         for i, symbol1 in enumerate(symbols):
-            for symbol2 in symbols[i+1:]:
+            for symbol2 in symbols[i + 1 :]:
                 # Use market data to estimate correlation
                 corr_key = (symbol1, symbol2)
                 # Simplified: assume moderate correlation
@@ -301,14 +341,20 @@ class AdvancedRiskManager:
         if not positions:
             return 0.0
 
-        total_value = sum(abs(pos.get('current_value', pos['notional'])) for pos in positions.values())
+        total_value = sum(
+            abs(pos.get("current_value", pos["notional"])) for pos in positions.values()
+        )
         if total_value == 0:
             return 0.0
 
-        max_position = max(abs(pos.get('current_value', pos['notional'])) for pos in positions.values())
+        max_position = max(
+            abs(pos.get("current_value", pos["notional"])) for pos in positions.values()
+        )
         return max_position / total_value
 
-    def _assess_liquidity_risk(self, positions: Dict[str, Any], market_data: Dict[str, Any]) -> float:
+    def _assess_liquidity_risk(
+        self, positions: Dict[str, Any], market_data: Dict[str, Any]
+    ) -> float:
         """Assess portfolio liquidity risk."""
         if not positions:
             return 1.0  # Fully liquid if no positions
@@ -318,8 +364,8 @@ class AdvancedRiskManager:
 
         for symbol, position in positions.items():
             market_info = market_data.get(symbol, {})
-            volume = market_info.get('volume', 0)
-            notional = abs(position.get('current_value', position['notional']))
+            volume = market_info.get("volume", 0)
+            notional = abs(position.get("current_value", position["notional"]))
 
             # Consider liquid if daily volume > position size
             if volume > notional:
@@ -327,7 +373,9 @@ class AdvancedRiskManager:
 
         return liquid_positions / total_positions if total_positions > 0 else 1.0
 
-    def _assess_volatility_risk(self, positions: Dict[str, Any], market_data: Dict[str, Any]) -> float:
+    def _assess_volatility_risk(
+        self, positions: Dict[str, Any], market_data: Dict[str, Any]
+    ) -> float:
         """Assess portfolio volatility risk."""
         if not positions:
             return 0.0
@@ -335,13 +383,15 @@ class AdvancedRiskManager:
         volatilities = []
         for symbol in positions.keys():
             market_info = market_data.get(symbol, {})
-            volatility = market_info.get('volatility', 0.02)  # Default 2%
+            volatility = market_info.get("volatility", 0.02)  # Default 2%
             volatilities.append(volatility)
 
         # Portfolio volatility (simplified weighted average)
         return np.mean(volatilities) if volatilities else 0.0
 
-    def _calculate_portfolio_beta(self, positions: Dict[str, Any], market_data: Dict[str, Any]) -> float:
+    def _calculate_portfolio_beta(
+        self, positions: Dict[str, Any], market_data: Dict[str, Any]
+    ) -> float:
         """Calculate portfolio beta."""
         # Simplified beta calculation
         betas = []
@@ -351,7 +401,12 @@ class AdvancedRiskManager:
 
         return np.mean(betas) if betas else 1.0
 
-    async def log_risk_assessment(self, risk_metrics: PortfolioRiskMetrics, market_risk: MarketRiskAssessment, violations: List[str]):
+    async def log_risk_assessment(
+        self,
+        risk_metrics: PortfolioRiskMetrics,
+        market_risk: MarketRiskAssessment,
+        violations: List[str],
+    ):
         """Log comprehensive risk assessment."""
         logger.info("=== RISK ASSESSMENT ===")
         logger.info(f"Portfolio Exposure: ${risk_metrics.total_exposure:,.2f}")
@@ -373,8 +428,10 @@ class AdvancedRiskManager:
         else:
             logger.info("No risk limit violations detected")
 
+
 # Global risk manager instance
 _advanced_risk_manager: Optional[AdvancedRiskManager] = None
+
 
 def get_advanced_risk_manager() -> AdvancedRiskManager:
     """Get the global advanced risk manager instance."""

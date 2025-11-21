@@ -8,7 +8,7 @@ metadata:
     {{- include "trading-system.labels" . | nindent 4 }}
     app: telegram-recap
 spec:
-  schedule: {{ .Values.telegram.dailyRecap.schedule | default "0 0 * * *" }}  # Daily at midnight UTC
+  schedule: {{ .Values.telegram.dailyRecap.schedule | default "0 0 * * *" | quote }}
   timeZone: UTC
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 1
@@ -18,36 +18,20 @@ spec:
       template:
         metadata:
           labels:
-            {{- include "trading-system.selectorLabels" . | nindent 8 }}
+            {{- include "trading-system.selectorLabels" . | nindent 12 }}
             app: telegram-recap
         spec:
           serviceAccountName: {{ include "trading-system.serviceAccountName" . }}
           containers:
           - name: telegram-recap
-            image: {{ $.Values.global.imageRegistry }}/{{ $.Values.global.projectId }}/cloud-run-source-deploy/cloud-trader:{{ $.Values.cloudTrader.image.tag | default "latest" }}
-            imagePullPolicy: {{ $.Values.global.imagePullPolicy }}
-            command: 
-            - python3
-            - -c
-            - |
-              import asyncio
-              import os
-              from cloud_trader.config import get_settings
-              from cloud_trader.telegram_recaps import create_recap_service
-              
-              async def main():
-                  settings = get_settings()
-                  recap_service = await create_recap_service(settings)
-                  if recap_service:
-                      hours = int(os.getenv('RECAP_HOURS', '24'))
-                      await recap_service.send_recap(hours=hours, include_chart=True)
-                      print(f"✅ Daily recap sent successfully ({hours}h)")
-                  else:
-                      print("❌ Recap service not available")
-              
-              asyncio.run(main())
+            image: {{ .Values.global.imageRegistry }}/{{ .Values.global.projectId }}/{{ .Values.cloudTrader.image.repository }}:{{ .Values.cloudTrader.image.tag }}
+            imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+            command: ["python3", "/scripts/recap.py"]
+            volumeMounts:
+            - name: script
+              mountPath: /scripts
             env:
-            {{- include "trading-system.commonEnv" . | nindent 12 }}
+            {{- include "trading-system.commonEnv" $ | nindent 12 }}
             - name: RECAP_HOURS
               value: {{ .Values.telegram.dailyRecap.hours | default "24" | quote }}
             - name: TELEGRAM_DAILY_RECAP_ENABLED
@@ -56,12 +40,13 @@ spec:
             - secretRef:
                 name: cloud-trader-secrets
             resources:
-              requests:
-                cpu: 100m
-                memory: 256Mi
-              limits:
-                cpu: 500m
-                memory: 512Mi
+              {{- toYaml .Values.cloudTrader.resources | nindent 14 }}
+          volumes:
+          - name: script
+            configMap:
+              name: {{ include "trading-system.fullname" . }}-telegram-recap-script
+              items:
+              - key: recap.py
+                path: recap.py
           restartPolicy: OnFailure
 {{- end }}
-

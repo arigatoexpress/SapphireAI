@@ -9,10 +9,10 @@ import logging
 import sys
 import threading
 import time
-from datetime import datetime
-from typing import Dict, Any, Optional
 from contextlib import contextmanager
+from datetime import datetime
 from pathlib import Path
+from typing import Any, Dict, Optional
 
 import structlog
 from pythonjsonlogger import jsonlogger
@@ -23,23 +23,25 @@ class TradingLogger:
 
     def _add_service_info(self, logger, method_name, event_dict):
         """Add service metadata to all log entries."""
-        event_dict.update({
-            "service": self.service_name,
-            "version": "1.0.0",
-            "environment": "production",
-        })
+        event_dict.update(
+            {
+                "service": self.service_name,
+                "version": "1.0.0",
+                "environment": "production",
+            }
+        )
         return event_dict
 
     def _add_correlation_id(self, logger, method_name, event_dict):
         """Add correlation ID for request tracing."""
-        correlation_id = getattr(self.correlation_id, 'value', None)
+        correlation_id = getattr(self.correlation_id, "value", None)
         if correlation_id:
             event_dict["correlation_id"] = correlation_id
         return event_dict
 
     def _add_request_context(self, logger, method_name, event_dict):
         """Add request context information."""
-        context = getattr(self.request_context, 'value', {})
+        context = getattr(self.request_context, "value", {})
         if context:
             event_dict.update(context)
         return event_dict
@@ -60,9 +62,7 @@ class TradingLogger:
                 self._add_request_context,
                 structlog.processors.JSONRenderer(),
             ],
-            wrapper_class=structlog.make_filtering_bound_logger(
-                self._get_log_level(log_level)
-            ),
+            wrapper_class=structlog.make_filtering_bound_logger(self._get_log_level(log_level)),
             context_class=dict,
             logger_factory=structlog.WriteLoggerFactory(),
             cache_logger_on_first_use=True,
@@ -92,8 +92,7 @@ class TradingLogger:
 
         # JSON formatter for structured logs
         json_formatter = jsonlogger.JsonFormatter(
-            "%(asctime)s %(name)s %(levelname)s %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S"
+            "%(asctime)s %(name)s %(levelname)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
         )
 
         # Console handler
@@ -101,16 +100,12 @@ class TradingLogger:
         console_handler.setFormatter(json_formatter)
 
         # File handler for service logs
-        file_handler = logging.FileHandler(
-            log_dir / f"{self.service_name}.log",
-            encoding='utf-8'
-        )
+        file_handler = logging.FileHandler(log_dir / f"{self.service_name}.log", encoding="utf-8")
         file_handler.setFormatter(json_formatter)
 
         # Error file handler
         error_handler = logging.FileHandler(
-            log_dir / f"{self.service_name}_error.log",
-            encoding='utf-8'
+            log_dir / f"{self.service_name}_error.log", encoding="utf-8"
         )
         error_handler.setLevel(logging.ERROR)
         error_handler.setFormatter(json_formatter)
@@ -190,7 +185,9 @@ class TradingLogger:
             timestamp=decision_data.get("timestamp"),
         )
 
-    def log_performance_metric(self, metric_name: str, value: float, metadata: Dict[str, Any] = None):
+    def log_performance_metric(
+        self, metric_name: str, value: float, metadata: Dict[str, Any] = None
+    ):
         """Log performance metrics."""
         self.logger.info(
             "performance_metric",
@@ -210,7 +207,9 @@ class TradingLogger:
             traceback=error.__traceback__,
         )
 
-    def log_audit_event(self, event_type: str, user: str, action: str, resource: str, details: Dict[str, Any] = None):
+    def log_audit_event(
+        self, event_type: str, user: str, action: str, resource: str, details: Dict[str, Any] = None
+    ):
         """Log audit events for compliance."""
         self.logger.info(
             "audit_event",
@@ -220,7 +219,7 @@ class TradingLogger:
             resource=resource,
             details=details or {},
             timestamp=datetime.now().isoformat(),
-            ip_address=getattr(self.request_context, 'value', {}).get('ip', 'unknown'),
+            ip_address=getattr(self.request_context, "value", {}).get("ip", "unknown"),
         )
 
 
@@ -228,7 +227,7 @@ class TradingLogger:
 def correlation_context(correlation_id: str):
     """Context manager for setting correlation ID."""
     logger = get_trading_logger()
-    old_id = getattr(logger.correlation_id, 'value', None)
+    old_id = getattr(logger.correlation_id, "value", None)
     logger.set_correlation_id(correlation_id)
     try:
         yield
@@ -240,7 +239,7 @@ def correlation_context(correlation_id: str):
 def request_context(**context):
     """Context manager for setting request context."""
     logger = get_trading_logger()
-    old_context = getattr(logger.request_context, 'value', {})
+    old_context = getattr(logger.request_context, "value", {})
     logger.set_request_context(**context)
     try:
         yield
@@ -274,6 +273,7 @@ def setup_correlation_middleware():
 # Performance monitoring decorator
 def log_performance(operation_name: str):
     """Decorator to log performance of operations."""
+
     def decorator(func):
         def wrapper(*args, **kwargs):
             logger = get_trading_logger()
@@ -284,9 +284,7 @@ def log_performance(operation_name: str):
                 duration = time.time() - start_time
 
                 logger.log_performance_metric(
-                    f"{operation_name}_duration",
-                    duration,
-                    {"success": True}
+                    f"{operation_name}_duration", duration, {"success": True}
                 )
 
                 return result
@@ -295,13 +293,12 @@ def log_performance(operation_name: str):
                 duration = time.time() - start_time
 
                 logger.log_performance_metric(
-                    f"{operation_name}_duration",
-                    duration,
-                    {"success": False, "error": str(e)}
+                    f"{operation_name}_duration", duration, {"success": False, "error": str(e)}
                 )
 
                 logger.log_error(e, {"operation": operation_name})
                 raise
 
         return wrapper
+
     return decorator

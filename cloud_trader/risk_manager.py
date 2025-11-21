@@ -12,12 +12,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Set
 
 from .config import get_settings
-from .metrics import (
-    PORTFOLIO_DRAWDOWN,
-    POSITION_SIZE,
-    RISK_LIMITS_BREACHED,
-    PORTFOLIO_LEVERAGE,
-)
+from .metrics import PORTFOLIO_DRAWDOWN, PORTFOLIO_LEVERAGE, POSITION_SIZE, RISK_LIMITS_BREACHED
 from .pubsub import PubSubClient
 
 logger = logging.getLogger(__name__)
@@ -104,13 +99,17 @@ class RiskManager:
     async def _check_risk_limits(self):
         """Check all risk limits and trigger actions if needed."""
         # Update drawdown
-        self.current_drawdown = (self.peak_portfolio_value - self.portfolio_value) / self.peak_portfolio_value
+        self.current_drawdown = (
+            self.peak_portfolio_value - self.portfolio_value
+        ) / self.peak_portfolio_value
 
         # Check drawdown limits
         if self.current_drawdown > self.drawdown_critical_threshold:
             await self._trigger_emergency_stop("Critical drawdown exceeded")
         elif self.current_drawdown > self.drawdown_warning_threshold:
-            await self._send_alert("High drawdown warning", f"Drawdown: {self.current_drawdown:.2%}")
+            await self._send_alert(
+                "High drawdown warning", f"Drawdown: {self.current_drawdown:.2%}"
+            )
 
         # Check daily loss limit
         daily_loss_pct = (self.daily_start_value - self.portfolio_value) / self.daily_start_value
@@ -123,7 +122,7 @@ class RiskManager:
 
         # Check position sizes
         for symbol, position in self.positions.items():
-            position_value = abs(position.get('notional', 0))
+            position_value = abs(position.get("notional", 0))
             position_pct = position_value / self.portfolio_value
 
             if position_pct > self.max_position_size_pct:
@@ -141,13 +140,15 @@ class RiskManager:
 
         # Publish kill switch message
         if self.pubsub_client:
-            await self.pubsub_client.publish_reasoning({
-                "event": "kill_switch_activated",
-                "reason": reason,
-                "timestamp": datetime.now().isoformat(),
-                "portfolio_value": self.portfolio_value,
-                "drawdown": self.current_drawdown,
-            })
+            await self.pubsub_client.publish_reasoning(
+                {
+                    "event": "kill_switch_activated",
+                    "reason": reason,
+                    "timestamp": datetime.now().isoformat(),
+                    "portfolio_value": self.portfolio_value,
+                    "drawdown": self.current_drawdown,
+                }
+            )
 
         # Send critical alert
         await self._send_alert("EMERGENCY STOP", f"Trading halted: {reason}")
@@ -163,11 +164,13 @@ class RiskManager:
         logger.warning(f"Trading paused: {reason}")
 
         if self.pubsub_client:
-            await self.pubsub_client.publish_reasoning({
-                "event": "trading_paused",
-                "reason": reason,
-                "timestamp": datetime.now().isoformat(),
-            })
+            await self.pubsub_client.publish_reasoning(
+                {
+                    "event": "trading_paused",
+                    "reason": reason,
+                    "timestamp": datetime.now().isoformat(),
+                }
+            )
 
         RISK_LIMITS_BREACHED.labels(limit_type="trading_paused").inc()
 
@@ -176,40 +179,47 @@ class RiskManager:
         logger.warning(f"Reducing leverage: {reason}")
 
         if self.pubsub_client:
-            await self.pubsub_client.publish_reasoning({
-                "event": "leverage_reduction",
-                "reason": reason,
-                "current_leverage": self.leverage_ratio,
-                "target_leverage": self.max_leverage * 0.8,  # Reduce to 80% of max
-                "timestamp": datetime.now().isoformat(),
-            })
+            await self.pubsub_client.publish_reasoning(
+                {
+                    "event": "leverage_reduction",
+                    "reason": reason,
+                    "current_leverage": self.leverage_ratio,
+                    "target_leverage": self.max_leverage * 0.8,  # Reduce to 80% of max
+                    "timestamp": datetime.now().isoformat(),
+                }
+            )
 
     async def _reduce_position(self, symbol: str, reason: str):
         """Reduce position size for a symbol."""
         logger.warning(f"Reducing position for {symbol}: {reason}")
 
         if self.pubsub_client:
-            await self.pubsub_client.publish_reasoning({
-                "event": "position_reduction",
-                "symbol": symbol,
-                "reason": reason,
-                "current_size_pct": self.positions[symbol].get('notional', 0) / self.portfolio_value,
-                "target_size_pct": self.max_position_size_pct * 0.8,
-                "timestamp": datetime.now().isoformat(),
-            })
+            await self.pubsub_client.publish_reasoning(
+                {
+                    "event": "position_reduction",
+                    "symbol": symbol,
+                    "reason": reason,
+                    "current_size_pct": self.positions[symbol].get("notional", 0)
+                    / self.portfolio_value,
+                    "target_size_pct": self.max_position_size_pct * 0.8,
+                    "timestamp": datetime.now().isoformat(),
+                }
+            )
 
     async def _send_alert(self, title: str, message: str):
         """Send risk alert."""
         logger.warning(f"ALERT: {title} - {message}")
 
         if self.pubsub_client:
-            await self.pubsub_client.publish_reasoning({
-                "event": "risk_alert",
-                "title": title,
-                "message": message,
-                "severity": "warning" if "warning" in title.lower() else "critical",
-                "timestamp": datetime.now().isoformat(),
-            })
+            await self.pubsub_client.publish_reasoning(
+                {
+                    "event": "risk_alert",
+                    "title": title,
+                    "message": message,
+                    "severity": "warning" if "warning" in title.lower() else "critical",
+                    "timestamp": datetime.now().isoformat(),
+                }
+            )
 
     async def update_portfolio_value(self, new_value: float):
         """Update portfolio value and recalculate risk metrics."""
@@ -226,7 +236,10 @@ class RiskManager:
         # Recalculate exposure and leverage
         await self._recalculate_exposure()
 
-        logger.info(f"Portfolio value updated: ${old_value:.2f} → ${new_value:.2f} (P&L: ${self.daily_pnl:.2f})")
+        logger.info(
+            f"Portfolio value updated: ${old_value:.2f} → ${new_value:.2f} (P&L: ${self.daily_pnl:.2f})"
+        )
+
     async def update_position(self, symbol: str, position_data: Dict):
         """Update position information."""
         self.positions[symbol] = position_data
@@ -240,9 +253,11 @@ class RiskManager:
 
     async def _recalculate_exposure(self):
         """Recalculate total exposure and leverage."""
-        total_exposure = sum(abs(pos.get('notional', 0)) for pos in self.positions.values())
+        total_exposure = sum(abs(pos.get("notional", 0)) for pos in self.positions.values())
         self.total_exposure = total_exposure
-        self.leverage_ratio = total_exposure / self.portfolio_value if self.portfolio_value > 0 else 0
+        self.leverage_ratio = (
+            total_exposure / self.portfolio_value if self.portfolio_value > 0 else 0
+        )
 
     def get_risk_status(self) -> Dict:
         """Get current risk status."""
@@ -273,7 +288,7 @@ class RiskManager:
 
             # Update position sizes
             for symbol, position in self.positions.items():
-                POSITION_SIZE.labels(symbol=symbol).set(position.get('notional', 0))
+                POSITION_SIZE.labels(symbol=symbol).set(position.get("notional", 0))
 
         except Exception as e:
             logger.error(f"Failed to update metrics: {e}")

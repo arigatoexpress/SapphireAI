@@ -5,8 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field
-from pydantic import ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class MarketContext(BaseModel):
@@ -21,14 +20,17 @@ class MarketContext(BaseModel):
 class TradingDecision(BaseModel):
     side: Optional[str] = Field(None, description="BUY, SELL, HOLD, or CLOSE")
 
+
 class TradingContext(BaseModel):
     symbol: str
     price: float
     current_position: Optional[dict] = None
 
+
 class ReasoningSlice(BaseModel):
     source: str
     rationale: str
+
 
 class InferenceRequest(BaseModel):
     bot_id: str
@@ -83,11 +85,14 @@ class ChatCompletionRequest(BaseModel):
 
 class AIStrategyResponse(BaseModel):
     """Structured response from AI trading analysis."""
+
     direction: Literal["BUY", "SELL", "HOLD"] = Field(description="Trading direction")
     confidence: float = Field(ge=0.0, le=1.0, description="Confidence score 0-1")
     rationale: str = Field(min_length=10, description="Trading rationale")
     risk_assessment: Optional[str] = Field(default=None, description="Risk assessment")
     position_size_recommendation: Optional[float] = Field(
-        default=None, ge=0.0, le=0.05, description="Recommended position size as fraction of portfolio"
+        default=None,
+        ge=0.0,
+        le=0.05,
+        description="Recommended position size as fraction of portfolio",
     )
-

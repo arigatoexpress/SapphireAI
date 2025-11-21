@@ -6,18 +6,19 @@ import asyncio
 import logging
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple, Any, Callable
 from enum import Enum
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from .time_sync import get_timestamp_us, get_precision_clock
+from .cache import BaseCache, get_cache
 from .market_regime import MarketRegime, RegimeMetrics
-from .cache import get_cache, BaseCache
+from .time_sync import get_precision_clock, get_timestamp_us
 
 logger = logging.getLogger(__name__)
 
 
 class Timeframe(Enum):
     """Available timeframes for analysis."""
+
     ONE_MINUTE = "1m"
     FIVE_MINUTES = "5m"
     FIFTEEN_MINUTES = "15m"
@@ -30,6 +31,7 @@ class Timeframe(Enum):
 
 class AnalysisType(Enum):
     """Types of multi-timeframe analysis."""
+
     TREND_ALIGNMENT = "trend_alignment"
     MOMENTUM_DIVERGENCE = "momentum_divergence"
     VOLUME_CONFIRMATION = "volume_confirmation"
@@ -41,6 +43,7 @@ class AnalysisType(Enum):
 @dataclass
 class TimeframeData:
     """OHLCV data for a specific timeframe."""
+
     timeframe: Timeframe
     symbol: str
     timestamp_us: int
@@ -66,13 +69,14 @@ class TimeframeData:
             "volume": self.volume,
             "vpin": self.vpin,
             "quote_imbalance": self.quote_imbalance,
-            "indicators": self.indicators
+            "indicators": self.indicators,
         }
 
 
 @dataclass
 class MultiTimeframeSignal:
     """Signal generated from multi-timeframe analysis."""
+
     symbol: str
     primary_timeframe: Timeframe
     signal_type: str  # "BUY", "SELL", "HOLD"
@@ -98,7 +102,7 @@ class MultiTimeframeSignal:
             "overall_score": self.overall_score,
             "timestamp_us": self.timestamp_us,
             "reasoning": self.reasoning,
-            "metadata": self.metadata
+            "metadata": self.metadata,
         }
 
 
@@ -114,7 +118,9 @@ class MultiTimeframeAnalyzer:
         self.max_history = max_history
 
         # Data storage: symbol -> timeframe -> deque of TimeframeData
-        self.market_data: Dict[str, Dict[Timeframe, deque]] = defaultdict(lambda: defaultdict(lambda: deque(maxlen=max_history)))
+        self.market_data: Dict[str, Dict[Timeframe, deque]] = defaultdict(
+            lambda: defaultdict(lambda: deque(maxlen=max_history))
+        )
 
         # Analysis weights for different timeframes
         self.timeframe_weights = {
@@ -125,7 +131,7 @@ class MultiTimeframeAnalyzer:
             Timeframe.ONE_HOUR: 0.25,
             Timeframe.FOUR_HOURS: 0.1,
             Timeframe.ONE_DAY: 0.04,
-            Timeframe.ONE_WEEK: 0.01
+            Timeframe.ONE_WEEK: 0.01,
         }
 
         # Cache for performance
@@ -139,7 +145,7 @@ class MultiTimeframeAnalyzer:
             AnalysisType.VOLUME_CONFIRMATION: self._analyze_volume_confirmation,
             AnalysisType.SUPPORT_RESISTANCE: self._analyze_support_resistance,
             AnalysisType.PATTERN_RECOGNITION: self._analyze_pattern_recognition,
-            AnalysisType.VOLATILITY_REGIME: self._analyze_volatility_regime
+            AnalysisType.VOLATILITY_REGIME: self._analyze_volatility_regime,
         }
 
     async def initialize(self) -> None:
@@ -165,8 +171,12 @@ class MultiTimeframeAnalyzer:
             except Exception as e:
                 logger.debug(f"Failed to cache market data: {e}")
 
-    async def analyze_symbol(self, symbol: str, primary_timeframe: Timeframe = Timeframe.ONE_HOUR,
-                           analysis_types: Optional[List[AnalysisType]] = None) -> List[MultiTimeframeSignal]:
+    async def analyze_symbol(
+        self,
+        symbol: str,
+        primary_timeframe: Timeframe = Timeframe.ONE_HOUR,
+        analysis_types: Optional[List[AnalysisType]] = None,
+    ) -> List[MultiTimeframeSignal]:
         """
         Perform multi-timeframe analysis for a symbol.
 
@@ -180,9 +190,7 @@ class MultiTimeframeAnalyzer:
         for analysis_type in analysis_types:
             try:
                 if analysis_type in self.analysis_functions:
-                    signal = await self.analysis_functions[analysis_type](
-                        symbol, primary_timeframe
-                    )
+                    signal = await self.analysis_functions[analysis_type](symbol, primary_timeframe)
                     if signal:
                         signals.append(signal)
             except Exception as e:
@@ -190,7 +198,9 @@ class MultiTimeframeAnalyzer:
 
         return signals
 
-    async def _analyze_trend_alignment(self, symbol: str, primary_timeframe: Timeframe) -> Optional[MultiTimeframeSignal]:
+    async def _analyze_trend_alignment(
+        self, symbol: str, primary_timeframe: Timeframe
+    ) -> Optional[MultiTimeframeSignal]:
         """Analyze trend alignment across timeframes."""
         symbol_data = self.market_data.get(symbol)
         if not symbol_data:
@@ -224,7 +234,7 @@ class MultiTimeframeAnalyzer:
                     "trend_slope": trend_slope,
                     "direction": trend_direction,
                     "weight": self.timeframe_weights[timeframe],
-                    "data_points": len(recent_data)
+                    "data_points": len(recent_data),
                 }
 
         if not timeframe_trends:
@@ -272,10 +282,12 @@ class MultiTimeframeAnalyzer:
             timeframe_contributions=contributions,
             overall_score=alignment_score,
             timestamp_us=get_timestamp_us(),
-            reasoning=reasoning
+            reasoning=reasoning,
         )
 
-    async def _analyze_momentum_divergence(self, symbol: str, primary_timeframe: Timeframe) -> Optional[MultiTimeframeSignal]:
+    async def _analyze_momentum_divergence(
+        self, symbol: str, primary_timeframe: Timeframe
+    ) -> Optional[MultiTimeframeSignal]:
         """Analyze momentum divergence across timeframes."""
         symbol_data = self.market_data.get(symbol)
         if not symbol_data:
@@ -312,14 +324,14 @@ class MultiTimeframeAnalyzer:
                 timeframe_momentum[timeframe] = {
                     "rsi": current_rsi,
                     "momentum": momentum,
-                    "change": current_rsi - prev_rsi
+                    "change": current_rsi - prev_rsi,
                 }
 
                 contributions[timeframe] = {
                     "rsi": current_rsi,
                     "momentum": momentum,
                     "rsi_change": current_rsi - prev_rsi,
-                    "weight": self.timeframe_weights[timeframe]
+                    "weight": self.timeframe_weights[timeframe],
                 }
 
         if len(timeframe_momentum) < 2:
@@ -341,13 +353,19 @@ class MultiTimeframeAnalyzer:
             total_weight += weight
 
             # Check for bullish divergence (price down, momentum up)
-            if (primary_momentum["rsi"] < 50 and momentum_data["rsi"] > primary_momentum["rsi"] and
-                momentum_data["change"] > 0):
+            if (
+                primary_momentum["rsi"] < 50
+                and momentum_data["rsi"] > primary_momentum["rsi"]
+                and momentum_data["change"] > 0
+            ):
                 divergence_score += weight * 0.8  # Bullish divergence
 
             # Check for bearish divergence (price up, momentum down)
-            elif (primary_momentum["rsi"] > 50 and momentum_data["rsi"] < primary_momentum["rsi"] and
-                  momentum_data["change"] < 0):
+            elif (
+                primary_momentum["rsi"] > 50
+                and momentum_data["rsi"] < primary_momentum["rsi"]
+                and momentum_data["change"] < 0
+            ):
                 divergence_score -= weight * 0.8  # Bearish divergence
 
         if total_weight == 0:
@@ -376,10 +394,12 @@ class MultiTimeframeAnalyzer:
             timeframe_contributions=contributions,
             overall_score=divergence_score,
             timestamp_us=get_timestamp_us(),
-            reasoning=reasoning
+            reasoning=reasoning,
         )
 
-    async def _analyze_volume_confirmation(self, symbol: str, primary_timeframe: Timeframe) -> Optional[MultiTimeframeSignal]:
+    async def _analyze_volume_confirmation(
+        self, symbol: str, primary_timeframe: Timeframe
+    ) -> Optional[MultiTimeframeSignal]:
         """Analyze volume confirmation across timeframes."""
         symbol_data = self.market_data.get(symbol)
         if not symbol_data:
@@ -414,7 +434,7 @@ class MultiTimeframeAnalyzer:
                 "confirmation": confirmation,
                 "intensity": intensity,
                 "volume_trend": volume_trend,
-                "price_trend": price_trend
+                "price_trend": price_trend,
             }
 
             contributions[timeframe] = {
@@ -422,7 +442,7 @@ class MultiTimeframeAnalyzer:
                 "intensity": intensity,
                 "avg_volume": avg_volume,
                 "current_volume": current_volume,
-                "weight": self.timeframe_weights[timeframe]
+                "weight": self.timeframe_weights[timeframe],
             }
 
         if not timeframe_volume:
@@ -468,10 +488,12 @@ class MultiTimeframeAnalyzer:
             timeframe_contributions=contributions,
             overall_score=overall_score,
             timestamp_us=get_timestamp_us(),
-            reasoning=reasoning
+            reasoning=reasoning,
         )
 
-    async def _analyze_support_resistance(self, symbol: str, primary_timeframe: Timeframe) -> Optional[MultiTimeframeSignal]:
+    async def _analyze_support_resistance(
+        self, symbol: str, primary_timeframe: Timeframe
+    ) -> Optional[MultiTimeframeSignal]:
         """Analyze support and resistance levels across timeframes."""
         # This is a simplified implementation - in practice would use more sophisticated SR detection
         symbol_data = self.market_data.get(symbol)
@@ -501,14 +523,18 @@ class MultiTimeframeAnalyzer:
             return None
 
         # Calculate proximity to levels
-        resistance_distance = (resistance - current_price) / current_price if resistance else float('inf')
-        support_distance = (current_price - support) / current_price if support else float('inf')
+        resistance_distance = (
+            (resistance - current_price) / current_price if resistance else float("inf")
+        )
+        support_distance = (current_price - support) / current_price if support else float("inf")
 
         # Generate signal
         if resistance and resistance_distance < 0.02:  # Within 2% of resistance
             signal_type = "SELL"
             confidence = min((1 - resistance_distance / 0.02) * 0.8, 0.9)
-            reasoning = f"Price near resistance level at {resistance:.4f} ({resistance_distance:.1%} away)"
+            reasoning = (
+                f"Price near resistance level at {resistance:.4f} ({resistance_distance:.1%} away)"
+            )
         elif support and support_distance < 0.02:  # Within 2% of support
             signal_type = "BUY"
             confidence = min((1 - support_distance / 0.02) * 0.8, 0.9)
@@ -523,7 +549,7 @@ class MultiTimeframeAnalyzer:
                 "support": support,
                 "resistance_distance": resistance_distance,
                 "support_distance": support_distance,
-                "weight": 1.0
+                "weight": 1.0,
             }
         }
 
@@ -536,10 +562,12 @@ class MultiTimeframeAnalyzer:
             timeframe_contributions=contributions,
             overall_score=1 - min(resistance_distance, support_distance) / 0.02,
             timestamp_us=get_timestamp_us(),
-            reasoning=reasoning
+            reasoning=reasoning,
         )
 
-    async def _analyze_pattern_recognition(self, symbol: str, primary_timeframe: Timeframe) -> Optional[MultiTimeframeSignal]:
+    async def _analyze_pattern_recognition(
+        self, symbol: str, primary_timeframe: Timeframe
+    ) -> Optional[MultiTimeframeSignal]:
         """Analyze chart patterns across timeframes."""
         # Simplified pattern recognition - in practice would use more sophisticated algorithms
         symbol_data = self.market_data.get(symbol)
@@ -559,13 +587,13 @@ class MultiTimeframeAnalyzer:
         # Look for double bottom pattern
         min_indices = []
         for i in range(1, len(lows) - 1):
-            if lows[i] < lows[i-1] and lows[i] < lows[i+1]:
+            if lows[i] < lows[i - 1] and lows[i] < lows[i + 1]:
                 min_indices.append(i)
 
         # Look for double top pattern
         max_indices = []
         for i in range(1, len(highs) - 1):
-            if highs[i] > highs[i-1] and highs[i] > highs[i+1]:
+            if highs[i] > highs[i - 1] and highs[i] > highs[i + 1]:
                 max_indices.append(i)
 
         pattern_detected = None
@@ -598,7 +626,7 @@ class MultiTimeframeAnalyzer:
                 "pattern": pattern_detected,
                 "min_indices": min_indices,
                 "max_indices": max_indices,
-                "weight": 1.0
+                "weight": 1.0,
             }
         }
 
@@ -611,10 +639,12 @@ class MultiTimeframeAnalyzer:
             timeframe_contributions=contributions,
             overall_score=confidence,
             timestamp_us=get_timestamp_us(),
-            reasoning=reasoning
+            reasoning=reasoning,
         )
 
-    async def _analyze_volatility_regime(self, symbol: str, primary_timeframe: Timeframe) -> Optional[MultiTimeframeSignal]:
+    async def _analyze_volatility_regime(
+        self, symbol: str, primary_timeframe: Timeframe
+    ) -> Optional[MultiTimeframeSignal]:
         """Analyze volatility regime across timeframes."""
         symbol_data = self.market_data.get(symbol)
         if not symbol_data:
@@ -635,12 +665,12 @@ class MultiTimeframeAnalyzer:
             # Calculate volatility (standard deviation of returns)
             returns = []
             for i in range(1, len(closes)):
-                ret = (closes[i] - closes[i-1]) / closes[i-1]
+                ret = (closes[i] - closes[i - 1]) / closes[i - 1]
                 returns.append(ret)
 
             if returns:
                 volatility = sum(r**2 for r in returns) / len(returns)  # Variance
-                volatility = volatility ** 0.5  # Standard deviation
+                volatility = volatility**0.5  # Standard deviation
 
                 # Classify volatility regime
                 if volatility > 0.05:  # High volatility
@@ -650,16 +680,13 @@ class MultiTimeframeAnalyzer:
                 else:  # Low volatility
                     regime = "LOW"
 
-                timeframe_volatility[timeframe] = {
-                    "volatility": volatility,
-                    "regime": regime
-                }
+                timeframe_volatility[timeframe] = {"volatility": volatility, "regime": regime}
 
                 contributions[timeframe] = {
                     "volatility": volatility,
                     "regime": regime,
                     "returns_count": len(returns),
-                    "weight": self.timeframe_weights[timeframe]
+                    "weight": self.timeframe_weights[timeframe],
                 }
 
         if not timeframe_volatility:
@@ -695,7 +722,7 @@ class MultiTimeframeAnalyzer:
             timeframe_contributions=contributions,
             overall_score=0.5,  # Neutral score for regime analysis
             timestamp_us=get_timestamp_us(),
-            reasoning=reasoning
+            reasoning=reasoning,
         )
 
     def _calculate_trend_slope(self, values: List[float]) -> float:
@@ -710,12 +737,12 @@ class MultiTimeframeAnalyzer:
         sum_x = sum(x)
         sum_y = sum(y)
         sum_xy = sum(xi * yi for xi, yi in zip(x, y))
-        sum_x2 = sum(xi ** 2 for xi in x)
+        sum_x2 = sum(xi**2 for xi in x)
 
-        if n * sum_x2 - sum_x ** 2 == 0:
+        if n * sum_x2 - sum_x**2 == 0:
             return 0.0
 
-        slope = (n * sum_xy - sum_x * sum_y) / (n * sum_x2 - sum_x ** 2)
+        slope = (n * sum_xy - sum_x * sum_y) / (n * sum_x2 - sum_x**2)
         return slope
 
     def _calculate_rsi(self, prices: List[float], period: int = 14) -> List[float]:
@@ -729,7 +756,7 @@ class MultiTimeframeAnalyzer:
 
         # Calculate price changes
         for i in range(1, len(prices)):
-            change = prices[i] - prices[i-1]
+            change = prices[i] - prices[i - 1]
             gains.append(max(change, 0))
             losses.append(max(-change, 0))
 
@@ -778,7 +805,7 @@ class MultiTimeframeAnalyzer:
             "total_data_points": total_data_points,
             "timeframe_distribution": {tf.value: count for tf, count in timeframe_counts.items()},
             "cache_enabled": self._cache_ready,
-            "timestamp_us": get_timestamp_us()
+            "timestamp_us": get_timestamp_us(),
         }
 
 

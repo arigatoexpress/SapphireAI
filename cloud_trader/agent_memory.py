@@ -3,23 +3,24 @@
 from __future__ import annotations
 
 import asyncio
-import logging
-import json
 import hashlib
+import json
+import logging
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Set, Any, Tuple, Callable
 from enum import Enum
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
-from .time_sync import get_timestamp_us, get_precision_clock
+from .cache import BaseCache, get_cache
 from .market_regime import MarketRegime, RegimeMetrics
-from .cache import get_cache, BaseCache
+from .time_sync import get_precision_clock, get_timestamp_us
 
 logger = logging.getLogger(__name__)
 
 
 class MemoryType(Enum):
     """Types of agent memories."""
+
     TRADE_OUTCOME = "trade_outcome"
     MARKET_INSIGHT = "market_insight"
     STRATEGY_LEARNING = "strategy_learning"
@@ -31,6 +32,7 @@ class MemoryType(Enum):
 
 class MemoryImportance(Enum):
     """Importance levels for memories."""
+
     LOW = 1
     MEDIUM = 2
     HIGH = 3
@@ -40,6 +42,7 @@ class MemoryImportance(Enum):
 @dataclass
 class AgentMemory:
     """A single memory item from an agent."""
+
     memory_id: str
     agent_id: str
     memory_type: MemoryType
@@ -67,7 +70,7 @@ class AgentMemory:
             "related_memories": list(self.related_memories),
             "access_count": self.access_count,
             "last_accessed": self.last_accessed,
-            "validation_count": self.validation_count
+            "validation_count": self.validation_count,
         }
 
     @classmethod
@@ -85,7 +88,7 @@ class AgentMemory:
             related_memories=set(data.get("related_memories", [])),
             access_count=data.get("access_count", 0),
             last_accessed=data.get("last_accessed"),
-            validation_count=data.get("validation_count", 0)
+            validation_count=data.get("validation_count", 0),
         )
 
     def update_access(self) -> None:
@@ -101,6 +104,7 @@ class AgentMemory:
 @dataclass
 class SharedContext:
     """Shared context information that multiple agents can access."""
+
     context_id: str
     symbol: str
     regime: Optional[MarketRegime]
@@ -128,7 +132,7 @@ class SharedContext:
             "consensus_signals": self.consensus_signals,
             "risk_assessment": self.risk_assessment,
             "timestamp_us": self.timestamp_us,
-            "ttl_seconds": self.ttl_seconds
+            "ttl_seconds": self.ttl_seconds,
         }
 
 
@@ -171,7 +175,7 @@ class AgentMemoryManager:
             "shared_contexts": 0,
             "memory_hits": 0,
             "context_hits": 0,
-            "consolidations_performed": 0
+            "consolidations_performed": 0,
         }
 
     async def initialize(self) -> None:
@@ -239,10 +243,14 @@ class AgentMemoryManager:
         logger.debug(f"Stored memory {memory_id} for agent {agent_id}")
         return memory_id
 
-    async def retrieve_memories(self, agent_id: str, tags: Optional[List[str]] = None,
-                               memory_types: Optional[List[MemoryType]] = None,
-                               min_importance: MemoryImportance = MemoryImportance.LOW,
-                               limit: int = 50) -> List[AgentMemory]:
+    async def retrieve_memories(
+        self,
+        agent_id: str,
+        tags: Optional[List[str]] = None,
+        memory_types: Optional[List[MemoryType]] = None,
+        min_importance: MemoryImportance = MemoryImportance.LOW,
+        limit: int = 50,
+    ) -> List[AgentMemory]:
         """Retrieve memories with filtering options."""
         memories = []
 
@@ -259,14 +267,18 @@ class AgentMemoryManager:
                 pattern = f"memory:{agent_id}:*"
                 cache_keys = await self._cache.scan_keys(pattern)
                 for cache_key in cache_keys:
-                    if cache_key not in [f"memory:{agent_id}:{m.memory_id}" for m in candidate_memories]:
+                    if cache_key not in [
+                        f"memory:{agent_id}:{m.memory_id}" for m in candidate_memories
+                    ]:
                         cached_data = await self._cache.get(cache_key)
                         if cached_data:
                             try:
                                 memory = AgentMemory.from_dict(cached_data)
                                 candidate_memories.append(memory)
                             except Exception as e:
-                                logger.warning(f"Failed to deserialize cached memory {cache_key}: {e}")
+                                logger.warning(
+                                    f"Failed to deserialize cached memory {cache_key}: {e}"
+                                )
             except Exception as e:
                 logger.warning(f"Error retrieving memories from cache: {e}")
 
@@ -296,10 +308,14 @@ class AgentMemoryManager:
         self.stats["memory_hits"] += len(memories)
         return memories
 
-    async def share_memory(self, from_agent: str, to_agents: List[str],
-                          memory_id: str, context: Optional[str] = None) -> Dict[str, bool]:
+    async def share_memory(
+        self, from_agent: str, to_agents: List[str], memory_id: str, context: Optional[str] = None
+    ) -> Dict[str, bool]:
         """Share a memory from one agent to others."""
-        if from_agent not in self.agent_memories or memory_id not in self.agent_memories[from_agent]:
+        if (
+            from_agent not in self.agent_memories
+            or memory_id not in self.agent_memories[from_agent]
+        ):
             return {agent: False for agent in to_agents}
 
         original_memory = self.agent_memories[from_agent][memory_id]
@@ -317,13 +333,15 @@ class AgentMemoryManager:
                         **original_memory.content,
                         "shared_from": from_agent,
                         "shared_context": context,
-                        "original_memory_id": memory_id
+                        "original_memory_id": memory_id,
                     },
-                    importance=max(original_memory.importance, MemoryImportance.MEDIUM),  # Boost importance
+                    importance=max(
+                        original_memory.importance, MemoryImportance.MEDIUM
+                    ),  # Boost importance
                     confidence=original_memory.confidence * 0.9,  # Slight confidence decay
                     timestamp_us=get_timestamp_us(),
                     tags=original_memory.tags | {"shared", f"from_{from_agent}"},
-                    related_memories=original_memory.related_memories.copy()
+                    related_memories=original_memory.related_memories.copy(),
                 )
 
                 await self.store_memory(shared_memory)
@@ -339,8 +357,9 @@ class AgentMemoryManager:
 
         return results
 
-    async def create_shared_context(self, symbol: str, regime: Optional[MarketRegime],
-                                   contributing_agents: List[str]) -> str:
+    async def create_shared_context(
+        self, symbol: str, regime: Optional[MarketRegime], contributing_agents: List[str]
+    ) -> str:
         """Create a shared context for collaborative decision making."""
         context_id = f"context_{symbol}_{get_timestamp_us()}"
 
@@ -352,9 +371,7 @@ class AgentMemoryManager:
         for agent_id in contributing_agents:
             # Get recent relevant memories
             memories = await self.retrieve_memories(
-                agent_id=agent_id,
-                tags=[symbol, regime.value if regime else "general"],
-                limit=10
+                agent_id=agent_id, tags=[symbol, regime.value if regime else "general"], limit=10
             )
             active_memories.extend([m.memory_id for m in memories])
 
@@ -362,7 +379,9 @@ class AgentMemoryManager:
             agent_contributions[agent_id] = {
                 "memory_count": len(memories),
                 "specialization": "general",  # Would be populated from agent registry
-                "confidence_avg": sum(m.confidence for m in memories) / len(memories) if memories else 0
+                "confidence_avg": (
+                    sum(m.confidence for m in memories) / len(memories) if memories else 0
+                ),
             }
 
         context = SharedContext(
@@ -374,7 +393,7 @@ class AgentMemoryManager:
             agent_contributions=agent_contributions,
             consensus_signals=[],
             risk_assessment={},
-            timestamp_us=get_timestamp_us()
+            timestamp_us=get_timestamp_us(),
         )
 
         self.shared_contexts[context_id] = context
@@ -392,7 +411,9 @@ class AgentMemoryManager:
             except Exception as e:
                 logger.error(f"Error in context callback: {e}")
 
-        logger.info(f"Created shared context {context_id} for {symbol} with {len(contributing_agents)} agents")
+        logger.info(
+            f"Created shared context {context_id} for {symbol} with {len(contributing_agents)} agents"
+        )
         return context_id
 
     async def get_shared_context(self, context_id: str) -> Optional[SharedContext]:
@@ -408,14 +429,16 @@ class AgentMemoryManager:
                     context = SharedContext(
                         context_id=cached_data["context_id"],
                         symbol=cached_data["symbol"],
-                        regime=MarketRegime(cached_data["regime"]) if cached_data["regime"] else None,
+                        regime=(
+                            MarketRegime(cached_data["regime"]) if cached_data["regime"] else None
+                        ),
                         active_memories=cached_data["active_memories"],
                         market_state=cached_data["market_state"],
                         agent_contributions=cached_data["agent_contributions"],
                         consensus_signals=cached_data["consensus_signals"],
                         risk_assessment=cached_data["risk_assessment"],
                         timestamp_us=cached_data["timestamp_us"],
-                        ttl_seconds=cached_data["ttl_seconds"]
+                        ttl_seconds=cached_data["ttl_seconds"],
                     )
                     self.shared_contexts[context_id] = context
                 except Exception as e:
@@ -470,13 +493,13 @@ class AgentMemoryManager:
                 "validated_memory_id": memory_id,
                 "original_agent": agent_id,
                 "validation_type": "corroboration",
-                "confidence_boost": 0.1
+                "confidence_boost": 0.1,
             },
             importance=MemoryImportance.MEDIUM,
             confidence=0.8,
             timestamp_us=get_timestamp_us(),
             tags={"validation", f"validates_{memory_id}"},
-            related_memories={memory_id}
+            related_memories={memory_id},
         )
 
         await self.store_memory(validation_memory)
@@ -494,10 +517,12 @@ class AgentMemoryManager:
             return
 
         # Sort by importance (descending) and access count (descending)
-        memories.sort(key=lambda m: (m.importance.value, m.access_count, m.validation_count), reverse=True)
+        memories.sort(
+            key=lambda m: (m.importance.value, m.access_count, m.validation_count), reverse=True
+        )
 
         # Remove excess memories
-        to_remove = memories[self.max_memories_per_agent:]
+        to_remove = memories[self.max_memories_per_agent :]
         for memory in to_remove:
             memory_id = memory.memory_id
             del self.agent_memories[agent_id][memory_id]
@@ -533,8 +558,7 @@ class AgentMemoryManager:
 
         # Clean expired contexts
         expired_contexts = [
-            ctx_id for ctx_id, ctx in self.shared_contexts.items()
-            if ctx.is_expired(current_time)
+            ctx_id for ctx_id, ctx in self.shared_contexts.items() if ctx.is_expired(current_time)
         ]
         for ctx_id in expired_contexts:
             del self.shared_contexts[ctx_id]
@@ -549,9 +573,11 @@ class AgentMemoryManager:
             for memory_id, memory in memories.items():
                 # Remove memories that are:
                 # 1. Older than 7 days AND low importance AND rarely accessed
-                if (memory.timestamp_us < consolidation_cutoff and
-                    memory.importance == MemoryImportance.LOW and
-                    memory.access_count < 3):
+                if (
+                    memory.timestamp_us < consolidation_cutoff
+                    and memory.importance == MemoryImportance.LOW
+                    and memory.access_count < 3
+                ):
                     to_remove.append(memory_id)
 
             for memory_id in to_remove:
@@ -600,7 +626,7 @@ class AgentMemoryManager:
                 "importance_levels": importance_levels,
                 "avg_confidence": total_confidence / len(memories) if memories else 0,
                 "total_access": total_access,
-                "avg_access_per_memory": total_access / len(memories) if memories else 0
+                "avg_access_per_memory": total_access / len(memories) if memories else 0,
             }
 
         return {
@@ -608,7 +634,7 @@ class AgentMemoryManager:
             "agent_stats": agent_stats,
             "active_contexts": len(self.shared_contexts),
             "index_size": sum(len(memories) for memories in self.memory_index.values()),
-            "cache_enabled": self._cache_ready
+            "cache_enabled": self._cache_ready,
         }
 
 

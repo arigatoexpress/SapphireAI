@@ -18,10 +18,10 @@ Key Features:
 import asyncio
 import logging
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, List, Optional, Any, Callable
-from concurrent.futures import ThreadPoolExecutor
+from typing import Any, Callable, Dict, List, Optional
 
 from .circuit_breaker import CircuitBreaker
 from .vertex_ai_client import VertexAIClient
@@ -31,21 +31,24 @@ logger = logging.getLogger(__name__)
 
 class ModelTier(Enum):
     """Model performance tiers for elastic scaling"""
-    TPU_OPTIMIZED = "tpu"      # Highest performance, highest cost
-    GPU_ACCELERATED = "gpu"    # Medium performance, medium cost
-    CPU_FALLBACK = "cpu"       # Basic performance, lowest cost
+
+    TPU_OPTIMIZED = "tpu"  # Highest performance, highest cost
+    GPU_ACCELERATED = "gpu"  # Medium performance, medium cost
+    CPU_FALLBACK = "cpu"  # Basic performance, lowest cost
 
 
 class ScalingMode(Enum):
     """Resource scaling modes"""
+
     CONSERVATIVE = "conservative"  # Minimal scaling, cost-focused
-    BALANCED = "balanced"         # Adaptive scaling based on market
-    AGGRESSIVE = "aggressive"     # Maximum performance, higher cost
+    BALANCED = "balanced"  # Adaptive scaling based on market
+    AGGRESSIVE = "aggressive"  # Maximum performance, higher cost
 
 
 @dataclass
 class ResourceMetrics:
     """Real-time resource utilization metrics"""
+
     cpu_usage: float
     memory_usage: float
     gpu_utilization: Optional[float]
@@ -58,10 +61,11 @@ class ResourceMetrics:
 @dataclass
 class ModelPerformance:
     """Performance metrics for different model configurations"""
+
     tier: ModelTier
     throughput: float  # predictions per second
-    latency: float     # milliseconds per prediction
-    accuracy: float    # prediction accuracy score
+    latency: float  # milliseconds per prediction
+    accuracy: float  # prediction accuracy score
     cost_efficiency: float  # performance per dollar
 
 
@@ -78,7 +82,7 @@ class ElasticVPINService:
         vertex_client: VertexAIClient,
         scaling_mode: ScalingMode = ScalingMode.BALANCED,
         max_concurrent_requests: int = 100,
-        circuit_breaker_threshold: int = 5
+        circuit_breaker_threshold: int = 5,
     ):
         self.vertex_client = vertex_client
         self.scaling_mode = scaling_mode
@@ -88,13 +92,11 @@ class ElasticVPINService:
         self.api_circuit_breaker = CircuitBreaker(
             failure_threshold=circuit_breaker_threshold,
             recovery_timeout=300,  # 5 minutes
-            name="vpin_api_breaker"
+            name="vpin_api_breaker",
         )
 
         self.tpu_circuit_breaker = CircuitBreaker(
-            failure_threshold=3,
-            recovery_timeout=600,  # 10 minutes
-            name="vpin_tpu_breaker"
+            failure_threshold=3, recovery_timeout=600, name="vpin_tpu_breaker"  # 10 minutes
         )
 
         # Model performance tracking
@@ -102,24 +104,24 @@ class ElasticVPINService:
             ModelTier.TPU_OPTIMIZED: ModelPerformance(
                 tier=ModelTier.TPU_OPTIMIZED,
                 throughput=500,  # predictions/sec
-                latency=50,      # ms
+                latency=50,  # ms
                 accuracy=0.95,
-                cost_efficiency=85
+                cost_efficiency=85,
             ),
             ModelTier.GPU_ACCELERATED: ModelPerformance(
                 tier=ModelTier.GPU_ACCELERATED,
                 throughput=150,
                 latency=150,
                 accuracy=0.92,
-                cost_efficiency=65
+                cost_efficiency=65,
             ),
             ModelTier.CPU_FALLBACK: ModelPerformance(
                 tier=ModelTier.CPU_FALLBACK,
                 throughput=50,
                 latency=400,
                 accuracy=0.88,
-                cost_efficiency=40
-            )
+                cost_efficiency=40,
+            ),
         }
 
         # Current operational state
@@ -132,7 +134,7 @@ class ElasticVPINService:
             api_call_count=0,
             throttling_events=0,
             average_latency=0.0,
-            cost_per_hour=0.0
+            cost_per_hour=0.0,
         )
 
         # Scaling parameters
@@ -146,9 +148,7 @@ class ElasticVPINService:
         logger.info(f"🧠 Elastic VPIN Service initialized with {scaling_mode.value} scaling mode")
 
     async def analyze_volume_batch(
-        self,
-        volume_data: List[Dict[str, Any]],
-        market_conditions: Dict[str, Any]
+        self, volume_data: List[Dict[str, Any]], market_conditions: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
         Analyze volume data with intelligent scaling and fallback.
@@ -169,9 +169,7 @@ class ElasticVPINService:
 
         # Execute analysis with circuit breaker protection
         result = await self.api_circuit_breaker.call(
-            self._execute_analysis,
-            volume_data,
-            market_conditions
+            self._execute_analysis, volume_data, market_conditions
         )
 
         # Update performance metrics
@@ -185,11 +183,13 @@ class ElasticVPINService:
         """
 
         # High volatility or large data volumes favor TPU
-        volatility = market_conditions.get('volatility_index', 0.5)
-        data_volume = market_conditions.get('batch_size', 100)
+        volatility = market_conditions.get("volatility_index", 0.5)
+        data_volume = market_conditions.get("batch_size", 100)
 
         # Check API throttling status
-        throttling_rate = self.resource_metrics.throttling_events / max(1, time.time() - getattr(self, '_last_throttle_check', 0))
+        throttling_rate = self.resource_metrics.throttling_events / max(
+            1, time.time() - getattr(self, "_last_throttle_check", 0)
+        )
 
         # Conservative mode prioritizes cost
         if self.scaling_mode == ScalingMode.CONSERVATIVE:
@@ -221,7 +221,9 @@ class ElasticVPINService:
         Scale resources to target tier with graceful transition.
         """
 
-        logger.info(f"🔄 Scaling VPIN service from {self.current_tier.value} to {target_tier.value}")
+        logger.info(
+            f"🔄 Scaling VPIN service from {self.current_tier.value} to {target_tier.value}"
+        )
 
         # Graceful shutdown of current tier resources
         if self.current_tier == ModelTier.TPU_OPTIMIZED:
@@ -240,9 +242,7 @@ class ElasticVPINService:
         logger.info(f"✅ Successfully scaled to {target_tier.value} tier")
 
     async def _execute_analysis(
-        self,
-        volume_data: List[Dict[str, Any]],
-        market_conditions: Dict[str, Any]
+        self, volume_data: List[Dict[str, Any]], market_conditions: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
         Execute VPIN analysis using the current tier's optimal method.
@@ -283,79 +283,66 @@ class ElasticVPINService:
                 return await self._execute_basic_fallback(volume_data, market_conditions)
 
     async def _execute_tpu_analysis(
-        self,
-        volume_data: List[Dict[str, Any]],
-        market_conditions: Dict[str, Any]
+        self, volume_data: List[Dict[str, Any]], market_conditions: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Execute high-performance TPU-accelerated VPIN analysis"""
         # Use Vertex AI with TPU optimization for maximum throughput
         return await self.vertex_client.predict_vpin_tpu(volume_data, market_conditions)
 
     async def _execute_gpu_analysis(
-        self,
-        volume_data: List[Dict[str, Any]],
-        market_conditions: Dict[str, Any]
+        self, volume_data: List[Dict[str, Any]], market_conditions: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Execute GPU-accelerated VPIN analysis"""
         # Use Vertex AI GPU instances for balanced performance/cost
         return await self.vertex_client.predict_vpin_gpu(volume_data, market_conditions)
 
     async def _execute_cpu_analysis(
-        self,
-        volume_data: List[Dict[str, Any]],
-        market_conditions: Dict[str, Any]
+        self, volume_data: List[Dict[str, Any]], market_conditions: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Execute CPU-based VPIN analysis with thread pool"""
         # Use thread pool for CPU-bound operations
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(
-            self.cpu_executor,
-            self._cpu_vpin_calculation,
-            volume_data,
-            market_conditions
+            self.cpu_executor, self._cpu_vpin_calculation, volume_data, market_conditions
         )
 
     def _cpu_vpin_calculation(
-        self,
-        volume_data: List[Dict[str, Any]],
-        market_conditions: Dict[str, Any]
+        self, volume_data: List[Dict[str, Any]], market_conditions: Dict[str, Any]
     ) -> Dict[str, Any]:
         """CPU-based VPIN calculation (fallback method)"""
         # Implement basic VPIN calculation without ML models
         # This provides minimal functionality when ML models are unavailable
 
-        total_volume = sum(item.get('volume', 0) for item in volume_data)
-        buy_volume = sum(item.get('buy_volume', 0) for item in volume_data)
-        sell_volume = sum(item.get('sell_volume', 0) for item in volume_data)
+        total_volume = sum(item.get("volume", 0) for item in volume_data)
+        buy_volume = sum(item.get("buy_volume", 0) for item in volume_data)
+        sell_volume = sum(item.get("sell_volume", 0) for item in volume_data)
 
         # Simple VPIN approximation
         imbalance = abs(buy_volume - sell_volume) / max(total_volume, 1)
         vpin_score = min(imbalance * 100, 100)  # Scale to 0-100
 
         return {
-            'vpin_score': vpin_score,
-            'confidence': 0.7,  # Lower confidence for fallback method
-            'method': 'cpu_fallback',
-            'timestamp': time.time(),
-            'market_regime': 'unknown'  # Cannot determine without ML
+            "vpin_score": vpin_score,
+            "confidence": 0.7,  # Lower confidence for fallback method
+            "method": "cpu_fallback",
+            "timestamp": time.time(),
+            "market_regime": "unknown",  # Cannot determine without ML
         }
 
     async def _execute_basic_fallback(
-        self,
-        volume_data: List[Dict[str, Any]],
-        market_conditions: Dict[str, Any]
+        self, volume_data: List[Dict[str, Any]], market_conditions: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Ultimate fallback when all ML methods fail"""
         logger.warning("🚨 All ML methods failed, using statistical fallback")
 
         # Return neutral/safe VPIN score
         return {
-            'vpin_score': 50.0,  # Neutral score
-            'confidence': 0.5,   # Low confidence
-            'method': 'statistical_fallback',
-            'timestamp': time.time(),
-            'market_regime': 'neutral',
-            'warning': 'ML models unavailable, using statistical approximation'
+            "vpin_score": 50.0,  # Neutral score
+            "confidence": 0.5,  # Low confidence
+            "method": "statistical_fallback",
+            "timestamp": time.time(),
+            "market_regime": "neutral",
+            "warning": "ML models unavailable, using statistical approximation",
         }
 
     async def _initialize_tpu_resources(self) -> None:
@@ -399,15 +386,14 @@ class ElasticVPINService:
         self.resource_metrics.api_call_count += 1
 
         # Update average latency (exponential moving average)
-        if 'latency' in result:
+        if "latency" in result:
             alpha = 0.1  # Smoothing factor
             self.resource_metrics.average_latency = (
-                alpha * result['latency'] +
-                (1 - alpha) * self.resource_metrics.average_latency
+                alpha * result["latency"] + (1 - alpha) * self.resource_metrics.average_latency
             )
 
         # Check for throttling indicators
-        if result.get('throttled', False):
+        if result.get("throttled", False):
             self.resource_metrics.throttling_events += 1
 
     async def _record_execution_metrics(self, execution_time: float, success: bool) -> None:
@@ -421,39 +407,39 @@ class ElasticVPINService:
     async def get_service_status(self) -> Dict[str, Any]:
         """Get comprehensive service status and metrics"""
         return {
-            'current_tier': self.current_tier.value,
-            'scaling_mode': self.scaling_mode.value,
-            'active_requests': self.active_requests,
-            'resource_metrics': {
-                'cpu_usage': self.resource_metrics.cpu_usage,
-                'memory_usage': self.resource_metrics.memory_usage,
-                'gpu_utilization': self.resource_metrics.gpu_utilization,
-                'api_call_count': self.resource_metrics.api_call_count,
-                'throttling_events': self.resource_metrics.throttling_events,
-                'average_latency': self.resource_metrics.average_latency,
-                'cost_per_hour': self.resource_metrics.cost_per_hour
+            "current_tier": self.current_tier.value,
+            "scaling_mode": self.scaling_mode.value,
+            "active_requests": self.active_requests,
+            "resource_metrics": {
+                "cpu_usage": self.resource_metrics.cpu_usage,
+                "memory_usage": self.resource_metrics.memory_usage,
+                "gpu_utilization": self.resource_metrics.gpu_utilization,
+                "api_call_count": self.resource_metrics.api_call_count,
+                "throttling_events": self.resource_metrics.throttling_events,
+                "average_latency": self.resource_metrics.average_latency,
+                "cost_per_hour": self.resource_metrics.cost_per_hour,
             },
-            'circuit_breakers': {
-                'api_breaker': {
-                    'state': self.api_circuit_breaker.state.name,
-                    'failure_count': self.api_circuit_breaker.failure_count,
-                    'is_open': self.api_circuit_breaker.is_open
+            "circuit_breakers": {
+                "api_breaker": {
+                    "state": self.api_circuit_breaker.state.name,
+                    "failure_count": self.api_circuit_breaker.failure_count,
+                    "is_open": self.api_circuit_breaker.is_open,
                 },
-                'tpu_breaker': {
-                    'state': self.tpu_circuit_breaker.state.name,
-                    'failure_count': self.tpu_circuit_breaker.failure_count,
-                    'is_open': self.tpu_circuit_breaker.is_open
-                }
+                "tpu_breaker": {
+                    "state": self.tpu_circuit_breaker.state.name,
+                    "failure_count": self.tpu_circuit_breaker.failure_count,
+                    "is_open": self.tpu_circuit_breaker.is_open,
+                },
             },
-            'model_performance': {
+            "model_performance": {
                 tier.value: {
-                    'throughput': perf.throughput,
-                    'latency': perf.latency,
-                    'accuracy': perf.accuracy,
-                    'cost_efficiency': perf.cost_efficiency
+                    "throughput": perf.throughput,
+                    "latency": perf.latency,
+                    "accuracy": perf.accuracy,
+                    "cost_efficiency": perf.cost_efficiency,
                 }
                 for tier, perf in self.model_performance.items()
-            }
+            },
         }
 
     async def optimize_resource_allocation(self) -> None:
@@ -470,8 +456,8 @@ class ElasticVPINService:
                 status = await self.get_service_status()
 
                 # Determine if scaling is needed
-                cpu_usage = status['resource_metrics']['cpu_usage']
-                throttling_rate = status['resource_metrics']['throttling_events'] / 60  # per minute
+                cpu_usage = status["resource_metrics"]["cpu_usage"]
+                throttling_rate = status["resource_metrics"]["throttling_events"] / 60  # per minute
 
                 scaling_decision = None
 
@@ -484,14 +470,23 @@ class ElasticVPINService:
                     if cpu_usage > 0.7 or throttling_rate > 5:
                         scaling_decision = ModelTier.TPU_OPTIMIZED
                 else:  # Balanced
-                    if cpu_usage > self.scale_up_threshold or throttling_rate > self.throttling_threshold:
-                        scaling_decision = ModelTier.TPU_OPTIMIZED if cpu_usage > 0.8 else ModelTier.GPU_ACCELERATED
+                    if (
+                        cpu_usage > self.scale_up_threshold
+                        or throttling_rate > self.throttling_threshold
+                    ):
+                        scaling_decision = (
+                            ModelTier.TPU_OPTIMIZED
+                            if cpu_usage > 0.8
+                            else ModelTier.GPU_ACCELERATED
+                        )
                     elif cpu_usage < self.scale_down_threshold and throttling_rate < 1:
                         scaling_decision = ModelTier.CPU_FALLBACK
 
                 # Execute scaling if needed
                 if scaling_decision and scaling_decision != self.current_tier:
-                    logger.info(f"🎯 Resource optimization: scaling from {self.current_tier.value} to {scaling_decision.value}")
+                    logger.info(
+                        f"🎯 Resource optimization: scaling from {self.current_tier.value} to {scaling_decision.value}"
+                    )
                     await self._scale_to_tier(scaling_decision)
 
             except Exception as e:

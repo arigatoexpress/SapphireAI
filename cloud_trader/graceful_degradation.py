@@ -5,22 +5,26 @@ Graceful degradation mechanisms for maintaining system functionality during fail
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Set
 from enum import Enum
+from typing import Any, Callable, Dict, List, Optional, Set
 
 logger = logging.getLogger(__name__)
 
+
 class DegradationLevel(Enum):
     """Levels of system degradation."""
-    NORMAL = "normal"          # All systems operational
-    MINOR = "minor"            # Some non-critical systems degraded
-    MODERATE = "moderate"      # Critical systems affected but recoverable
-    SEVERE = "severe"          # Core functionality impaired
-    CRITICAL = "critical"      # System should halt trading
+
+    NORMAL = "normal"  # All systems operational
+    MINOR = "minor"  # Some non-critical systems degraded
+    MODERATE = "moderate"  # Critical systems affected but recoverable
+    SEVERE = "severe"  # Core functionality impaired
+    CRITICAL = "critical"  # System should halt trading
+
 
 @dataclass
 class DegradedComponent:
     """Represents a component that has been degraded."""
+
     name: str
     degradation_level: DegradationLevel
     fallback_available: bool
@@ -28,14 +32,17 @@ class DegradedComponent:
     impact: str
     timestamp: float = field(default_factory=lambda: asyncio.get_event_loop().time())
 
+
 @dataclass
 class GracefulDegradationConfig:
     """Configuration for graceful degradation behavior."""
+
     enable_fallbacks: bool = True
     halt_on_critical: bool = True
     max_minor_degradations: int = 3
     max_moderate_degradations: int = 1
     notify_on_degradation: bool = True
+
 
 class GracefulDegradationManager:
     """Manages graceful degradation of system components."""
@@ -61,7 +68,7 @@ class GracefulDegradationManager:
         level: DegradationLevel,
         description: str,
         impact: str,
-        fallback_available: bool = False
+        fallback_available: bool = False,
     ):
         """Mark a component as degraded."""
         component = DegradedComponent(
@@ -69,7 +76,7 @@ class GracefulDegradationManager:
             degradation_level=level,
             fallback_available=fallback_available,
             description=description,
-            impact=impact
+            impact=impact,
         )
 
         self.degraded_components[name] = component
@@ -133,7 +140,9 @@ class GracefulDegradationManager:
         """Get all currently degraded components."""
         return self.degraded_components.copy()
 
-    async def execute_with_fallback(self, component_name: str, primary_func: Callable, *args, **kwargs) -> Any:
+    async def execute_with_fallback(
+        self, component_name: str, primary_func: Callable, *args, **kwargs
+    ) -> Any:
         """Execute a function with fallback support."""
         if self.is_component_degraded(component_name):
             fallback_func = self.get_fallback_function(component_name)
@@ -145,13 +154,17 @@ class GracefulDegradationManager:
                     logger.error(f"Fallback execution failed for {component_name}: {e}")
                     raise
             else:
-                raise RuntimeError(f"Component {component_name} is degraded and no fallback available")
+                raise RuntimeError(
+                    f"Component {component_name} is degraded and no fallback available"
+                )
 
         # Execute primary function
         return await primary_func(*args, **kwargs)
 
+
 # Global graceful degradation manager
 _degradation_manager: Optional[GracefulDegradationManager] = None
+
 
 def get_graceful_degradation_manager() -> GracefulDegradationManager:
     """Get the global graceful degradation manager."""
@@ -160,7 +173,9 @@ def get_graceful_degradation_manager() -> GracefulDegradationManager:
         _degradation_manager = GracefulDegradationManager()
     return _degradation_manager
 
+
 # Fallback functions for common components
+
 
 async def fallback_market_data(symbol: str) -> Dict[str, Any]:
     """Fallback market data provider."""
@@ -170,8 +185,9 @@ async def fallback_market_data(symbol: str) -> Dict[str, Any]:
         "price": 50000.0,  # Placeholder price
         "volume": 1000.0,
         "change_24h": 0.0,
-        "is_fallback": True
+        "is_fallback": True,
     }
+
 
 async def fallback_ai_analysis(market_data: Dict[str, Any]) -> Dict[str, Any]:
     """Fallback AI analysis when Vertex AI is unavailable."""
@@ -180,14 +196,16 @@ async def fallback_ai_analysis(market_data: Dict[str, Any]) -> Dict[str, Any]:
         "confidence": 0.5,
         "risk_score": 0.7,
         "recommendation": "HOLD",
-        "is_fallback": True
+        "is_fallback": True,
     }
+
 
 async def fallback_notification(message: str) -> bool:
     """Fallback notification system."""
     logger.warning(f"Notification system degraded - logging message: {message}")
     # Could write to a file or send to an alternative system
     return True
+
 
 # Initialize the global manager with common fallbacks
 def initialize_graceful_degradation():

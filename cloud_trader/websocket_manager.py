@@ -7,11 +7,11 @@ import json
 import logging
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Set, Any, Callable
 from enum import Enum
+from typing import Any, Callable, Dict, List, Optional, Set
 
-from fastapi import WebSocket, WebSocketDisconnect
 import structlog
+from fastapi import WebSocket, WebSocketDisconnect
 
 from .time_sync import get_timestamp_us
 
@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 class MessageType(Enum):
     """Types of WebSocket messages."""
+
     TRADE_UPDATE = "trade_update"
     AGENT_STATUS = "agent_status"
     CONSENSUS_DECISION = "consensus_decision"
@@ -33,6 +34,7 @@ class MessageType(Enum):
 
 class SubscriptionType(Enum):
     """Types of subscriptions clients can make."""
+
     ALL_TRADES = "all_trades"
     AGENT_UPDATES = "agent_updates"
     CONSENSUS_VOTES = "consensus_votes"
@@ -46,6 +48,7 @@ class SubscriptionType(Enum):
 @dataclass
 class WebSocketClient:
     """A connected WebSocket client."""
+
     websocket: WebSocket
     client_id: str
     subscriptions: Set[SubscriptionType] = field(default_factory=set)
@@ -56,11 +59,7 @@ class WebSocketClient:
     async def send_message(self, message_type: MessageType, data: Dict[str, Any]) -> bool:
         """Send a message to this client."""
         try:
-            message = {
-                "type": message_type.value,
-                "timestamp_us": get_timestamp_us(),
-                "data": data
-            }
+            message = {"type": message_type.value, "timestamp_us": get_timestamp_us(), "data": data}
             await self.websocket.send_json(message)
             self.last_activity = get_timestamp_us()
             return True
@@ -81,6 +80,7 @@ class WebSocketClient:
 @dataclass
 class WebSocketMessage:
     """A message to be broadcast to subscribers."""
+
     message_type: MessageType
     subscription_type: SubscriptionType
     data: Dict[str, Any]
@@ -103,7 +103,9 @@ class WebSocketManager:
 
     def __init__(self):
         self.clients: Dict[str, WebSocketClient] = {}
-        self.subscriptions: Dict[SubscriptionType, Set[str]] = defaultdict(set)  # subscription_type -> client_ids
+        self.subscriptions: Dict[SubscriptionType, Set[str]] = defaultdict(
+            set
+        )  # subscription_type -> client_ids
 
         # Message queues by priority
         self.message_queues: Dict[int, asyncio.Queue] = {
@@ -125,11 +127,13 @@ class WebSocketManager:
             "messages_sent": 0,
             "messages_failed": 0,
             "bytes_sent": 0,
-            "uptime_seconds": 0
+            "uptime_seconds": 0,
         }
 
         # Callbacks for different message types
-        self.message_callbacks: Dict[MessageType, List[Callable[[WebSocketMessage], None]]] = defaultdict(list)
+        self.message_callbacks: Dict[MessageType, List[Callable[[WebSocketMessage], None]]] = (
+            defaultdict(list)
+        )
 
         # Shutdown event
         self._shutdown_event = asyncio.Event()
@@ -172,15 +176,15 @@ class WebSocketManager:
 
         logger.info("WebSocket manager stopped")
 
-    async def add_client(self, websocket: WebSocket, client_id: str, metadata: Optional[Dict[str, Any]] = None) -> str:
+    async def add_client(
+        self, websocket: WebSocket, client_id: str, metadata: Optional[Dict[str, Any]] = None
+    ) -> str:
         """Add a new WebSocket client."""
         try:
             await websocket.accept()
 
             client = WebSocketClient(
-                websocket=websocket,
-                client_id=client_id,
-                metadata=metadata or {}
+                websocket=websocket, client_id=client_id, metadata=metadata or {}
             )
 
             self.clients[client_id] = client
@@ -188,11 +192,14 @@ class WebSocketManager:
             self.stats["active_clients"] += 1
 
             # Send welcome message
-            await client.send_message(MessageType.SYSTEM_HEALTH, {
-                "message": "Connected to Sapphire Trading WebSocket",
-                "client_id": client_id,
-                "server_time_us": get_timestamp_us()
-            })
+            await client.send_message(
+                MessageType.SYSTEM_HEALTH,
+                {
+                    "message": "Connected to Sapphire Trading WebSocket",
+                    "client_id": client_id,
+                    "server_time_us": get_timestamp_us(),
+                },
+            )
 
             logger.info(f"WebSocket client connected: {client_id}")
             return client_id
@@ -260,7 +267,9 @@ class WebSocketManager:
         except asyncio.QueueFull:
             logger.warning(f"Message queue full for priority {message.priority}, dropping message")
 
-    async def send_to_client(self, client_id: str, message_type: MessageType, data: Dict[str, Any]) -> bool:
+    async def send_to_client(
+        self, client_id: str, message_type: MessageType, data: Dict[str, Any]
+    ) -> bool:
         """Send a message to a specific client."""
         if client_id not in self.clients:
             return False
@@ -268,7 +277,9 @@ class WebSocketManager:
         client = self.clients[client_id]
         return await client.send_message(message_type, data)
 
-    def add_message_callback(self, message_type: MessageType, callback: Callable[[WebSocketMessage], None]) -> None:
+    def add_message_callback(
+        self, message_type: MessageType, callback: Callable[[WebSocketMessage], None]
+    ) -> None:
         """Add a callback for a specific message type."""
         self.message_callbacks[message_type].append(callback)
 
@@ -384,14 +395,16 @@ class WebSocketManager:
 
     def get_stats(self) -> Dict[str, Any]:
         """Get WebSocket manager statistics."""
-        subscription_counts = {sub.value: len(clients) for sub, clients in self.subscriptions.items()}
+        subscription_counts = {
+            sub.value: len(clients) for sub, clients in self.subscriptions.items()
+        }
 
         return {
             "stats": self.stats.copy(),
             "active_clients": len(self.clients),
             "subscription_counts": subscription_counts,
             "queue_sizes": {f"priority_{p}": q.qsize() for p, q in self.message_queues.items()},
-            "timestamp_us": get_timestamp_us()
+            "timestamp_us": get_timestamp_us(),
         }
 
 
@@ -410,6 +423,7 @@ async def get_websocket_manager() -> WebSocketManager:
 
 # Utility functions for common message types
 
+
 async def broadcast_trade_update(trade_data: Dict[str, Any], priority: int = 2) -> None:
     """Broadcast a trade update to subscribed clients."""
     manager = await get_websocket_manager()
@@ -417,7 +431,7 @@ async def broadcast_trade_update(trade_data: Dict[str, Any], priority: int = 2) 
         message_type=MessageType.TRADE_UPDATE,
         subscription_type=SubscriptionType.ALL_TRADES,
         data=trade_data,
-        priority=priority
+        priority=priority,
     )
     await manager.broadcast_message(message)
 
@@ -429,7 +443,7 @@ async def broadcast_agent_status(agent_id: str, status_data: Dict[str, Any]) -> 
         message_type=MessageType.AGENT_STATUS,
         subscription_type=SubscriptionType.AGENT_UPDATES,
         data={"agent_id": agent_id, **status_data},
-        priority=2
+        priority=2,
     )
     await manager.broadcast_message(message)
 
@@ -441,7 +455,7 @@ async def broadcast_consensus_decision(decision_data: Dict[str, Any]) -> None:
         message_type=MessageType.CONSENSUS_DECISION,
         subscription_type=SubscriptionType.CONSENSUS_VOTES,
         data=decision_data,
-        priority=3  # High priority for consensus decisions
+        priority=3,  # High priority for consensus decisions
     )
     await manager.broadcast_message(message)
 
@@ -453,7 +467,7 @@ async def broadcast_portfolio_update(portfolio_data: Dict[str, Any]) -> None:
         message_type=MessageType.PORTFOLIO_UPDATE,
         subscription_type=SubscriptionType.PORTFOLIO_CHANGES,
         data=portfolio_data,
-        priority=2
+        priority=2,
     )
     await manager.broadcast_message(message)
 
@@ -465,6 +479,6 @@ async def broadcast_system_alert(alert_data: Dict[str, Any], priority: int = 4) 
         message_type=MessageType.ALERT,
         subscription_type=SubscriptionType.SYSTEM_ALERTS,
         data=alert_data,
-        priority=priority
+        priority=priority,
     )
     await manager.broadcast_message(message)

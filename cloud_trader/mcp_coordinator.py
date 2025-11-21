@@ -9,25 +9,30 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import uuid
 from collections import defaultdict
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set
 
 import httpx
-import uuid
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field
 from starlette.responses import JSONResponse
 
+from .chat_logger import get_chat_logger
 from .config import get_settings
+from .data_collector import (
+    collect_market_data,
+    collect_trade_execution,
+    collect_trading_decision,
+    get_data_collector,
+)
+from .logging_config import correlation_context, get_trading_logger, log_performance
 from .mcp import MCPMessageType, MCPProposalPayload, MCPResponsePayload
 from .portfolio_orchestrator import get_portfolio_orchestrator
 from .pubsub import PubSubClient
-from .logging_config import get_trading_logger, correlation_context, log_performance
-from .data_collector import get_data_collector, collect_market_data, collect_trading_decision, collect_trade_execution
-from .resilience import get_resilience_manager, circuit_breaker, health_check
-from .chat_logger import get_chat_logger
+from .resilience import circuit_breaker, get_resilience_manager, health_check
 
 logger = logging.getLogger(__name__)
 
@@ -146,10 +151,7 @@ class MCPCoordinator:
             if unhealthy_components:
                 return JSONResponse(
                     status_code=503,
-                    content={
-                        "status": "degraded",
-                        "unhealthy_components": unhealthy_components
-                    }
+                    content={"status": "degraded", "unhealthy_components": unhealthy_components},
                 )
 
             return {"status": "healthy", "components": len(self.registered_components)}
@@ -171,7 +173,9 @@ class MCPCoordinator:
         async def receive_signal(signal: TradingSignal, request: Request = None):
             """Receive trading signal from a component."""
             # Generate correlation ID for tracing
-            correlation_id = request.headers.get("X-Correlation-ID") if request else str(uuid.uuid4())
+            correlation_id = (
+                request.headers.get("X-Correlation-ID") if request else str(uuid.uuid4())
+            )
             self.logger.set_correlation_id(correlation_id)
 
             # Track trading activity for participation management
@@ -185,38 +189,42 @@ class MCPCoordinator:
                 "symbol": signal.symbol,
                 "decision": signal.side,
                 "confidence": signal.confidence,
-                "strategy": getattr(signal, 'strategy', 'unknown'),
-                "indicators": getattr(signal, 'indicators', {}),
-                "market_context": getattr(signal, 'market_context', {}),
+                "strategy": getattr(signal, "strategy", "unknown"),
+                "indicators": getattr(signal, "indicators", {}),
+                "market_context": getattr(signal, "market_context", {}),
                 "reasoning": signal.rationale,
-                "position_size": getattr(signal, 'position_size', 1.0),
-                "risk_parameters": getattr(signal, 'risk_parameters', {}),
+                "position_size": getattr(signal, "position_size", 1.0),
+                "risk_parameters": getattr(signal, "risk_parameters", {}),
                 "correlation_id": correlation_id,
             }
             collect_trading_decision(decision_data)
 
             # Log the trading signal
-            self.logger.log_trade_signal({
-                "symbol": signal.symbol,
-                "side": signal.side,
-                "confidence": signal.confidence,
-                "notional": signal.notional,
-                "price": signal.price,
-                "source": agent_id,
-                "rationale": signal.rationale,
-                "correlation_id": correlation_id,
-            })
+            self.logger.log_trade_signal(
+                {
+                    "symbol": signal.symbol,
+                    "side": signal.side,
+                    "confidence": signal.confidence,
+                    "notional": signal.notional,
+                    "price": signal.price,
+                    "source": agent_id,
+                    "rationale": signal.rationale,
+                    "correlation_id": correlation_id,
+                }
+            )
 
             # Store signal
             self.active_signals[signal.symbol].append(signal)
 
             # Publish to Pub/Sub if available
             if self.pubsub_client:
-                await self.pubsub_client.publish_reasoning({
-                    "component": signal.source.value,
-                    "signal": signal.model_dump(),
-                    "action": "signal_received"
-                })
+                await self.pubsub_client.publish_reasoning(
+                    {
+                        "component": signal.source.value,
+                        "signal": signal.model_dump(),
+                        "action": "signal_received",
+                    }
+                )
 
             # Broadcast signal globally for cross-agent learning
             await self._broadcast_signal_globally(signal)
@@ -224,7 +232,10 @@ class MCPCoordinator:
             # Check for collaboration opportunities (both same-symbol and cross-symbol)
             await self._check_collaboration_opportunities(signal.symbol)
 
-            return {"status": "received", "signal_id": f"{signal.source}_{signal.timestamp.isoformat()}"}
+            return {
+                "status": "received",
+                "signal_id": f"{signal.source}_{signal.timestamp.isoformat()}",
+            }
 
         @self.app.post("/market-data")
         async def receive_market_data(data: MarketData):
@@ -269,7 +280,7 @@ class MCPCoordinator:
         @self.app.get("/agent-theses/{symbol}")
         async def get_agent_theses(symbol: str):
             """Get all theses shared for a symbol."""
-            theses = getattr(self, 'agent_theses', {}).get(symbol, [])
+            theses = getattr(self, "agent_theses", {}).get(symbol, [])
             return {"symbol": symbol, "theses": theses}
 
         @self.app.get("/portfolio-status")
@@ -290,7 +301,9 @@ class MCPCoordinator:
                     "risk_tolerance": personality.risk_tolerance,
                     "time_horizon": personality.time_horizon,
                     "preferred_assets": personality.preferred_assets,
-                    "allocated_capital": self.portfolio_orchestrator.agent_allocations.get(agent_id, 0)
+                    "allocated_capital": self.portfolio_orchestrator.agent_allocations.get(
+                        agent_id, 0
+                    ),
                 }
                 for agent_id, personality in self.portfolio_orchestrator.agent_personalities.items()
             }
@@ -325,9 +338,15 @@ class MCPCoordinator:
         ):
             """Get chat message history."""
             try:
-                start_dt = datetime.fromisoformat(start_time.replace("Z", "+00:00")) if start_time else None
-                end_dt = datetime.fromisoformat(end_time.replace("Z", "+00:00")) if end_time else None
-                
+                start_dt = (
+                    datetime.fromisoformat(start_time.replace("Z", "+00:00"))
+                    if start_time
+                    else None
+                )
+                end_dt = (
+                    datetime.fromisoformat(end_time.replace("Z", "+00:00")) if end_time else None
+                )
+
                 messages = await self.chat_logger.get_recent_messages(
                     limit=min(limit, 1000),  # Max 1000
                     agent_type=agent_type,
@@ -346,9 +365,15 @@ class MCPCoordinator:
         ):
             """Get chat message statistics."""
             try:
-                start_dt = datetime.fromisoformat(start_time.replace("Z", "+00:00")) if start_time else None
-                end_dt = datetime.fromisoformat(end_time.replace("Z", "+00:00")) if end_time else None
-                
+                start_dt = (
+                    datetime.fromisoformat(start_time.replace("Z", "+00:00"))
+                    if start_time
+                    else None
+                )
+                end_dt = (
+                    datetime.fromisoformat(end_time.replace("Z", "+00:00")) if end_time else None
+                )
+
                 stats = await self.chat_logger.get_message_statistics(
                     start_time=start_dt,
                     end_time=end_dt,
@@ -377,13 +402,18 @@ class MCPCoordinator:
             return {
                 "agent_id": agent_id,
                 "trade_valid": is_valid,
-                "validation_details": "Trade validated against portfolio constraints" if is_valid else "Trade exceeds portfolio limits"
+                "validation_details": (
+                    "Trade validated against portfolio constraints"
+                    if is_valid
+                    else "Trade exceeds portfolio limits"
+                ),
             }
 
         @self.app.post("/portfolio-goal")
         async def set_portfolio_goal(goal: Dict[str, str]):
             """Set portfolio optimization goal."""
             from .portfolio_orchestrator import PortfolioGoal
+
             goal_enum = PortfolioGoal(goal["goal"])
             self.portfolio_orchestrator.portfolio_goal = goal_enum
             return {"status": "goal_updated", "new_goal": goal_enum.value}
@@ -397,7 +427,7 @@ class MCPCoordinator:
                     "communication_count": data["communication_count"],
                     "trading_count": data["trading_count"],
                     "last_activity": data["last_activity"].isoformat(),
-                    "participation_threshold": self.participation_thresholds.get(agent_id, 0.5)
+                    "participation_threshold": self.participation_thresholds.get(agent_id, 0.5),
                 }
                 for agent_id, data in self.agent_activity_levels.items()
             }
@@ -406,7 +436,11 @@ class MCPCoordinator:
         async def set_agent_participation_threshold(agent_id: str, threshold: Dict[str, float]):
             """Set participation threshold for an agent."""
             self.set_participation_threshold(agent_id, threshold["threshold"])
-            return {"status": "threshold_set", "agent_id": agent_id, "threshold": threshold["threshold"]}
+            return {
+                "status": "threshold_set",
+                "agent_id": agent_id,
+                "threshold": threshold["threshold"],
+            }
 
         @self.app.get("/system-status")
         async def get_system_status():
@@ -436,13 +470,15 @@ class MCPCoordinator:
             all_signals = []
             for symbol_signals in self.active_signals.values():
                 for signal in symbol_signals[-10:]:  # Last 10 signals per symbol
-                    all_signals.append({
-                        "symbol": signal.symbol,
-                        "source": signal.source,
-                        "side": signal.side,
-                        "confidence": signal.confidence,
-                        "timestamp": signal.timestamp.isoformat()
-                    })
+                    all_signals.append(
+                        {
+                            "symbol": signal.symbol,
+                            "source": signal.source,
+                            "side": signal.side,
+                            "confidence": signal.confidence,
+                            "timestamp": signal.timestamp.isoformat(),
+                        }
+                    )
             # Sort by timestamp, most recent first
             all_signals.sort(key=lambda x: x["timestamp"], reverse=True)
             return {"signals": all_signals[:50]}  # Return most recent 50
@@ -460,13 +496,16 @@ class MCPCoordinator:
                 "components": {
                     cid: {
                         "type": ctype.value,
-                        "healthy": datetime.now() - self.component_health.get(cid, datetime.min) < self.max_health_age
+                        "healthy": datetime.now() - self.component_health.get(cid, datetime.min)
+                        < self.max_health_age,
                     }
                     for cid, ctype in self.registered_components.items()
                 },
-                "active_signals": {symbol: len(signals) for symbol, signals in self.active_signals.items()},
+                "active_signals": {
+                    symbol: len(signals) for symbol, signals in self.active_signals.items()
+                },
                 "market_data": list(self.market_data.keys()),
-                "consensus_count": len(self.consensus_decisions)
+                "consensus_count": len(self.consensus_decisions),
             }
 
     async def _check_collaboration_opportunities(self, symbol: str):
@@ -488,22 +527,24 @@ class MCPCoordinator:
                     "agent": s.source,
                     "side": s.side,
                     "confidence": s.confidence,
-                    "strategy": getattr(s, 'strategy', 'unknown'),
-                    "notional": s.notional
+                    "strategy": getattr(s, "strategy", "unknown"),
+                    "notional": s.notional,
                 }
                 for s in signals
             ],
             "timestamp": datetime.now(),
-            "discussion_id": f"disc_{symbol}_{int(datetime.now().timestamp())}"
+            "discussion_id": f"disc_{symbol}_{int(datetime.now().timestamp())}",
         }
 
         # Publish discussion opportunity
         if self.pubsub_client:
-            await self.pubsub_client.publish_reasoning({
-                "event": "agent_discussion",
-                "discussion": discussion,
-                "action": "collaboration_opportunity"
-            })
+            await self.pubsub_client.publish_reasoning(
+                {
+                    "event": "agent_discussion",
+                    "discussion": discussion,
+                    "action": "collaboration_opportunity",
+                }
+            )
 
         # Allow agents to respond and ask questions
         await self._broadcast_discussion_to_agents(discussion)
@@ -522,26 +563,31 @@ class MCPCoordinator:
                 "price": signal.price,
                 "rationale": signal.rationale,
                 "source_agent": signal.source,
-                "strategy": getattr(signal, 'strategy', 'unknown'),
-                "indicators": getattr(signal, 'indicators', {}),
-                "risk_parameters": getattr(signal, 'risk_parameters', {}),
+                "strategy": getattr(signal, "strategy", "unknown"),
+                "indicators": getattr(signal, "indicators", {}),
+                "risk_parameters": getattr(signal, "risk_parameters", {}),
                 "timestamp": signal.timestamp.isoformat(),
             },
-            "action": "global_signal_broadcast"
+            "action": "global_signal_broadcast",
         }
 
         # Broadcast to all registered agents for learning opportunities
         # Only send to agents that should participate and aren't throttled
         for component_id in self.registered_components.keys():
             if self.should_agent_participate(component_id, "communication"):
-                await self._notify_component(component_id, {
-                    "message_type": "global_signal_broadcast",
-                    "signal": global_signal,
-                    "timestamp": datetime.now()
-                })
+                await self._notify_component(
+                    component_id,
+                    {
+                        "message_type": "global_signal_broadcast",
+                        "signal": global_signal,
+                        "timestamp": datetime.now(),
+                    },
+                )
                 self.update_communication_throttle(component_id)
 
-        logger.info(f"Global signal broadcast: {signal.source} trading {signal.symbol} {signal.side}")
+        logger.info(
+            f"Global signal broadcast: {signal.source} trading {signal.symbol} {signal.side}"
+        )
 
     def should_agent_participate(self, agent_id: str, activity_type: str = "communication") -> bool:
         """Determine if agent should participate based on activity levels and thresholds."""
@@ -565,6 +611,7 @@ class MCPCoordinator:
 
         # Random chance based on participation threshold
         import random
+
         return random.random() < participation_chance
 
     def is_agent_throttled(self, agent_id: str, throttle_seconds: int = 30) -> bool:
@@ -587,7 +634,7 @@ class MCPCoordinator:
                 "communication_count": 0,
                 "trading_count": 0,
                 "last_activity": datetime.now(),
-                "activity_score": 0.0
+                "activity_score": 0.0,
             }
 
         activity_data = self.agent_activity_levels[agent_id]
@@ -600,8 +647,7 @@ class MCPCoordinator:
 
         # Calculate activity score (trades are weighted more heavily)
         activity_data["activity_score"] = (
-            activity_data["communication_count"] * 0.3 +
-            activity_data["trading_count"] * 0.7
+            activity_data["communication_count"] * 0.3 + activity_data["trading_count"] * 0.7
         )
 
     def _get_agent_activity_level(self, agent_id: str) -> float:
@@ -648,11 +694,11 @@ class MCPCoordinator:
             "timeframe": thesis.get("timeframe"),
             "conviction_level": thesis.get("conviction_level"),
             "market_context": thesis.get("market_context", {}),
-            "timestamp": thesis.get("timestamp", datetime.now().isoformat())
+            "timestamp": thesis.get("timestamp", datetime.now().isoformat()),
         }
 
         # Store thesis for cross-agent learning
-        if not hasattr(self, 'agent_theses'):
+        if not hasattr(self, "agent_theses"):
             self.agent_theses = {}
         if thesis["symbol"] not in self.agent_theses:
             self.agent_theses[thesis["symbol"]] = []
@@ -661,11 +707,14 @@ class MCPCoordinator:
         # Broadcast thesis to all agents (with participation filtering)
         for component_id in self.registered_components.keys():
             if self.should_agent_participate(component_id, "communication"):
-                await self._notify_component(component_id, {
-                    "message_type": "trade_thesis_shared",
-                    "thesis": thesis_data,
-                    "timestamp": datetime.now()
-                })
+                await self._notify_component(
+                    component_id,
+                    {
+                        "message_type": "trade_thesis_shared",
+                        "thesis": thesis_data,
+                        "timestamp": datetime.now(),
+                    },
+                )
                 self.update_communication_throttle(component_id)
 
         # Log chat message for trade thesis
@@ -680,7 +729,7 @@ class MCPCoordinator:
         )
 
         # Publish to BigQuery for analysis
-        if hasattr(self, 'bigquery_exporter') and self.bigquery_exporter:
+        if hasattr(self, "bigquery_exporter") and self.bigquery_exporter:
             await self.bigquery_exporter.export_trade_thesis(thesis_data)
 
         logger.info(f"Trade thesis received from {thesis['agent']} on {thesis['symbol']}")
@@ -693,44 +742,57 @@ class MCPCoordinator:
             "topic": discussion["topic"],
             "content": discussion["content"],
             "context": discussion.get("context", {}),
-            "discussion_type": discussion.get("discussion_type", "question"),  # question, insight, strategy
-            "timestamp": discussion.get("timestamp", datetime.now().isoformat())
+            "discussion_type": discussion.get(
+                "discussion_type", "question"
+            ),  # question, insight, strategy
+            "timestamp": discussion.get("timestamp", datetime.now().isoformat()),
         }
 
         # Route to specific agent or broadcast (with participation filtering)
         if discussion_data["to_agent"]:
             component_id = self._get_component_id_for_agent(discussion_data["to_agent"])
             if component_id and self.should_agent_participate(component_id, "communication"):
-                await self._notify_component(component_id, {
-                    "message_type": "strategy_discussion",
-                    "discussion": discussion_data,
-                    "timestamp": datetime.now()
-                })
+                await self._notify_component(
+                    component_id,
+                    {
+                        "message_type": "strategy_discussion",
+                        "discussion": discussion_data,
+                        "timestamp": datetime.now(),
+                    },
+                )
                 self.update_communication_throttle(component_id)
         else:
             # Broadcast to all agents (with participation filtering)
             for component_id in self.registered_components.keys():
                 if component_id != self._get_component_id_for_agent(discussion_data["from_agent"]):
                     if self.should_agent_participate(component_id, "communication"):
-                        await self._notify_component(component_id, {
-                            "message_type": "strategy_discussion_broadcast",
-                            "discussion": discussion_data,
-                            "timestamp": datetime.now()
-                        })
+                        await self._notify_component(
+                            component_id,
+                            {
+                                "message_type": "strategy_discussion_broadcast",
+                                "discussion": discussion_data,
+                                "timestamp": datetime.now(),
+                            },
+                        )
                         self.update_communication_throttle(component_id)
 
-        logger.info(f"Strategy discussion: {discussion_data['from_agent']} → {discussion_data['to_agent'] or 'ALL'}: {discussion_data['topic']}")
+        logger.info(
+            f"Strategy discussion: {discussion_data['from_agent']} → {discussion_data['to_agent'] or 'ALL'}: {discussion_data['topic']}"
+        )
 
     async def _broadcast_discussion_to_agents(self, discussion: Dict[str, Any]):
         """Broadcast discussion opportunity to all participating agents."""
         for agent_type in discussion["active_agents"]:
             component_id = self._get_component_id_for_agent(agent_type)
             if component_id:
-                await self._notify_component(component_id, {
-                    "message_type": "discussion_invitation",
-                    "discussion": discussion,
-                    "timestamp": datetime.now()
-                })
+                await self._notify_component(
+                    component_id,
+                    {
+                        "message_type": "discussion_invitation",
+                        "discussion": discussion,
+                        "timestamp": datetime.now(),
+                    },
+                )
 
     def _get_component_id_for_agent(self, agent_type: str) -> Optional[str]:
         """Get component ID for an agent type."""
@@ -749,19 +811,25 @@ class MCPCoordinator:
         if target_agent:
             component_id = self._get_component_id_for_agent(target_agent)
             if component_id:
-                await self._notify_component(component_id, {
-                    "message_type": "agent_question",
-                    "question": question,
-                    "timestamp": datetime.now()
-                })
+                await self._notify_component(
+                    component_id,
+                    {
+                        "message_type": "agent_question",
+                        "question": question,
+                        "timestamp": datetime.now(),
+                    },
+                )
         else:
             # Broadcast question to all agents
             for component_id in self.registered_components.keys():
-                await self._notify_component(component_id, {
-                    "message_type": "agent_question_broadcast",
-                    "question": question,
-                    "timestamp": datetime.now()
-                })
+                await self._notify_component(
+                    component_id,
+                    {
+                        "message_type": "agent_question_broadcast",
+                        "question": question,
+                        "timestamp": datetime.now(),
+                    },
+                )
 
         # Log chat message for question
         await self.chat_logger.log_message(
@@ -787,11 +855,14 @@ class MCPCoordinator:
             if signal.source != agent:  # Don't send back to sender
                 component_id = self._get_component_id_for_agent(signal.source)
                 if component_id:
-                    await self._notify_component(component_id, {
-                        "message_type": "agent_insight",
-                        "insight": insight,
-                        "timestamp": datetime.now()
-                    })
+                    await self._notify_component(
+                        component_id,
+                        {
+                            "message_type": "agent_insight",
+                            "insight": insight,
+                            "timestamp": datetime.now(),
+                        },
+                    )
 
         # Log chat message for insight
         await self.chat_logger.log_message(
@@ -811,7 +882,7 @@ class MCPCoordinator:
         execution_payload = {
             "message_type": MCPMessageType.EXECUTION,
             "consensus": consensus,
-            "timestamp": datetime.now()
+            "timestamp": datetime.now(),
         }
 
         # Send to all registered LLM agent components for execution
@@ -824,7 +895,7 @@ class MCPCoordinator:
         payload = {
             "message_type": "market_data",
             "data": data.model_dump(),
-            "timestamp": datetime.now()
+            "timestamp": datetime.now(),
         }
 
         for component_id in self.registered_components:
@@ -835,10 +906,9 @@ class MCPCoordinator:
         # This would be implemented based on how components expose their APIs
         # For now, use Pub/Sub as the communication mechanism
         if self.pubsub_client:
-            await self.pubsub_client.publish_reasoning({
-                "target_component": component_id,
-                "payload": payload
-            })
+            await self.pubsub_client.publish_reasoning(
+                {"target_component": component_id, "payload": payload}
+            )
 
     async def _calculate_consensus(self, symbol: str) -> Dict[str, Any]:
         """Calculate current consensus for a symbol."""
@@ -861,7 +931,11 @@ class MCPCoordinator:
         elif sell_ratio > 0.6:
             return {"decision": "sell", "confidence": sell_ratio, "signal_count": len(signals)}
         else:
-            return {"decision": "hold", "confidence": max(buy_ratio, sell_ratio), "signal_count": len(signals)}
+            return {
+                "decision": "hold",
+                "confidence": max(buy_ratio, sell_ratio),
+                "signal_count": len(signals),
+            }
 
     async def _health_monitor(self):
         """Monitor component health."""

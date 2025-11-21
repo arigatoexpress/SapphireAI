@@ -6,20 +6,21 @@ and AI training data for analysis and model improvement.
 
 import asyncio
 import json
-from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional
-from dataclasses import dataclass, asdict
-from concurrent.futures import ThreadPoolExecutor
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import asdict, dataclass
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
 
-from .logging_config import get_trading_logger
 from .bigquery_exporter import BigQueryExporter
+from .logging_config import get_trading_logger
 
 
 @dataclass
 class MarketDataPoint:
     """Market data point for analysis."""
+
     timestamp: datetime
     symbol: str
     price: float
@@ -36,6 +37,7 @@ class MarketDataPoint:
 @dataclass
 class TradingDecision:
     """Trading decision with full context."""
+
     timestamp: datetime
     agent_id: str
     symbol: str
@@ -53,6 +55,7 @@ class TradingDecision:
 @dataclass
 class TradeExecution:
     """Trade execution details."""
+
     timestamp: datetime
     order_id: str
     symbol: str
@@ -70,6 +73,7 @@ class TradeExecution:
 @dataclass
 class PerformanceMetric:
     """Performance and system metrics."""
+
     timestamp: datetime
     metric_name: str
     value: float
@@ -81,6 +85,7 @@ class PerformanceMetric:
 @dataclass
 class AgentBehavior:
     """Agent behavior tracking for AI training."""
+
     timestamp: datetime
     agent_id: str
     action: str
@@ -119,6 +124,7 @@ class DataCollector:
 
     def _start_background_tasks(self):
         """Start background tasks for data flushing."""
+
         def flush_worker():
             while not self._shutdown_event.is_set():
                 time.sleep(self.flush_interval)
@@ -202,7 +208,7 @@ class DataCollector:
             volatility=data.get("volatility", 0.0),
             order_book_depth=data.get("order_book_depth", {}),
             market_regime=data.get("market_regime", "unknown"),
-            source=data.get("source", "unknown")
+            source=data.get("source", "unknown"),
         )
 
         self.market_data_buffer.append(market_data)
@@ -224,7 +230,7 @@ class DataCollector:
             reasoning=data.get("reasoning", ""),
             position_size=data.get("position_size", 0.0),
             risk_parameters=data.get("risk_parameters", {}),
-            correlation_id=data.get("correlation_id", "")
+            correlation_id=data.get("correlation_id", ""),
         )
 
         self.trading_decisions_buffer.append(decision)
@@ -246,7 +252,7 @@ class DataCollector:
             agent_id=data["agent_id"],
             strategy=data.get("strategy", ""),
             market_conditions=data.get("market_conditions", {}),
-            correlation_id=data.get("correlation_id", "")
+            correlation_id=data.get("correlation_id", ""),
         )
 
         self.trade_executions_buffer.append(execution)
@@ -254,7 +260,14 @@ class DataCollector:
         if len(self.trade_executions_buffer) >= self.buffer_size:
             asyncio.create_task(self._flush_trade_executions())
 
-    def collect_performance_metric(self, name: str, value: float, unit: str = "", tags: Dict[str, str] = None, metadata: Dict[str, Any] = None):
+    def collect_performance_metric(
+        self,
+        name: str,
+        value: float,
+        unit: str = "",
+        tags: Dict[str, str] = None,
+        metadata: Dict[str, Any] = None,
+    ):
         """Collect performance metric."""
         metric = PerformanceMetric(
             timestamp=datetime.now(),
@@ -262,7 +275,7 @@ class DataCollector:
             value=value,
             unit=unit,
             tags=tags or {},
-            metadata=metadata or {}
+            metadata=metadata or {},
         )
 
         self.performance_metrics_buffer.append(metric)
@@ -281,7 +294,7 @@ class DataCollector:
             reward=data.get("reward", 0.0),
             exploration_rate=data.get("exploration_rate", 0.0),
             learning_rate=data.get("learning_rate", 0.0),
-            context=data.get("context", {})
+            context=data.get("context", {}),
         )
 
         self.agent_behavior_buffer.append(behavior)
@@ -302,7 +315,7 @@ class DataCollector:
             "volume_profile": "high",
             "support_levels": [45000, 44000, 43000],
             "resistance_levels": [47000, 48000, 49000],
-            "market_regime": "trending"
+            "market_regime": "trending",
         }
 
     async def get_agent_performance_analysis(self, agent_id: str, days: int = 30) -> Dict[str, Any]:
@@ -316,7 +329,7 @@ class DataCollector:
             "max_drawdown": -5.2,
             "sharpe_ratio": 1.8,
             "total_trades": 245,
-            "profitable_trades": 159
+            "profitable_trades": 159,
         }
 
     async def get_system_health_metrics(self) -> Dict[str, Any]:
@@ -327,7 +340,7 @@ class DataCollector:
             "error_rate": 0.001,  # 0.1%
             "active_agents": 6,
             "data_points_collected": 125000,
-            "bigquery_exports": 450
+            "bigquery_exports": 450,
         }
 
     def shutdown(self):
@@ -370,7 +383,13 @@ def collect_trade_execution(data: Dict[str, Any]):
     collector.collect_trade_execution(data)
 
 
-def collect_performance_metric(name: str, value: float, unit: str = "", tags: Dict[str, str] = None, metadata: Dict[str, Any] = None):
+def collect_performance_metric(
+    name: str,
+    value: float,
+    unit: str = "",
+    tags: Dict[str, str] = None,
+    metadata: Dict[str, Any] = None,
+):
     """Convenience function to collect performance metric."""
     collector = get_data_collector()
     collector.collect_performance_metric(name, value, unit, tags, metadata)

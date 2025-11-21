@@ -1,20 +1,22 @@
 """Optimized async architecture with connection pooling and concurrency."""
 
 from __future__ import annotations
+
 import asyncio
 import logging
 from contextlib import asynccontextmanager
-from typing import Any, Dict, List, Optional, Callable, TypeVar, Awaitable
+from typing import Any, Awaitable, Callable, Dict, List, Optional, TypeVar
+
 import aiohttp
-from aiohttp import ClientTimeout, TCPConnector
 import httpx
+from aiohttp import ClientTimeout, TCPConnector
 
 from .config import get_settings
 from .optimized_config import get_optimized_settings
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class OptimizedHTTPClient:
@@ -60,7 +62,7 @@ class OptimizedHTTPClient:
                     headers={
                         "User-Agent": "SapphireTrader/1.0",
                         "Accept-Encoding": "gzip, deflate",
-                    }
+                    },
                 )
             logger.info("✅ Optimized HTTP client initialized")
         except Exception as e:
@@ -81,7 +83,9 @@ class OptimizedHTTPClient:
             try:
                 await self.initialize()
             except Exception as init_error:
-                logger.error(f"Failed to initialize session for request {method} {url}: {init_error}")
+                logger.error(
+                    f"Failed to initialize session for request {method} {url}: {init_error}"
+                )
                 raise
 
         start_time = asyncio.get_event_loop().time()
@@ -101,8 +105,7 @@ class OptimizedHTTPClient:
                 # Update average response time
                 total_requests = self._stats["requests_total"]
                 self._stats["avg_response_time"] = (
-                    (self._stats["avg_response_time"] * (total_requests - 1)) +
-                    response_time
+                    (self._stats["avg_response_time"] * (total_requests - 1)) + response_time
                 ) / total_requests
 
                 response.raise_for_status()
@@ -172,8 +175,7 @@ class OptimizedAsyncPool:
                 total_completed = self._stats["completed_tasks"] + 1
                 self._stats["completed_tasks"] = total_completed
                 self._stats["avg_completion_time"] = (
-                    (self._stats["avg_completion_time"] * (total_completed - 1)) +
-                    completion_time
+                    (self._stats["avg_completion_time"] * (total_completed - 1)) + completion_time
                 ) / total_completed
 
                 return result
@@ -205,7 +207,7 @@ class OptimizedMCPClient:
         # Async pool for concurrent operations
         self._async_pool = OptimizedAsyncPool(
             max_workers=self._optimized_settings.async_workers,
-            optimized_settings=self._optimized_settings
+            optimized_settings=self._optimized_settings,
         )
 
         # Message batching
@@ -249,12 +251,11 @@ class OptimizedMCPClient:
             try:
                 payload = {
                     "messages": batch,
-                    "compressed": self._optimized_settings.message_compression
+                    "compressed": self._optimized_settings.message_compression,
                 }
 
                 async with self._http_client.post(
-                    f"{self._base_url}/batch",
-                    json=payload
+                    f"{self._base_url}/batch", json=payload
                 ) as response:
                     return await response.json()
 
@@ -268,6 +269,7 @@ class OptimizedMCPClient:
 
     async def get_status(self) -> Dict[str, Any]:
         """Get optimized status from MCP coordinator."""
+
         async def fetch_status():
             async with self._http_client.get(f"{self._base_url}/status") as response:
                 return await response.json()
@@ -298,7 +300,7 @@ class OptimizedPubSubClient:
         # Async pool for publishing
         self._publish_pool = OptimizedAsyncPool(
             max_workers=self._optimized_settings.async_io_workers,
-            optimized_settings=self._optimized_settings
+            optimized_settings=self._optimized_settings,
         )
 
         # Statistics
@@ -381,9 +383,7 @@ class OptimizedPubSubClient:
         return {
             **self._stats,
             "async_pool": self._publish_pool.get_stats(),
-            "queued_messages": {
-                topic: len(queue) for topic, queue in self._message_queues.items()
-            },
+            "queued_messages": {topic: len(queue) for topic, queue in self._message_queues.items()},
         }
 
 

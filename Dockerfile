@@ -20,8 +20,8 @@ WORKDIR /app
 
 # Copy requirements first for better layer caching
 COPY requirements.txt .
-# Install Python packages with parallel pip for faster builds
-RUN pip install --user --no-cache-dir --use-pep517 -r requirements.txt
+# Install Python packages with parallel pip for faster builds to a specific target
+RUN pip install --no-cache-dir --target=/install -r requirements.txt
 
 # Stage 2: Runtime image
 FROM python:3.11-slim
@@ -43,8 +43,9 @@ RUN groupadd -r trader && useradd -r -g trader trader
 # Set working directory
 WORKDIR /app
 
-# Copy Python packages from builder stage
-COPY --from=builder --chown=trader:trader /root/.local /home/trader/.local
+# Copy Python packages from builder stage to system-wide location
+# pip install --target=/install creates a flat directory of packages
+COPY --from=builder /install /usr/local/lib/python3.11/site-packages
 
 # Copy application code with forced cache invalidation
 ARG CACHE_BUST
@@ -54,7 +55,8 @@ COPY --chown=trader:trader start.py ./
 COPY --chown=trader:trader pyproject.toml ./
 
 # Set environment and permissions
-ENV PYTHONPATH=/app \
+# Ensure system site-packages are in PYTHONPATH for all Python invocations
+ENV PYTHONPATH=/usr/local/lib/python3.11/site-packages:$PYTHONPATH \
     PYTHONUNBUFFERED=1
 
 # Switch to non-root user

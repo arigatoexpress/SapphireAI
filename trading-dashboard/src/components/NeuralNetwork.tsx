@@ -360,7 +360,7 @@ const NeuralNetwork: React.FC = () => {
   // Draw network on canvas with agent-to-agent connections
   useEffect(() => {
     if (!isInitialized) return;
-    
+
     const canvas = canvasRef.current;
     if (!canvas || nodes.length === 0) {
       setRenderError(null);
@@ -372,8 +372,6 @@ const NeuralNetwork: React.FC = () => {
       setRenderError('Canvas context not available');
       return;
     }
-
-    try {
 
     canvas.width = dimensions.width;
     canvas.height = dimensions.height;

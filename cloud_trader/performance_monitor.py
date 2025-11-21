@@ -4,19 +4,22 @@ Performance monitoring and optimization for high-frequency trading.
 
 import asyncio
 import logging
-import psutil
+import threading
 import time
+from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional, Tuple
-from collections import deque
-import threading
+from typing import Any, Dict, List, Optional, Tuple
+
+import psutil
 
 logger = logging.getLogger(__name__)
+
 
 @dataclass
 class PerformanceMetrics:
     """Real-time performance metrics."""
+
     timestamp: datetime = field(default_factory=datetime.now)
 
     # System metrics
@@ -40,15 +43,18 @@ class PerformanceMetrics:
     inference_time: float = 0.0
     model_accuracy: float = 0.0
 
+
 @dataclass
 class PerformanceThresholds:
     """Performance threshold configurations."""
+
     max_cpu_usage: float = 80.0
     max_memory_usage: float = 85.0
     max_latency_p95: float = 100.0  # ms
-    min_throughput: float = 100.0   # trades/second
-    max_error_rate: float = 5.0     # percentage
+    min_throughput: float = 100.0  # trades/second
+    max_error_rate: float = 5.0  # percentage
     max_queue_depth: int = 1000
+
 
 class PerformanceMonitor:
     """Real-time performance monitoring and optimization."""
@@ -123,14 +129,21 @@ class PerformanceMonitor:
                     time_diff = current_time - last_check
                     with self._lock:
                         metrics.request_rate = (self.request_count - last_request_count) / time_diff
-                        metrics.error_rate = ((self.error_count - last_error_count) / max(self.request_count - last_request_count, 1)) * 100
-                        metrics.trades_per_second = (self.trade_count - last_trade_count) / time_diff
+                        metrics.error_rate = (
+                            (self.error_count - last_error_count)
+                            / max(self.request_count - last_request_count, 1)
+                        ) * 100
+                        metrics.trades_per_second = (
+                            self.trade_count - last_trade_count
+                        ) / time_diff
 
                         # Calculate latency percentiles
                         if self.latency_samples:
                             sorted_latencies = sorted(self.latency_samples)
                             p95_index = int(len(sorted_latencies) * 0.95)
-                            metrics.latency_p95 = sorted_latencies[min(p95_index, len(sorted_latencies) - 1)]
+                            metrics.latency_p95 = sorted_latencies[
+                                min(p95_index, len(sorted_latencies) - 1)
+                            ]
 
                         last_request_count = self.request_count
                         last_error_count = self.error_count
@@ -180,53 +193,63 @@ class PerformanceMonitor:
         alerts = []
 
         if metrics.cpu_usage > self.thresholds.max_cpu_usage:
-            alerts.append({
-                'type': 'cpu_usage',
-                'severity': 'high',
-                'message': f"CPU usage {metrics.cpu_usage:.1f}% exceeds threshold {self.thresholds.max_cpu_usage}%",
-                'value': metrics.cpu_usage,
-                'threshold': self.thresholds.max_cpu_usage
-            })
+            alerts.append(
+                {
+                    "type": "cpu_usage",
+                    "severity": "high",
+                    "message": f"CPU usage {metrics.cpu_usage:.1f}% exceeds threshold {self.thresholds.max_cpu_usage}%",
+                    "value": metrics.cpu_usage,
+                    "threshold": self.thresholds.max_cpu_usage,
+                }
+            )
 
         if metrics.memory_usage > self.thresholds.max_memory_usage:
-            alerts.append({
-                'type': 'memory_usage',
-                'severity': 'high',
-                'message': f"Memory usage {metrics.memory_usage:.1f}% exceeds threshold {self.thresholds.max_memory_usage}%",
-                'value': metrics.memory_usage,
-                'threshold': self.thresholds.max_memory_usage
-            })
+            alerts.append(
+                {
+                    "type": "memory_usage",
+                    "severity": "high",
+                    "message": f"Memory usage {metrics.memory_usage:.1f}% exceeds threshold {self.thresholds.max_memory_usage}%",
+                    "value": metrics.memory_usage,
+                    "threshold": self.thresholds.max_memory_usage,
+                }
+            )
 
         if metrics.latency_p95 > self.thresholds.max_latency_p95:
-            alerts.append({
-                'type': 'latency',
-                'severity': 'medium',
-                'message': f"P95 latency {metrics.latency_p95:.1f}ms exceeds threshold {self.thresholds.max_latency_p95}ms",
-                'value': metrics.latency_p95,
-                'threshold': self.thresholds.max_latency_p95
-            })
+            alerts.append(
+                {
+                    "type": "latency",
+                    "severity": "medium",
+                    "message": f"P95 latency {metrics.latency_p95:.1f}ms exceeds threshold {self.thresholds.max_latency_p95}ms",
+                    "value": metrics.latency_p95,
+                    "threshold": self.thresholds.max_latency_p95,
+                }
+            )
 
         if metrics.trades_per_second < self.thresholds.min_throughput:
-            alerts.append({
-                'type': 'throughput',
-                'severity': 'medium',
-                'message': f"Trading throughput {metrics.trades_per_second:.1f} TPS below minimum {self.thresholds.min_throughput} TPS",
-                'value': metrics.trades_per_second,
-                'threshold': self.thresholds.min_throughput
-            })
+            alerts.append(
+                {
+                    "type": "throughput",
+                    "severity": "medium",
+                    "message": f"Trading throughput {metrics.trades_per_second:.1f} TPS below minimum {self.thresholds.min_throughput} TPS",
+                    "value": metrics.trades_per_second,
+                    "threshold": self.thresholds.min_throughput,
+                }
+            )
 
         if metrics.error_rate > self.thresholds.max_error_rate:
-            alerts.append({
-                'type': 'error_rate',
-                'severity': 'high',
-                'message': f"Error rate {metrics.error_rate:.1f}% exceeds threshold {self.thresholds.max_error_rate}%",
-                'value': metrics.error_rate,
-                'threshold': self.thresholds.max_error_rate
-            })
+            alerts.append(
+                {
+                    "type": "error_rate",
+                    "severity": "high",
+                    "message": f"Error rate {metrics.error_rate:.1f}% exceeds threshold {self.thresholds.max_error_rate}%",
+                    "value": metrics.error_rate,
+                    "threshold": self.thresholds.max_error_rate,
+                }
+            )
 
         # Store alerts
         for alert in alerts:
-            alert['timestamp'] = datetime.now()
+            alert["timestamp"] = datetime.now()
             self.alerts.append(alert)
             logger.warning(f"Performance Alert: {alert['message']}")
 
@@ -246,7 +269,7 @@ class PerformanceMonitor:
         """Get currently active performance alerts."""
         # Return alerts from the last 5 minutes
         cutoff = datetime.now() - timedelta(minutes=5)
-        return [alert for alert in self.alerts if alert['timestamp'] > cutoff]
+        return [alert for alert in self.alerts if alert["timestamp"] > cutoff]
 
     def get_performance_summary(self) -> Dict[str, Any]:
         """Get a summary of performance statistics."""
@@ -256,16 +279,17 @@ class PerformanceMonitor:
         recent_metrics = list(self.metrics_history)[-100:]  # Last 100 samples
 
         summary = {
-            'avg_cpu_usage': sum(m.cpu_usage for m in recent_metrics) / len(recent_metrics),
-            'avg_memory_usage': sum(m.memory_usage for m in recent_metrics) / len(recent_metrics),
-            'avg_latency_p95': sum(m.latency_p95 for m in recent_metrics) / len(recent_metrics),
-            'avg_request_rate': sum(m.request_rate for m in recent_metrics) / len(recent_metrics),
-            'avg_trades_per_second': sum(m.trades_per_second for m in recent_metrics) / len(recent_metrics),
-            'avg_error_rate': sum(m.error_rate for m in recent_metrics) / len(recent_metrics),
-            'total_requests': self.request_count,
-            'total_trades': self.trade_count,
-            'total_errors': self.error_count,
-            'active_alerts': len(self.get_active_alerts())
+            "avg_cpu_usage": sum(m.cpu_usage for m in recent_metrics) / len(recent_metrics),
+            "avg_memory_usage": sum(m.memory_usage for m in recent_metrics) / len(recent_metrics),
+            "avg_latency_p95": sum(m.latency_p95 for m in recent_metrics) / len(recent_metrics),
+            "avg_request_rate": sum(m.request_rate for m in recent_metrics) / len(recent_metrics),
+            "avg_trades_per_second": sum(m.trades_per_second for m in recent_metrics)
+            / len(recent_metrics),
+            "avg_error_rate": sum(m.error_rate for m in recent_metrics) / len(recent_metrics),
+            "total_requests": self.request_count,
+            "total_trades": self.trade_count,
+            "total_errors": self.error_count,
+            "active_alerts": len(self.get_active_alerts()),
         }
 
         return summary
@@ -275,45 +299,52 @@ class PerformanceMonitor:
         summary = self.get_performance_summary()
         recommendations = []
 
-        if summary.get('avg_cpu_usage', 0) > 70:
-            recommendations.append({
-                'type': 'cpu_optimization',
-                'priority': 'high',
-                'action': 'Consider increasing CPU allocation or optimizing compute-intensive operations',
-                'impact': 'Reduce CPU bottlenecks'
-            })
+        if summary.get("avg_cpu_usage", 0) > 70:
+            recommendations.append(
+                {
+                    "type": "cpu_optimization",
+                    "priority": "high",
+                    "action": "Consider increasing CPU allocation or optimizing compute-intensive operations",
+                    "impact": "Reduce CPU bottlenecks",
+                }
+            )
 
-        if summary.get('avg_memory_usage', 0) > 80:
-            recommendations.append({
-                'type': 'memory_optimization',
-                'priority': 'high',
-                'action': 'Implement memory pooling or reduce data retention periods',
-                'impact': 'Prevent out-of-memory errors'
-            })
+        if summary.get("avg_memory_usage", 0) > 80:
+            recommendations.append(
+                {
+                    "type": "memory_optimization",
+                    "priority": "high",
+                    "action": "Implement memory pooling or reduce data retention periods",
+                    "impact": "Prevent out-of-memory errors",
+                }
+            )
 
-        if summary.get('avg_latency_p95', 0) > 50:
-            recommendations.append({
-                'type': 'latency_optimization',
-                'priority': 'medium',
-                'action': 'Optimize database queries and implement caching strategies',
-                'impact': 'Improve response times'
-            })
+        if summary.get("avg_latency_p95", 0) > 50:
+            recommendations.append(
+                {
+                    "type": "latency_optimization",
+                    "priority": "medium",
+                    "action": "Optimize database queries and implement caching strategies",
+                    "impact": "Improve response times",
+                }
+            )
 
-        if summary.get('avg_error_rate', 0) > 2:
-            recommendations.append({
-                'type': 'error_handling',
-                'priority': 'high',
-                'action': 'Review error handling and implement circuit breakers',
-                'impact': 'Increase system reliability'
-            })
+        if summary.get("avg_error_rate", 0) > 2:
+            recommendations.append(
+                {
+                    "type": "error_handling",
+                    "priority": "high",
+                    "action": "Review error handling and implement circuit breakers",
+                    "impact": "Increase system reliability",
+                }
+            )
 
-        return {
-            'recommendations': recommendations,
-            'summary': summary
-        }
+        return {"recommendations": recommendations, "summary": summary}
+
 
 # Global performance monitor instance
 _performance_monitor: Optional[PerformanceMonitor] = None
+
 
 def get_performance_monitor() -> PerformanceMonitor:
     """Get the global performance monitor instance."""
@@ -322,31 +353,37 @@ def get_performance_monitor() -> PerformanceMonitor:
         _performance_monitor = PerformanceMonitor()
     return _performance_monitor
 
+
 # Convenience functions
 def record_api_request(latency_ms: Optional[float] = None):
     """Record an API request with optional latency."""
     monitor = get_performance_monitor()
     monitor.record_request(latency_ms)
 
+
 def record_api_error():
     """Record an API error."""
     monitor = get_performance_monitor()
     monitor.record_error()
+
 
 def record_trade_execution():
     """Record a successful trade execution."""
     monitor = get_performance_monitor()
     monitor.record_trade()
 
+
 def start_performance_monitoring():
     """Start the global performance monitoring system."""
     monitor = get_performance_monitor()
     monitor.start_monitoring()
 
+
 def stop_performance_monitoring():
     """Stop the global performance monitoring system."""
     monitor = get_performance_monitor()
     monitor.stop_monitoring()
+
 
 def get_performance_status() -> Dict[str, Any]:
     """Get current performance status and recommendations."""

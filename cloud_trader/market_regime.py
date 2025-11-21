@@ -7,7 +7,7 @@ import logging
 import statistics
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, List, Optional, Tuple, Deque
+from typing import Deque, Dict, List, Optional, Tuple
 
 from .time_sync import get_timestamp_us
 
@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 class MarketRegime(Enum):
     """Market regime classifications."""
+
     TRENDING_UP = "trending_up"
     TRENDING_DOWN = "trending_down"
     RANGING = "ranging"
@@ -27,6 +28,7 @@ class MarketRegime(Enum):
 @dataclass
 class RegimeMetrics:
     """Comprehensive market regime metrics."""
+
     regime: MarketRegime
     confidence: float
     trend_strength: float
@@ -54,7 +56,7 @@ class RegimeMetrics:
             "adx_score": self.adx_score,
             "rsi_score": self.rsi_score,
             "bb_position": self.bb_position,
-            "volume_trend": self.volume_trend
+            "volume_trend": self.volume_trend,
         }
 
 
@@ -86,11 +88,11 @@ class MarketRegimeDetector:
 
         # Historical regime tracking
         self.regime_history: Deque[RegimeMetrics] = Deque(maxlen=1000)
-        self.regime_stability: Dict[MarketRegime, int] = {
-            regime: 0 for regime in MarketRegime
-        }
+        self.regime_stability: Dict[MarketRegime, int] = {regime: 0 for regime in MarketRegime}
 
-    def add_price_data(self, price: float, volume: float, high: float, low: float) -> Optional[RegimeMetrics]:
+    def add_price_data(
+        self, price: float, volume: float, high: float, low: float
+    ) -> Optional[RegimeMetrics]:
         """
         Add new price/volume data and return current regime analysis.
         Returns None if insufficient data for analysis.
@@ -164,7 +166,7 @@ class MarketRegimeDetector:
         losses = []
 
         for i in range(1, len(prices)):
-            change = prices[i] - prices[i-1]
+            change = prices[i] - prices[i - 1]
             gains.append(max(change, 0))
             losses.append(max(-change, 0))
 
@@ -196,14 +198,14 @@ class MarketRegimeDetector:
 
         for i in range(1, len(highs)):
             # True Range
-            tr = max(highs[i] - lows[i],
-                    abs(highs[i] - closes[i-1]),
-                    abs(lows[i] - closes[i-1]))
+            tr = max(
+                highs[i] - lows[i], abs(highs[i] - closes[i - 1]), abs(lows[i] - closes[i - 1])
+            )
             tr_values.append(tr)
 
             # Directional Movement
-            move_up = highs[i] - highs[i-1]
-            move_down = lows[i-1] - lows[i]
+            move_up = highs[i] - highs[i - 1]
+            move_down = lows[i - 1] - lows[i]
 
             plus_dm = move_up if move_up > move_down and move_up > 0 else 0
             minus_dm = move_down if move_down > move_up and move_down > 0 else 0
@@ -221,10 +223,16 @@ class MarketRegimeDetector:
             minus_di = (avg_minus_dm / avg_tr) * 100 if avg_tr > 0 else 0
 
             # DX and ADX
-            dx = abs(plus_di - minus_di) / (plus_di + minus_di) * 100 if (plus_di + minus_di) > 0 else 0
+            dx = (
+                abs(plus_di - minus_di) / (plus_di + minus_di) * 100
+                if (plus_di + minus_di) > 0
+                else 0
+            )
             self.adx_values.append(dx)
 
-    def _calculate_bollinger_bands(self, prices: List[float], period: int = 20, std_dev: float = 2.0):
+    def _calculate_bollinger_bands(
+        self, prices: List[float], period: int = 20, std_dev: float = 2.0
+    ):
         """Calculate Bollinger Bands."""
         if len(prices) < period:
             return
@@ -239,10 +247,12 @@ class MarketRegimeDetector:
 
     def _analyze_regime(self) -> Optional[RegimeMetrics]:
         """Analyze current market regime using all indicators."""
-        if (len(self.prices) < self.min_periods or
-            not self.adx_values or
-            not self.rsi_values or
-            not self.bb_upper):
+        if (
+            len(self.prices) < self.min_periods
+            or not self.adx_values
+            or not self.rsi_values
+            or not self.bb_upper
+        ):
             return None
 
         current_price = self.prices[-1]
@@ -282,8 +292,12 @@ class MarketRegimeDetector:
 
         # Regime classification logic
         regime, confidence = self._classify_regime(
-            trend_strength, volatility_level, range_bound_score,
-            momentum_score, adx_score, bb_position
+            trend_strength,
+            volatility_level,
+            range_bound_score,
+            momentum_score,
+            adx_score,
+            bb_position,
         )
 
         return RegimeMetrics(
@@ -297,7 +311,7 @@ class MarketRegimeDetector:
             adx_score=adx_score,
             rsi_score=rsi_score,
             bb_position=bb_position,
-            volume_trend=volume_trend
+            volume_trend=volume_trend,
         )
 
     def _analyze_volume_trend(self) -> float:
@@ -334,9 +348,15 @@ class MarketRegimeDetector:
         momentum = (ema12_current - ema26_current) - (ema12_prev - ema26_prev)
         return momentum / abs(ema26_current) if ema26_current != 0 else 0.0
 
-    def _classify_regime(self, trend_strength: float, volatility_level: float,
-                        range_bound_score: float, momentum_score: float,
-                        adx_score: float, bb_position: float) -> Tuple[MarketRegime, float]:
+    def _classify_regime(
+        self,
+        trend_strength: float,
+        volatility_level: float,
+        range_bound_score: float,
+        momentum_score: float,
+        adx_score: float,
+        bb_position: float,
+    ) -> Tuple[MarketRegime, float]:
         """Classify market regime based on indicator scores."""
 
         # Trending regimes
@@ -386,8 +406,9 @@ class MarketRegimeDetector:
             return 0.0
         return self.regime_stability[regime] / total
 
-    def get_regime_transition_probability(self, from_regime: MarketRegime,
-                                        to_regime: MarketRegime) -> float:
+    def get_regime_transition_probability(
+        self, from_regime: MarketRegime, to_regime: MarketRegime
+    ) -> float:
         """Calculate probability of transitioning from one regime to another."""
         if len(self.regime_history) < 10:
             return 0.1  # Default low probability
@@ -427,10 +448,11 @@ class MarketRegimeDetector:
             "total_regimes": total_regimes,
             "regime_distribution": regime_counts,
             "most_common_regime": most_common,
-            "regime_stability": {r.value: self.get_regime_stability_score(r)
-                               for r in MarketRegime},
+            "regime_stability": {r.value: self.get_regime_stability_score(r) for r in MarketRegime},
             "current_regime": self.regime_history[-1].regime.value if self.regime_history else None,
-            "current_confidence": self.regime_history[-1].confidence if self.regime_history else 0.0
+            "current_confidence": (
+                self.regime_history[-1].confidence if self.regime_history else 0.0
+            ),
         }
 
 

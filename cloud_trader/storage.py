@@ -13,14 +13,14 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     Float,
+    Index,
     Integer,
     String,
     UniqueConstraint,
-    Index,
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from .config import Settings, get_settings
@@ -30,11 +30,13 @@ logger = logging.getLogger(__name__)
 
 class Base(DeclarativeBase):
     """Base class for SQLAlchemy models."""
+
     pass
 
 
 class Trade(Base):
     """Trade execution records."""
+
     __tablename__ = "trades"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
@@ -51,7 +53,9 @@ class Trade(Base):
     execution_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     fee: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     slippage_bps: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    extra_metadata: Mapped[Optional[Dict[str, Any]]] = mapped_column("metadata", JSONB, nullable=True)
+    extra_metadata: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+        "metadata", JSONB, nullable=True
+    )
 
     __table_args__ = (
         Index("idx_trades_timestamp_symbol", "timestamp", "symbol"),
@@ -61,6 +65,7 @@ class Trade(Base):
 
 class Position(Base):
     """Position history records."""
+
     __tablename__ = "positions"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
@@ -76,7 +81,9 @@ class Position(Base):
     unrealized_pnl_pct: Mapped[float] = mapped_column(Float, nullable=False)
     leverage: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False)  # open, closed, partial
-    extra_metadata: Mapped[Optional[Dict[str, Any]]] = mapped_column("metadata", JSONB, nullable=True)
+    extra_metadata: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+        "metadata", JSONB, nullable=True
+    )
 
     __table_args__ = (
         Index("idx_positions_timestamp_symbol", "timestamp", "symbol"),
@@ -86,6 +93,7 @@ class Position(Base):
 
 class MarketSnapshot(Base):
     """Market data snapshots."""
+
     __tablename__ = "market_snapshots"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
@@ -98,7 +106,9 @@ class MarketSnapshot(Base):
     low_24h: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     funding_rate: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     open_interest: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    extra_metadata: Mapped[Optional[Dict[str, Any]]] = mapped_column("metadata", JSONB, nullable=True)
+    extra_metadata: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+        "metadata", JSONB, nullable=True
+    )
 
     __table_args__ = (
         UniqueConstraint("timestamp", "symbol", name="uq_market_snapshot_timestamp_symbol"),
@@ -108,6 +118,7 @@ class MarketSnapshot(Base):
 
 class AgentPerformance(Base):
     """Agent performance metrics over time."""
+
     __tablename__ = "agent_performance"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
@@ -121,15 +132,16 @@ class AgentPerformance(Base):
     sharpe_ratio: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     max_drawdown: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     active_positions: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    extra_metadata: Mapped[Optional[Dict[str, Any]]] = mapped_column("metadata", JSONB, nullable=True)
-
-    __table_args__ = (
-        Index("idx_agent_performance_timestamp_agent", "timestamp", "agent_id"),
+    extra_metadata: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+        "metadata", JSONB, nullable=True
     )
+
+    __table_args__ = (Index("idx_agent_performance_timestamp_agent", "timestamp", "agent_id"),)
 
 
 class AgentDecision(Base):
     """Agent decision records for training data."""
+
     __tablename__ = "agent_decisions"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
@@ -143,7 +155,9 @@ class AgentDecision(Base):
     market_context: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONB, nullable=True)
     executed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     reward: Mapped[Optional[float]] = mapped_column(Float, nullable=True)  # Filled after execution
-    extra_metadata: Mapped[Optional[Dict[str, Any]]] = mapped_column("metadata", JSONB, nullable=True)
+    extra_metadata: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+        "metadata", JSONB, nullable=True
+    )
 
     __table_args__ = (
         Index("idx_agent_decisions_timestamp_agent", "timestamp", "agent_id"),
@@ -153,30 +167,30 @@ class AgentDecision(Base):
 
 class TradingStorage:
     """Async storage manager for trading data."""
-    
+
     def __init__(self, settings: Optional[Settings] = None):
         self._settings = settings or get_settings()
         self._engine = None
         self._session_factory = None
         self._initialized = False
-    
+
     async def initialize(self) -> None:
         """Initialize database connection and create tables."""
         if self._initialized:
             return
-        
+
         database_url = self._settings.database_url
         if not database_url:
             logger.warning("No DATABASE_URL configured, storage disabled")
             return
-        
+
         try:
             # Convert postgres:// to postgresql+asyncpg:// for async support
             if database_url.startswith("postgres://"):
                 database_url = database_url.replace("postgres://", "postgresql+asyncpg://", 1)
             elif not database_url.startswith("postgresql+asyncpg://"):
                 database_url = f"postgresql+asyncpg://{database_url}"
-            
+
             self._engine = create_async_engine(
                 database_url,
                 pool_size=10,
@@ -184,46 +198,66 @@ class TradingStorage:
                 pool_pre_ping=True,
                 echo=False,
             )
-            
+
             self._session_factory = async_sessionmaker(
                 self._engine,
                 class_=AsyncSession,
                 expire_on_commit=False,
             )
-            
+
             # Create tables (including TimescaleDB hypertables if available)
             async with self._engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
-                
+
                 # Try to create TimescaleDB hypertables
                 try:
                     await conn.execute(text("CREATE EXTENSION IF NOT EXISTS timescaledb"))
-                    await conn.execute(text("""
+                    await conn.execute(
+                        text(
+                            """
                         SELECT create_hypertable('trades', 'timestamp', if_not_exists => TRUE)
-                    """))
-                    await conn.execute(text("""
+                    """
+                        )
+                    )
+                    await conn.execute(
+                        text(
+                            """
                         SELECT create_hypertable('positions', 'timestamp', if_not_exists => TRUE)
-                    """))
-                    await conn.execute(text("""
+                    """
+                        )
+                    )
+                    await conn.execute(
+                        text(
+                            """
                         SELECT create_hypertable('market_snapshots', 'timestamp', if_not_exists => TRUE)
-                    """))
-                    await conn.execute(text("""
+                    """
+                        )
+                    )
+                    await conn.execute(
+                        text(
+                            """
                         SELECT create_hypertable('agent_performance', 'timestamp', if_not_exists => TRUE)
-                    """))
-                    await conn.execute(text("""
+                    """
+                        )
+                    )
+                    await conn.execute(
+                        text(
+                            """
                         SELECT create_hypertable('agent_decisions', 'timestamp', if_not_exists => TRUE)
-                    """))
+                    """
+                        )
+                    )
                     logger.info("TimescaleDB hypertables created")
                 except Exception as e:
                     logger.warning(f"TimescaleDB not available, using regular tables: {e}")
-            
+
             self._initialized = True
             logger.info("Database storage initialized")
         except Exception as e:
             logger.error(f"Failed to initialize database storage: {e}")
             self._engine = None
             self._session_factory = None
-    
+
     async def close(self) -> None:
         """Close database connection."""
         if self._engine:
@@ -271,7 +305,7 @@ class TradingStorage:
         """Insert a trade record."""
         if not self._initialized or not self._session_factory:
             return None
-        
+
         try:
             async with self._session_factory() as session:
                 trade = Trade(
@@ -296,7 +330,7 @@ class TradingStorage:
         except Exception as e:
             logger.error(f"Failed to insert trade: {e}")
             return None
-    
+
     async def insert_position(
         self,
         timestamp: datetime,
@@ -316,7 +350,7 @@ class TradingStorage:
         """Insert a position snapshot."""
         if not self._initialized or not self._session_factory:
             return None
-        
+
         try:
             async with self._session_factory() as session:
                 position = Position(
@@ -340,7 +374,7 @@ class TradingStorage:
         except Exception as e:
             logger.error(f"Failed to insert position: {e}")
             return None
-    
+
     async def insert_market_snapshot(
         self,
         timestamp: datetime,
@@ -357,7 +391,7 @@ class TradingStorage:
         """Insert a market data snapshot."""
         if not self._initialized or not self._session_factory:
             return None
-        
+
         try:
             async with self._session_factory() as session:
                 snapshot = MarketSnapshot(
@@ -378,7 +412,7 @@ class TradingStorage:
         except Exception as e:
             logger.error(f"Failed to insert market snapshot: {e}")
             return None
-    
+
     async def insert_agent_performance(
         self,
         timestamp: datetime,
@@ -396,7 +430,7 @@ class TradingStorage:
         """Insert agent performance snapshot."""
         if not self._initialized or not self._session_factory:
             return None
-        
+
         try:
             async with self._session_factory() as session:
                 performance = AgentPerformance(
@@ -418,7 +452,7 @@ class TradingStorage:
         except Exception as e:
             logger.error(f"Failed to insert agent performance: {e}")
             return None
-    
+
     async def insert_agent_decision(
         self,
         timestamp: datetime,
@@ -436,7 +470,7 @@ class TradingStorage:
         """Insert agent decision for training data."""
         if not self._initialized or not self._session_factory:
             return None
-        
+
         try:
             async with self._session_factory() as session:
                 decision_record = AgentDecision(
@@ -458,7 +492,7 @@ class TradingStorage:
         except Exception as e:
             logger.error(f"Failed to insert agent decision: {e}")
             return None
-    
+
     async def get_trades(
         self,
         agent_id: Optional[str] = None,
@@ -470,12 +504,13 @@ class TradingStorage:
         """Query trades with filters."""
         if not self._initialized or not self._session_factory:
             return []
-        
+
         try:
             async with self._session_factory() as session:
                 from sqlalchemy import select
+
                 query = select(Trade)
-                
+
                 if agent_id:
                     query = query.where(Trade.agent_id == agent_id)
                 if symbol:
@@ -484,11 +519,11 @@ class TradingStorage:
                     query = query.where(Trade.timestamp >= start_date)
                 if end_date:
                     query = query.where(Trade.timestamp <= end_date)
-                
+
                 query = query.order_by(Trade.timestamp.desc()).limit(limit)
                 result = await session.execute(query)
                 trades = result.scalars().all()
-                
+
                 return [
                     {
                         "id": t.id,
@@ -510,7 +545,7 @@ class TradingStorage:
         except Exception as e:
             logger.error(f"Failed to query trades: {e}")
             return []
-    
+
     async def get_agent_performance(
         self,
         agent_id: str,
@@ -521,21 +556,22 @@ class TradingStorage:
         """Query agent performance history."""
         if not self._initialized or not self._session_factory:
             return []
-        
+
         try:
             async with self._session_factory() as session:
                 from sqlalchemy import select
+
                 query = select(AgentPerformance).where(AgentPerformance.agent_id == agent_id)
-                
+
                 if start_date:
                     query = query.where(AgentPerformance.timestamp >= start_date)
                 if end_date:
                     query = query.where(AgentPerformance.timestamp <= end_date)
-                
+
                 query = query.order_by(AgentPerformance.timestamp.desc()).limit(limit)
                 result = await session.execute(query)
                 performances = result.scalars().all()
-                
+
                 return [
                     {
                         "timestamp": p.timestamp.isoformat(),
@@ -574,4 +610,3 @@ async def close_storage() -> None:
     if _storage:
         await _storage.close()
         _storage = None
-

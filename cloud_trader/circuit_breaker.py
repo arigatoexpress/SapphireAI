@@ -7,19 +7,22 @@ import logging
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Dict, Optional, Union
 from functools import wraps
+from typing import Any, Callable, Dict, Optional, Union
 
 logger = logging.getLogger(__name__)
 
+
 class CircuitBreakerState(Enum):
-    CLOSED = "closed"      # Normal operation
-    OPEN = "open"          # Failing, requests blocked
+    CLOSED = "closed"  # Normal operation
+    OPEN = "open"  # Failing, requests blocked
     HALF_OPEN = "half_open"  # Testing if service recovered
+
 
 @dataclass
 class CircuitBreakerConfig:
     """Configuration for circuit breaker behavior."""
+
     failure_threshold: int = 5  # Failures before opening
     recovery_timeout: float = 60.0  # Seconds before attempting recovery
     expected_exception: tuple = (Exception,)  # Exceptions to count as failures
@@ -27,9 +30,11 @@ class CircuitBreakerConfig:
     timeout: float = 30.0  # Request timeout
     name: str = "default"
 
+
 @dataclass
 class CircuitBreakerMetrics:
     """Metrics for circuit breaker monitoring."""
+
     total_requests: int = 0
     total_failures: int = 0
     total_successes: int = 0
@@ -37,6 +42,7 @@ class CircuitBreakerMetrics:
     consecutive_successes: int = 0
     last_failure_time: Optional[float] = None
     last_success_time: Optional[float] = None
+
 
 class CircuitBreaker:
     """Circuit breaker implementation with async support."""
@@ -76,7 +82,9 @@ class CircuitBreaker:
             if self.state == CircuitBreakerState.HALF_OPEN:
                 if self.metrics.consecutive_successes >= self.config.success_threshold:
                     self.state = CircuitBreakerState.CLOSED
-                    self.logger.info(f"Circuit breaker {self.config.name} CLOSED after {self.metrics.consecutive_successes} successes")
+                    self.logger.info(
+                        f"Circuit breaker {self.config.name} CLOSED after {self.metrics.consecutive_successes} successes"
+                    )
 
     async def _record_failure(self, exception: Exception):
         """Record a failed call."""
@@ -90,10 +98,14 @@ class CircuitBreaker:
             if self.state == CircuitBreakerState.CLOSED:
                 if self.metrics.consecutive_failures >= self.config.failure_threshold:
                     self.state = CircuitBreakerState.OPEN
-                    self.logger.warning(f"Circuit breaker {self.config.name} OPENED after {self.metrics.consecutive_failures} failures")
+                    self.logger.warning(
+                        f"Circuit breaker {self.config.name} OPENED after {self.metrics.consecutive_failures} failures"
+                    )
             elif self.state == CircuitBreakerState.HALF_OPEN:
                 self.state = CircuitBreakerState.OPEN
-                self.logger.warning(f"Circuit breaker {self.config.name} re-OPENED during HALF_OPEN state")
+                self.logger.warning(
+                    f"Circuit breaker {self.config.name} re-OPENED during HALF_OPEN state"
+                )
 
     async def call(self, func: Callable, *args, **kwargs) -> Any:
         """Execute a function with circuit breaker protection."""
@@ -120,21 +132,29 @@ class CircuitBreaker:
 
     def __call__(self, func: Callable) -> Callable:
         """Decorator usage."""
+
         @wraps(func)
         async def wrapper(*args, **kwargs):
             return await self.call(func, *args, **kwargs)
+
         return wrapper
+
 
 class CircuitBreakerOpenException(Exception):
     """Exception raised when circuit breaker is open."""
+
     pass
+
 
 class CircuitBreakerTimeoutException(Exception):
     """Exception raised when circuit breaker call times out."""
+
     pass
+
 
 # Global circuit breaker registry
 _circuit_breakers: Dict[str, CircuitBreaker] = {}
+
 
 def get_circuit_breaker(name: str, config: Optional[CircuitBreakerConfig] = None) -> CircuitBreaker:
     """Get or create a circuit breaker instance."""
@@ -145,41 +165,39 @@ def get_circuit_breaker(name: str, config: Optional[CircuitBreakerConfig] = None
 
     return _circuit_breakers[name]
 
+
 # Pre-configured circuit breakers for common services
-VERTEX_AI_BREAKER = get_circuit_breaker("vertex_ai", CircuitBreakerConfig(
-    name="vertex_ai",
-    failure_threshold=3,
-    recovery_timeout=30.0,
-    timeout=60.0
-))
+VERTEX_AI_BREAKER = get_circuit_breaker(
+    "vertex_ai",
+    CircuitBreakerConfig(
+        name="vertex_ai", failure_threshold=3, recovery_timeout=30.0, timeout=60.0
+    ),
+)
 
-EXCHANGE_API_BREAKER = get_circuit_breaker("exchange_api", CircuitBreakerConfig(
-    name="exchange_api",
-    failure_threshold=5,
-    recovery_timeout=60.0,
-    timeout=10.0
-))
+EXCHANGE_API_BREAKER = get_circuit_breaker(
+    "exchange_api",
+    CircuitBreakerConfig(
+        name="exchange_api", failure_threshold=5, recovery_timeout=60.0, timeout=10.0
+    ),
+)
 
-REDIS_BREAKER = get_circuit_breaker("redis", CircuitBreakerConfig(
-    name="redis",
-    failure_threshold=3,
-    recovery_timeout=15.0,
-    timeout=5.0
-))
+REDIS_BREAKER = get_circuit_breaker(
+    "redis",
+    CircuitBreakerConfig(name="redis", failure_threshold=3, recovery_timeout=15.0, timeout=5.0),
+)
 
-DATABASE_BREAKER = get_circuit_breaker("database", CircuitBreakerConfig(
-    name="database",
-    failure_threshold=3,
-    recovery_timeout=30.0,
-    timeout=15.0
-))
+DATABASE_BREAKER = get_circuit_breaker(
+    "database",
+    CircuitBreakerConfig(name="database", failure_threshold=3, recovery_timeout=30.0, timeout=15.0),
+)
 
-TELEGRAM_BREAKER = get_circuit_breaker("telegram", CircuitBreakerConfig(
-    name="telegram",
-    failure_threshold=5,
-    recovery_timeout=300.0,  # 5 minutes
-    timeout=10.0
-))
+TELEGRAM_BREAKER = get_circuit_breaker(
+    "telegram",
+    CircuitBreakerConfig(
+        name="telegram", failure_threshold=5, recovery_timeout=300.0, timeout=10.0  # 5 minutes
+    ),
+)
+
 
 def circuit_breaker(name: str, config: Optional[CircuitBreakerConfig] = None):
     """Decorator to apply circuit breaker to a function."""
@@ -189,5 +207,7 @@ def circuit_breaker(name: str, config: Optional[CircuitBreakerConfig] = None):
         @wraps(func)
         async def wrapper(*args, **kwargs):
             return await breaker.call(func, *args, **kwargs)
+
         return wrapper
+
     return decorator

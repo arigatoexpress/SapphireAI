@@ -1,18 +1,19 @@
 """Optimized BigQuery streaming with batching and compression."""
 
 from __future__ import annotations
+
 import asyncio
 import json
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
-from concurrent.futures import ThreadPoolExecutor
-import lz4.frame  # type: ignore
 
-from google.cloud import bigquery
-from google.cloud.exceptions import NotFound
+import lz4.frame  # type: ignore
 from google.api_core import retry
 from google.api_core.exceptions import ServiceUnavailable
+from google.cloud import bigquery
+from google.cloud.exceptions import NotFound
 
 from .config import get_settings
 from .optimized_config import get_optimized_settings
@@ -84,7 +85,7 @@ class OptimizedBigQueryStreamer:
             logger.error(f"Failed to initialize optimized BigQuery: {e}")
             self._initialized = False
             # Clean up on failure
-            if hasattr(self, '_client') and self._client:
+            if hasattr(self, "_client") and self._client:
                 try:
                     self._client.close()
                 except Exception:
@@ -146,15 +147,16 @@ class OptimizedBigQueryStreamer:
             ],
         }
 
-    async def _ensure_optimized_table(self, table_name: str, schema: List[bigquery.SchemaField]) -> None:
+    async def _ensure_optimized_table(
+        self, table_name: str, schema: List[bigquery.SchemaField]
+    ) -> None:
         """Ensure optimized table exists with partitioning and clustering."""
         if not self._client:
             return
 
         table_id = self._tables[table_name]
         table_ref = bigquery.TableReference(
-            bigquery.DatasetReference(self._project_id, self._dataset_id),
-            table_id
+            bigquery.DatasetReference(self._project_id, self._dataset_id), table_id
         )
 
         try:
@@ -174,7 +176,9 @@ class OptimizedBigQueryStreamer:
             self._client.create_table(table)
             logger.info(f"Created optimized BigQuery table {table_id}")
 
-    async def stream_optimized(self, table_name: str, timestamp: datetime, data: Dict[str, Any]) -> bool:
+    async def stream_optimized(
+        self, table_name: str, timestamp: datetime, data: Dict[str, Any]
+    ) -> bool:
         """Stream data with optimization (batching, compression, async)."""
         if not self.is_ready():
             return False
@@ -218,14 +222,16 @@ class OptimizedBigQueryStreamer:
 
             except Exception as e:
                 consecutive_errors += 1
-                logger.error(f"Batch flusher error (attempt {consecutive_errors}/{max_consecutive_errors}): {e}")
+                logger.error(
+                    f"Batch flusher error (attempt {consecutive_errors}/{max_consecutive_errors}): {e}"
+                )
 
                 if consecutive_errors >= max_consecutive_errors:
                     logger.critical("Batch flusher failed too many times, shutting down")
                     break
 
                 # Exponential backoff
-                await asyncio.sleep(min(5 * (2 ** consecutive_errors), 300))  # Max 5 minutes
+                await asyncio.sleep(min(5 * (2**consecutive_errors), 300))  # Max 5 minutes
 
     async def _flush_batch(self, table_name: str) -> None:
         """Flush batch to BigQuery with compression and optimization."""
@@ -247,7 +253,7 @@ class OptimizedBigQueryStreamer:
                 # Compress large fields if enabled
                 if self._compression == "LZ4" and "metadata" in row:
                     metadata_str = json.dumps(row["metadata"], default=str)
-                    compressed = lz4.frame.compress(metadata_str.encode('utf-8'))
+                    compressed = lz4.frame.compress(metadata_str.encode("utf-8"))
                     row["compressed_metadata"] = compressed
                     del row["metadata"]
 
@@ -262,7 +268,7 @@ class OptimizedBigQueryStreamer:
             if errors:
                 logger.warning(f"BigQuery batch insert errors for {table_name}: {errors}")
                 # Re-queue failed items
-                self._batch_queues[table_name].extend(batch[:len(errors)])
+                self._batch_queues[table_name].extend(batch[: len(errors)])
                 return False
 
             logger.debug(f"Flushed {len(rows)} rows to {table_name}")

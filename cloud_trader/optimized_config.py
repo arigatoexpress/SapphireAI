@@ -1,8 +1,10 @@
 """Optimized configuration for cloud native AI upgrades."""
 
 from __future__ import annotations
+
 import os
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -19,148 +21,63 @@ class OptimizedSettings(BaseSettings):
 
     # GPU & AI Inference Optimization
     model_quantization: str = Field(
-        default="4bit",
-        description="Model quantization level (none, 8bit, 4bit)"
+        default="4bit", description="Model quantization level (none, 8bit, 4bit)"
     )
     gpu_memory_fraction: float = Field(
-        default=0.7,
-        ge=0.1,
-        le=1.0,
-        description="Fraction of GPU memory to use"
+        default=0.7, ge=0.1, le=1.0, description="Fraction of GPU memory to use"
     )
     inference_batch_size: int = Field(
-        default=8,
-        ge=1,
-        le=64,
-        description="Batch size for inference operations"
+        default=8, ge=1, le=64, description="Batch size for inference operations"
     )
     cuda_launch_blocking: bool = Field(
-        default=False,
-        description="Enable synchronous CUDA operations"
+        default=False, description="Enable synchronous CUDA operations"
     )
 
     # CPU & Compute Optimization
     numba_threading_layer: str = Field(
-        default="omp",
-        description="Numba threading layer (omp, tbb, workqueue)"
+        default="omp", description="Numba threading layer (omp, tbb, workqueue)"
     )
-    omp_num_threads: int = Field(
-        default=4,
-        ge=1,
-        le=16,
-        description="OpenMP thread count"
-    )
-    python_optimize: bool = Field(
-        default=True,
-        description="Enable Python bytecode optimization"
-    )
-    vectorize_operations: bool = Field(
-        default=True,
-        description="Enable SIMD vectorization"
-    )
+    omp_num_threads: int = Field(default=4, ge=1, le=16, description="OpenMP thread count")
+    python_optimize: bool = Field(default=True, description="Enable Python bytecode optimization")
+    vectorize_operations: bool = Field(default=True, description="Enable SIMD vectorization")
 
     # Memory Management Optimization
-    memory_cache_enabled: bool = Field(
-        default=True,
-        description="Enable in-memory caching"
-    )
-    memory_cache_size: str = Field(
-        default="512MB",
-        description="Memory cache size limit"
-    )
-    redis_maxmemory: str = Field(
-        default="512mb",
-        description="Redis max memory limit"
-    )
-    redis_maxmemory_policy: str = Field(
-        default="allkeys-lru",
-        description="Redis eviction policy"
-    )
+    memory_cache_enabled: bool = Field(default=True, description="Enable in-memory caching")
+    memory_cache_size: str = Field(default="512MB", description="Memory cache size limit")
+    redis_maxmemory: str = Field(default="512mb", description="Redis max memory limit")
+    redis_maxmemory_policy: str = Field(default="allkeys-lru", description="Redis eviction policy")
 
     # Network & Communication Optimization
-    message_compression: bool = Field(
-        default=True,
-        description="Enable message compression"
-    )
-    connection_pool_size: int = Field(
-        default=50,
-        ge=10,
-        le=200,
-        description="Connection pool size"
-    )
-    message_batch_size: int = Field(
-        default=100,
-        ge=10,
-        le=1000,
-        description="Message batch size"
-    )
+    message_compression: bool = Field(default=True, description="Enable message compression")
+    connection_pool_size: int = Field(default=50, ge=10, le=200, description="Connection pool size")
+    message_batch_size: int = Field(default=100, ge=10, le=1000, description="Message batch size")
     network_timeout: float = Field(
-        default=5.0,
-        ge=1.0,
-        le=30.0,
-        description="Network timeout in seconds"
+        default=5.0, ge=1.0, le=30.0, description="Network timeout in seconds"
     )
 
     # Async & Concurrency Optimization
-    async_workers: int = Field(
-        default=16,
-        ge=4,
-        le=64,
-        description="Number of async workers"
-    )
-    async_io_workers: int = Field(
-        default=8,
-        ge=2,
-        le=32,
-        description="Async I/O worker count"
-    )
+    async_workers: int = Field(default=16, ge=4, le=64, description="Number of async workers")
+    async_io_workers: int = Field(default=8, ge=2, le=32, description="Async I/O worker count")
 
     # BigQuery Optimization
     bigquery_batch_size: int = Field(
-        default=500,
-        ge=100,
-        le=1000,
-        description="BigQuery batch insert size"
+        default=500, ge=100, le=1000, description="BigQuery batch insert size"
     )
-    bigquery_compression: str = Field(
-        default="LZ4",
-        description="BigQuery data compression"
-    )
-    bigquery_partitioning: str = Field(
-        default="DAY",
-        description="BigQuery partitioning strategy"
-    )
+    bigquery_compression: str = Field(default="LZ4", description="BigQuery data compression")
+    bigquery_partitioning: str = Field(default="DAY", description="BigQuery partitioning strategy")
 
     # Caching Strategy
-    cache_hierarchy_enabled: bool = Field(
-        default=True,
-        description="Enable multi-level caching"
-    )
-    l1_cache_ttl: int = Field(
-        default=60,
-        ge=10,
-        le=3600,
-        description="L1 cache TTL in seconds"
-    )
-    l2_cache_ttl: int = Field(
-        default=300,
-        ge=60,
-        le=7200,
-        description="L2 cache TTL in seconds"
-    )
+    cache_hierarchy_enabled: bool = Field(default=True, description="Enable multi-level caching")
+    l1_cache_ttl: int = Field(default=60, ge=10, le=3600, description="L1 cache TTL in seconds")
+    l2_cache_ttl: int = Field(default=300, ge=60, le=7200, description="L2 cache TTL in seconds")
 
     # Resource Optimization
     resource_optimization_enabled: bool = Field(
-        default=True,
-        description="Enable resource optimization"
+        default=True, description="Enable resource optimization"
     )
-    adaptive_scaling_enabled: bool = Field(
-        default=True,
-        description="Enable adaptive scaling"
-    )
+    adaptive_scaling_enabled: bool = Field(default=True, description="Enable adaptive scaling")
     cost_optimization_enabled: bool = Field(
-        default=True,
-        description="Enable cost optimization features"
+        default=True, description="Enable cost optimization features"
     )
 
     @field_validator("gpu_memory_fraction")
@@ -176,6 +93,7 @@ class OptimizedSettings(BaseSettings):
     def validate_omp_threads(cls, v: int) -> int:
         """Validate OpenMP thread count based on CPU cores."""
         import multiprocessing
+
         max_threads = multiprocessing.cpu_count()
         if v > max_threads:
             raise ValueError(f"OMP threads ({v}) exceeds CPU cores ({max_threads})")
@@ -191,7 +109,7 @@ class OptimizedSettings(BaseSettings):
             "redis_config": {
                 "maxmemory": self.redis_maxmemory,
                 "maxmemory_policy": self.redis_maxmemory_policy,
-            }
+            },
         }
 
     def get_inference_config(self) -> Dict[str, Any]:
@@ -234,7 +152,7 @@ class OptimizedSettings(BaseSettings):
                     "batch_size": self.bigquery_batch_size,
                     "compression": self.bigquery_compression,
                     "partitioning": self.bigquery_partitioning,
-                }
+                },
             }
         except Exception as e:
             logger.warning(f"Failed to get performance config: {e}")

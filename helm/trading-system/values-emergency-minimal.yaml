@@ -1,0 +1,118 @@
+# Emergency Minimal Configuration for Sapphire AI
+# Deploy ONLY cloud-trader to diagnose and get working deployment
+# Created: November 21, 2025
+
+global:
+  imageRegistry: us-central1-docker.pkg.dev
+  projectId: sapphireinfinite
+  imagePullPolicy: Always
+
+# Global readiness probe - VERY generous for diagnosis
+readinessProbe:
+  initialDelaySeconds: 120  # Generous time for startup
+  periodSeconds: 30
+  timeoutSeconds: 30
+  failureThreshold: 10       # Allow many retries
+  successThreshold: 1
+
+# Trading configuration - minimal
+trading:
+  enabled: true
+  capitalAllocation: 100     # Just $100 for initial testing
+  riskMultiplier: 0.01      # Low risk for testing
+  maxLeverage: 3            # Very conservative
+  disableRateLimiter: true
+
+# ONLY cloud-trader enabled
+cloudTrader:
+  enabled: true
+  replicaCount: 1            # Single pod
+  image:
+    repository: cloud-run-source-deploy/cloud-trader
+    tag: latest
+  service:
+    type: ClusterIP
+    port: 8080
+  resources:
+    requests:
+      cpu: 200m              # Minimal resources
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+  env:
+    - name: ENABLE_PAPER_TRADING
+      value: "false"
+    - name: PAPER_TRADING_ENABLED
+      value: "false"
+    - name: LOG_LEVEL
+      value: "INFO"
+    - name: BOT_ID
+      value: "cloud-trader-minimal"
+    - name: TOTAL_CAPITAL
+      value: "100"           # $100 for testing
+    - name: AGENT_CAPITAL
+      value: "100"           # $100 per bot
+    - name: MAX_POSITION_SIZE
+      value: "20"            # Max $20 position (20% of capital)
+
+# ALL AGENTS DISABLED
+agents:
+  enabled: false
+
+# MCP Coordinator DISABLED
+mcpCoordinator:
+  enabled: false
+
+# Simplified Trader DISABLED
+simplifiedTrader:
+  enabled: false
+
+# Vertex AI - minimal config
+vertexAI:
+  enabled: true
+  project: "sapphireinfinite"
+  location: "us-central1"
+  orchestrator:
+    enabled: false           # Disable for minimal deploy
+  mlops:
+    enabled: false
+
+# TPU DISABLED
+tpu:
+  enabled: false
+
+# Redis DISABLED (fallback to in-memory)
+redis:
+  enabled: false
+  image:
+    registry: docker.io        # Use public Docker Hub, not Artifact Registry
+    repository: bitnami/redis
+    tag: 7.0.11-debian-11-r12
+
+# Telegram features DISABLED
+telegram:
+  dailyRecap:
+    enabled: false
+
+# System initialization DISABLED
+systemInitialization:
+  enabled: false
+
+# Service account
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# Security context
+securityContext: {}
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity
+affinity: {}

@@ -81,3 +81,18 @@ Common environment variables for all services
 - name: DISABLE_RATE_LIMITER
   value: {{ .Values.trading.disableRateLimiter | default false | quote }}
 {{- end }}
+
+{{/*
+Common readiness probe configuration
+*/}}
+{{- define "trading-system.readinessProbe" -}}
+{{- $probe := $.Values.readinessProbe | default dict -}}
+{{- if not (kindIs "map" $probe) -}}
+  {{- $probe = dict -}}
+{{- end -}}
+initialDelaySeconds: {{ $probe.initialDelaySeconds | default 60 }}
+periodSeconds: {{ $probe.periodSeconds | default 30 }}
+timeoutSeconds: {{ $probe.timeoutSeconds | default 20 }}
+failureThreshold: {{ $probe.failureThreshold | default 3 }}
+successThreshold: {{ $probe.successThreshold | default 1 }}
+{{- end }}

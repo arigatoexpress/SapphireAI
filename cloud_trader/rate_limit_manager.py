@@ -1,7 +1,8 @@
 import asyncio
 import time
 from collections import defaultdict
-from typing import Dict, Any
+from typing import Any, Dict
+
 
 class RateLimitManager:
     """
@@ -39,7 +40,9 @@ class RateLimitManager:
         # Optionally, update rate limits based on response headers if available
         # For now, we'll stick to predefined/default limits
 
-    def update_rate_limits(self, agent_id: str, rps: int = None, rpm: int = None, reset_time: float = None):
+    def update_rate_limits(
+        self, agent_id: str, rps: int = None, rpm: int = None, reset_time: float = None
+    ):
         """Updates the known rate limits for an agent, typically from API response headers."""
         if rps is not None:
             self._rate_limits[agent_id]["rps"] = rps

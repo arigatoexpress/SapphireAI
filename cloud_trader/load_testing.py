@@ -4,29 +4,36 @@ Load testing framework for high-frequency trading performance validation.
 
 import asyncio
 import logging
-import time
 import statistics
+import time
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, List, Any, Optional, Callable
+from typing import Any, Callable, Dict, List, Optional
+
 import aiohttp
 import numpy as np
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class LoadTestConfig:
     """Configuration for load testing."""
+
     duration_seconds: int = 60
     concurrent_users: int = 10
     requests_per_second: int = 100
     ramp_up_seconds: int = 10
     target_url: str = "http://localhost:8080"
-    test_endpoints: List[str] = field(default_factory=lambda: ["/healthz", "/market-data", "/portfolio"])
+    test_endpoints: List[str] = field(
+        default_factory=lambda: ["/healthz", "/market-data", "/portfolio"]
+    )
+
 
 @dataclass
 class LoadTestResult:
     """Results from a load test."""
+
     test_start: datetime
     test_end: datetime
     total_requests: int = 0
@@ -59,6 +66,7 @@ class LoadTestResult:
     def p99_response_time(self) -> float:
         return np.percentile(self.response_times, 99) if self.response_times else 0
 
+
 class LoadTester:
     """Load testing framework for trading system validation."""
 
@@ -68,9 +76,7 @@ class LoadTester:
         self.results = LoadTestResult(datetime.now(), datetime.now())
 
     async def __aenter__(self):
-        self.session = aiohttp.ClientSession(
-            timeout=aiohttp.ClientTimeout(total=30, connect=5)
-        )
+        self.session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30, connect=5))
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -79,7 +85,9 @@ class LoadTester:
 
     async def run_load_test(self) -> LoadTestResult:
         """Run the complete load test."""
-        logger.info(f"Starting load test: {self.config.concurrent_users} users, {self.config.requests_per_second} RPS for {self.config.duration_seconds}s")
+        logger.info(
+            f"Starting load test: {self.config.concurrent_users} users, {self.config.requests_per_second} RPS for {self.config.duration_seconds}s"
+        )
 
         self.results = LoadTestResult(datetime.now(), datetime.now())
 
@@ -98,7 +106,9 @@ class LoadTester:
         self.results.total_requests = len(self.results.response_times)
 
         logger.info(f"Load test completed in {end_time - start_time:.2f}s")
-        logger.info(f"Results: {self.results.total_requests} requests, {self.results.success_rate:.1%} success rate")
+        logger.info(
+            f"Results: {self.results.total_requests} requests, {self.results.success_rate:.1%} success rate"
+        )
 
         return self.results
 
@@ -136,7 +146,9 @@ class LoadTester:
                 else:
                     self.results.failed_requests += 1
                     error_type = f"http_{response.status}"
-                    self.results.error_types[error_type] = self.results.error_types.get(error_type, 0) + 1
+                    self.results.error_types[error_type] = (
+                        self.results.error_types.get(error_type, 0) + 1
+                    )
                     return False
 
         except asyncio.TimeoutError:
@@ -157,27 +169,31 @@ class LoadTester:
     def generate_report(self, results: LoadTestResult) -> Dict[str, Any]:
         """Generate a comprehensive load test report."""
         report = {
-            'test_summary': {
-                'duration': results.duration,
-                'total_requests': results.total_requests,
-                'successful_requests': results.successful_requests,
-                'failed_requests': results.failed_requests,
-                'requests_per_second': results.requests_per_second,
-                'success_rate': results.success_rate
+            "test_summary": {
+                "duration": results.duration,
+                "total_requests": results.total_requests,
+                "successful_requests": results.successful_requests,
+                "failed_requests": results.failed_requests,
+                "requests_per_second": results.requests_per_second,
+                "success_rate": results.success_rate,
             },
-            'performance_metrics': {
-                'avg_response_time_ms': results.avg_response_time,
-                'p95_response_time_ms': results.p95_response_time,
-                'p99_response_time_ms': results.p99_response_time,
-                'min_response_time_ms': min(results.response_times) if results.response_times else 0,
-                'max_response_time_ms': max(results.response_times) if results.response_times else 0
+            "performance_metrics": {
+                "avg_response_time_ms": results.avg_response_time,
+                "p95_response_time_ms": results.p95_response_time,
+                "p99_response_time_ms": results.p99_response_time,
+                "min_response_time_ms": (
+                    min(results.response_times) if results.response_times else 0
+                ),
+                "max_response_time_ms": (
+                    max(results.response_times) if results.response_times else 0
+                ),
             },
-            'error_analysis': {
-                'error_types': results.error_types,
-                'total_errors': results.failed_requests
+            "error_analysis": {
+                "error_types": results.error_types,
+                "total_errors": results.failed_requests,
             },
-            'assessment': self._assess_performance(results),
-            'recommendations': self._generate_recommendations(results)
+            "assessment": self._assess_performance(results),
+            "recommendations": self._generate_recommendations(results),
         }
 
         return report
@@ -185,10 +201,10 @@ class LoadTester:
     def _assess_performance(self, results: LoadTestResult) -> Dict[str, Any]:
         """Assess the performance results."""
         assessment = {
-            'overall_rating': 'unknown',
-            'throughput_status': 'unknown',
-            'latency_status': 'unknown',
-            'reliability_status': 'unknown'
+            "overall_rating": "unknown",
+            "throughput_status": "unknown",
+            "latency_status": "unknown",
+            "reliability_status": "unknown",
         }
 
         # Throughput assessment
@@ -196,49 +212,53 @@ class LoadTester:
         actual_rps = results.requests_per_second
 
         if actual_rps >= target_rps * 0.95:
-            assessment['throughput_status'] = 'excellent'
+            assessment["throughput_status"] = "excellent"
         elif actual_rps >= target_rps * 0.80:
-            assessment['throughput_status'] = 'good'
+            assessment["throughput_status"] = "good"
         elif actual_rps >= target_rps * 0.60:
-            assessment['throughput_status'] = 'acceptable'
+            assessment["throughput_status"] = "acceptable"
         else:
-            assessment['throughput_status'] = 'poor'
+            assessment["throughput_status"] = "poor"
 
         # Latency assessment
         avg_latency = results.avg_response_time
         p95_latency = results.p95_response_time
 
         if p95_latency < 100:  # ms
-            assessment['latency_status'] = 'excellent'
+            assessment["latency_status"] = "excellent"
         elif p95_latency < 500:
-            assessment['latency_status'] = 'good'
+            assessment["latency_status"] = "good"
         elif p95_latency < 2000:
-            assessment['latency_status'] = 'acceptable'
+            assessment["latency_status"] = "acceptable"
         else:
-            assessment['latency_status'] = 'poor'
+            assessment["latency_status"] = "poor"
 
         # Reliability assessment
         success_rate = results.success_rate
 
         if success_rate >= 0.999:
-            assessment['reliability_status'] = 'excellent'
+            assessment["reliability_status"] = "excellent"
         elif success_rate >= 0.995:
-            assessment['reliability_status'] = 'good'
+            assessment["reliability_status"] = "good"
         elif success_rate >= 0.98:
-            assessment['reliability_status'] = 'acceptable'
+            assessment["reliability_status"] = "acceptable"
         else:
-            assessment['reliability_status'] = 'poor'
+            assessment["reliability_status"] = "poor"
 
         # Overall rating
-        statuses = [assessment['throughput_status'], assessment['latency_status'], assessment['reliability_status']]
-        if all(s == 'excellent' for s in statuses):
-            assessment['overall_rating'] = 'excellent'
-        elif all(s in ['excellent', 'good'] for s in statuses):
-            assessment['overall_rating'] = 'good'
-        elif any(s == 'poor' for s in statuses):
-            assessment['overall_rating'] = 'poor'
+        statuses = [
+            assessment["throughput_status"],
+            assessment["latency_status"],
+            assessment["reliability_status"],
+        ]
+        if all(s == "excellent" for s in statuses):
+            assessment["overall_rating"] = "excellent"
+        elif all(s in ["excellent", "good"] for s in statuses):
+            assessment["overall_rating"] = "good"
+        elif any(s == "poor" for s in statuses):
+            assessment["overall_rating"] = "poor"
         else:
-            assessment['overall_rating'] = 'acceptable'
+            assessment["overall_rating"] = "acceptable"
 
         return assessment
 
@@ -263,15 +283,16 @@ class LoadTester:
             recommendations.append("Consider using CDN for static content")
 
         # Resource-specific recommendations
-        timeout_errors = results.error_types.get('timeout', 0)
+        timeout_errors = results.error_types.get("timeout", 0)
         if timeout_errors > results.total_requests * 0.01:
             recommendations.append("Increase timeout values or optimize slow endpoints")
 
-        connection_errors = results.error_types.get('ClientConnectorError', 0)
+        connection_errors = results.error_types.get("ClientConnectorError", 0)
         if connection_errors > 0:
             recommendations.append("Review network configuration and connection pooling")
 
         return recommendations
+
 
 # Pre-configured load test scenarios
 TRADING_LOAD_TEST = LoadTestConfig(
@@ -279,7 +300,7 @@ TRADING_LOAD_TEST = LoadTestConfig(
     concurrent_users=50,
     requests_per_second=500,
     target_url="http://trading-system-cloud-trader.trading.svc.cluster.local:8080",
-    test_endpoints=["/healthz", "/market-data", "/portfolio", "/risk-assessment"]
+    test_endpoints=["/healthz", "/market-data", "/portfolio", "/risk-assessment"],
 )
 
 STRESS_TEST = LoadTestConfig(
@@ -287,8 +308,9 @@ STRESS_TEST = LoadTestConfig(
     concurrent_users=100,
     requests_per_second=1000,
     target_url="http://trading-system-cloud-trader.trading.svc.cluster.local:8080",
-    test_endpoints=["/healthz", "/market-data"]
+    test_endpoints=["/healthz", "/market-data"],
 )
+
 
 async def run_trading_load_test() -> Dict[str, Any]:
     """Run a comprehensive trading load test."""
@@ -300,6 +322,7 @@ async def run_trading_load_test() -> Dict[str, Any]:
 
         return report
 
+
 async def run_stress_test() -> Dict[str, Any]:
     """Run a stress test to find system limits."""
     config = STRESS_TEST
@@ -310,14 +333,12 @@ async def run_stress_test() -> Dict[str, Any]:
 
         return report
 
+
 # Utility function for quick load testing
 async def quick_load_test(url: str, duration: int = 30, rps: int = 50) -> Dict[str, Any]:
     """Run a quick load test with custom parameters."""
     config = LoadTestConfig(
-        duration_seconds=duration,
-        concurrent_users=10,
-        requests_per_second=rps,
-        target_url=url
+        duration_seconds=duration, concurrent_users=10, requests_per_second=rps, target_url=url
     )
 
     async with LoadTester(config) as tester:

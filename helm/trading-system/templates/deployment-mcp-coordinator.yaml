@@ -56,6 +56,5 @@ spec:
             httpGet:
               path: /healthz
               port: {{ .Values.mcpCoordinator.service.port }}
-            initialDelaySeconds: 5
-            periodSeconds: 10
+            {{- include "trading-system.readinessProbe" $ | nindent 12 }}
 {{- end }}

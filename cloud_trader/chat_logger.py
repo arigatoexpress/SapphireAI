@@ -2,16 +2,17 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
 from pathlib import Path
-import asyncio
+from typing import Any, Dict, List, Optional
 
 try:
     from google.cloud import firestore
     from google.cloud.firestore import AsyncClient
+
     FIRESTORE_AVAILABLE = True
 except ImportError:
     FIRESTORE_AVAILABLE = False
@@ -73,12 +74,14 @@ class ChatLogger:
             # Add to local cache
             self._local_cache.append(message_data)
             if len(self._local_cache) > self._cache_size:
-                self._local_cache = self._local_cache[-self._cache_size:]
+                self._local_cache = self._local_cache[-self._cache_size :]
 
             # Save to Firestore if available
             if self.db_client:
                 try:
-                    doc_ref = self.db_client.collection(self.collection_name).document(message_data["id"])
+                    doc_ref = self.db_client.collection(self.collection_name).document(
+                        message_data["id"]
+                    )
                     await doc_ref.set(message_data)
                     logger.debug(f"Chat message logged to Firestore: {agent_id}")
                 except Exception as e:
@@ -114,20 +117,22 @@ class ChatLogger:
             if self.db_client:
                 try:
                     query = self.db_client.collection(self.collection_name)
-                    
+
                     if start_time:
                         query = query.where("timestamp", ">=", start_time.isoformat())
                     if end_time:
                         query = query.where("timestamp", "<=", end_time.isoformat())
                     if agent_type:
                         query = query.where("agent_type", "==", agent_type)
-                    
-                    query = query.order_by("timestamp", direction=firestore.Query.DESCENDING).limit(limit)
-                    
+
+                    query = query.order_by("timestamp", direction=firestore.Query.DESCENDING).limit(
+                        limit
+                    )
+
                     docs = query.stream()
                     async for doc in docs:
                         messages.append(doc.to_dict())
-                    
+
                     if messages:
                         # Sort by timestamp descending
                         messages.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
@@ -137,7 +142,7 @@ class ChatLogger:
 
             # Fall back to local cache
             messages = list(self._local_cache)
-            
+
             # Apply filters
             if agent_type:
                 messages = [m for m in messages if m.get("agent_type") == agent_type]
@@ -147,7 +152,7 @@ class ChatLogger:
             if end_time:
                 end_str = end_time.isoformat()
                 messages = [m for m in messages if m.get("timestamp", "") <= end_str]
-            
+
             # Sort by timestamp descending
             messages.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
             return messages[:limit]
@@ -183,7 +188,7 @@ class ChatLogger:
             for msg in messages:
                 agent_id = msg.get("agent_id", "unknown")
                 msg_type = msg.get("message_type", "unknown")
-                
+
                 messages_by_agent[agent_id] = messages_by_agent.get(agent_id, 0) + 1
                 messages_by_type[msg_type] = messages_by_type.get(msg_type, 0) + 1
 
@@ -256,4 +261,3 @@ def get_chat_logger() -> ChatLogger:
     if _chat_logger is None:
         _chat_logger = ChatLogger()
     return _chat_logger
-

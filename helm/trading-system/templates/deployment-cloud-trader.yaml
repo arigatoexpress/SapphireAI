@@ -40,7 +40,7 @@ spec:
         - name: cloud-trader
           image: {{ .Values.global.imageRegistry }}/{{ .Values.global.projectId }}/{{ .Values.cloudTrader.image.repository }}:{{ .Values.cloudTrader.image.tag }}
           imagePullPolicy: {{ .Values.global.imagePullPolicy }}
-          command: ["uvicorn", "cloud_trader.api:build_app", "--host", "0.0.0.0", "--port", "{{ .Values.cloudTrader.service.port }}"]
+          command: ["python3", "start.py"]
           ports:
             - name: http
               containerPort: {{ .Values.cloudTrader.service.port }}
@@ -65,8 +65,7 @@ spec:
             httpGet:
               path: /healthz
               port: {{ .Values.cloudTrader.service.port }}
-            initialDelaySeconds: 5
-            periodSeconds: 5
+            {{- include "trading-system.readinessProbe" $ | nindent 12 }}
           startupProbe:
             httpGet:
               path: /healthz

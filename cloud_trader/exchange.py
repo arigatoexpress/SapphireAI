@@ -12,6 +12,7 @@ API Testing Results (Verified 2024):
 
 All trading logic uses only verified, documented API capabilities.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -19,16 +20,16 @@ import hashlib
 import hmac
 import json
 import time
-from typing import Any, Dict, List, Optional, Union, Tuple
+from decimal import Decimal
+from typing import Any, Dict, List, Optional, Tuple, Union
 from urllib.parse import urlencode
 
 import httpx
-from decimal import Decimal
 from httpx import HTTPStatusError
 from pydantic import BaseModel, Field
 
 from .credentials import Credentials
-from .enums import OrderType, PositionSide, TimeInForce, WorkingType, MarginType, ResponseType
+from .enums import MarginType, OrderType, PositionSide, ResponseType, TimeInForce, WorkingType
 
 
 class AsterAPIError(Exception):
@@ -42,21 +43,25 @@ class AsterAPIError(Exception):
 
 class AsterRequestError(AsterAPIError):
     """Error for malformed requests (4XX)."""
+
     pass
 
 
 class AsterRateLimitError(AsterAPIError):
     """Error for rate limit violations."""
+
     pass
 
 
 class AsterServerError(AsterAPIError):
     """Error for internal server errors (5XX)."""
+
     pass
 
 
 class AsterTimeoutError(AsterAPIError):
     """Error for timeout issues."""
+
     pass
 
 
@@ -70,7 +75,6 @@ ASTER_ERROR_CODES = {
     -1006: ("UNEXPECTED_RESP", AsterServerError),
     -1007: ("TIMEOUT", AsterTimeoutError),
     -1022: ("INVALID_SIGNATURE", AsterRequestError),
-
     # Request issues (11xx)
     -1100: ("ILLEGAL_CHARS", AsterRequestError),
     -1101: ("TOO_MANY_PARAMETERS", AsterRequestError),
@@ -78,7 +82,6 @@ ASTER_ERROR_CODES = {
     -1103: ("UNKNOWN_PARAM", AsterRequestError),
     -1111: ("BAD_PRECISION", AsterRequestError),
     -1121: ("BAD_SYMBOL", AsterRequestError),
-
     # Processing Issues (20xx)
     -2010: ("NEW_ORDER_REJECTED", AsterRequestError),
     -2011: ("CANCEL_REJECTED", AsterRequestError),
@@ -88,7 +91,6 @@ ASTER_ERROR_CODES = {
     -2022: ("REDUCE_ONLY_REJECT", AsterRequestError),
     -2025: ("MAX_OPEN_ORDER_EXCEEDED", AsterRequestError),
     -2027: ("MAX_LEVERAGE_RATIO", AsterRequestError),
-
     # Filters and other Issues (40xx)
     -4001: ("PRICE_LESS_THAN_ZERO", AsterRequestError),
     -4002: ("PRICE_GREATER_THAN_MAX_PRICE", AsterRequestError),
@@ -247,9 +249,7 @@ class AsterClient:
         else:
             headers = {}
 
-        response = await self._client.request(
-            method, endpoint, params=params, headers=headers
-        )
+        response = await self._client.request(method, endpoint, params=params, headers=headers)
         try:
             response.raise_for_status()
         except HTTPStatusError as exc:
@@ -295,30 +295,44 @@ class AsterClient:
             result = await self.get_klines(symbol, interval, limit)
             # Convert dict format to list format expected by some callers
             if isinstance(result, list) and len(result) > 0 and isinstance(result[0], dict):
-                return [[item.get('openTime'), item.get('open'), item.get('high'),
-                         item.get('low'), item.get('close'), item.get('volume'),
-                         item.get('closeTime'), item.get('quoteVolume'),
-                         item.get('trades'), item.get('takerBase'),
-                         item.get('takerQuote'), item.get('ignore')] for item in result]
+                return [
+                    [
+                        item.get("openTime"),
+                        item.get("open"),
+                        item.get("high"),
+                        item.get("low"),
+                        item.get("close"),
+                        item.get("volume"),
+                        item.get("closeTime"),
+                        item.get("quoteVolume"),
+                        item.get("trades"),
+                        item.get("takerBase"),
+                        item.get("takerQuote"),
+                        item.get("ignore"),
+                    ]
+                    for item in result
+                ]
             return result
         except Exception:
             return None
 
     async def get_ticker_price(self, symbol: str) -> Dict[str, Any]:
-        return await self._make_request(
-            "GET", "/fapi/v1/ticker/price", params={"symbol": symbol}
-        )
-    
+        return await self._make_request("GET", "/fapi/v1/ticker/price", params={"symbol": symbol})
+
     async def get_all_tickers(self) -> List[Dict[str, Any]]:
         return await self._make_request("GET", "/fapi/v1/ticker/24hr")
 
     async def get_order_book(self, symbol: str, limit: int = 100) -> Dict[str, Any]:
         """Get order book depth."""
-        return await self._make_request("GET", "/fapi/v1/depth", params={"symbol": symbol, "limit": limit})
+        return await self._make_request(
+            "GET", "/fapi/v1/depth", params={"symbol": symbol, "limit": limit}
+        )
 
     async def get_recent_trades(self, symbol: str, limit: int = 500) -> List[Dict[str, Any]]:
         """Get recent trades."""
-        return await self._make_request("GET", "/fapi/v1/trades", params={"symbol": symbol, "limit": limit})
+        return await self._make_request(
+            "GET", "/fapi/v1/trades", params={"symbol": symbol, "limit": limit}
+        )
 
     async def get_all_prices(self) -> List[Dict[str, Any]]:
         """Get all symbol prices."""
@@ -458,7 +472,9 @@ class AsterClient:
     async def change_position_mode(self, dual_side_position: bool) -> Dict[str, Any]:
         """Change position mode (Hedge Mode or One-way Mode)."""
         params = {"dualSidePosition": "true" if dual_side_position else "false"}
-        return await self._make_request("POST", "/fapi/v1/positionSide/dual", params=params, signed=True)
+        return await self._make_request(
+            "POST", "/fapi/v1/positionSide/dual", params=params, signed=True
+        )
 
     async def get_position_mode(self) -> Dict[str, Any]:
         """Get current position mode."""
@@ -468,7 +484,9 @@ class AsterClient:
     async def change_multi_assets_mode(self, multi_assets_margin: bool) -> Dict[str, Any]:
         """Change Multi-Asset Mode."""
         params = {"multiAssetsMargin": "true" if multi_assets_margin else "false"}
-        return await self._make_request("POST", "/fapi/v1/multiAssetsMargin", params=params, signed=True)
+        return await self._make_request(
+            "POST", "/fapi/v1/multiAssetsMargin", params=params, signed=True
+        )
 
     async def get_multi_assets_mode(self) -> Dict[str, Any]:
         """Get current Multi-Asset Mode."""
@@ -494,12 +512,17 @@ class AsterClient:
         params = {"symbol": symbol, "amount": amount, "type": type_}
         if position_side:
             params["positionSide"] = position_side.value
-        return await self._make_request("POST", "/fapi/v1/positionMargin", params=params, signed=True)
+        return await self._make_request(
+            "POST", "/fapi/v1/positionMargin", params=params, signed=True
+        )
 
     async def get_position_margin_history(
-        self, symbol: str, type_: Optional[int] = None,
-        start_time: Optional[int] = None, end_time: Optional[int] = None,
-        limit: int = 500
+        self,
+        symbol: str,
+        type_: Optional[int] = None,
+        start_time: Optional[int] = None,
+        end_time: Optional[int] = None,
+        limit: int = 500,
     ) -> List[Dict[str, Any]]:
         """Get position margin change history."""
         params = {"symbol": symbol, "limit": limit}
@@ -509,7 +532,9 @@ class AsterClient:
             params["startTime"] = start_time
         if end_time:
             params["endTime"] = end_time
-        return await self._make_request("GET", "/fapi/v1/positionMargin/history", params=params, signed=True)
+        return await self._make_request(
+            "GET", "/fapi/v1/positionMargin/history", params=params, signed=True
+        )
 
     # Batch Orders
     async def place_batch_orders(self, batch_orders: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -518,9 +543,10 @@ class AsterClient:
         return await self._make_request("POST", "/fapi/v1/batchOrders", params=params, signed=True)
 
     async def cancel_batch_orders(
-        self, symbol: str,
+        self,
+        symbol: str,
         order_id_list: Optional[List[int]] = None,
-        orig_client_order_id_list: Optional[List[str]] = None
+        orig_client_order_id_list: Optional[List[str]] = None,
     ) -> List[Dict[str, Any]]:
         """Cancel multiple orders."""
         params = {"symbol": symbol}
@@ -528,13 +554,17 @@ class AsterClient:
             params["orderIdList"] = order_id_list
         if orig_client_order_id_list:
             params["origClientOrderIdList"] = orig_client_order_id_list
-        return await self._make_request("DELETE", "/fapi/v1/batchOrders", params=params, signed=True)
+        return await self._make_request(
+            "DELETE", "/fapi/v1/batchOrders", params=params, signed=True
+        )
 
     # Auto-Cancel Orders
     async def auto_cancel_orders(self, symbol: str, countdown_time: int) -> Dict[str, Any]:
         """Auto-cancel all open orders after countdown."""
         params = {"symbol": symbol, "countdownTime": countdown_time}
-        return await self._make_request("POST", "/fapi/v1/countdownCancelAll", params=params, signed=True)
+        return await self._make_request(
+            "POST", "/fapi/v1/countdownCancelAll", params=params, signed=True
+        )
 
     # Enhanced Account Information
     async def get_account_info_v2(self) -> Dict[str, Any]:
@@ -546,15 +576,19 @@ class AsterClient:
         return await self._make_request("GET", "/fapi/v4/account", signed=True)
 
     # Mark Price and Funding
-    async def get_mark_price(self, symbol: Optional[str] = None) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
+    async def get_mark_price(
+        self, symbol: Optional[str] = None
+    ) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
         """Get mark price and funding rate."""
         params = {"symbol": symbol} if symbol else {}
         return await self._make_request("GET", "/fapi/v1/premiumIndex", params=params)
 
     async def get_funding_rate_history(
-        self, symbol: Optional[str] = None,
-        start_time: Optional[int] = None, end_time: Optional[int] = None,
-        limit: int = 100
+        self,
+        symbol: Optional[str] = None,
+        start_time: Optional[int] = None,
+        end_time: Optional[int] = None,
+        limit: int = 100,
     ) -> List[Dict[str, Any]]:
         """Get funding rate history."""
         params = {"limit": limit}
@@ -568,8 +602,12 @@ class AsterClient:
 
     # Market Data - Additional endpoints
     async def get_index_price_klines(
-        self, pair: str, interval: str, limit: int = 500,
-        start_time: Optional[int] = None, end_time: Optional[int] = None
+        self,
+        pair: str,
+        interval: str,
+        limit: int = 500,
+        start_time: Optional[int] = None,
+        end_time: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
         """Get index price kline data."""
         params = {"pair": pair, "interval": interval, "limit": limit}
@@ -580,8 +618,12 @@ class AsterClient:
         return await self._make_request("GET", "/fapi/v1/indexPriceKlines", params=params)
 
     async def get_mark_price_klines(
-        self, symbol: str, interval: str, limit: int = 500,
-        start_time: Optional[int] = None, end_time: Optional[int] = None
+        self,
+        symbol: str,
+        interval: str,
+        limit: int = 500,
+        start_time: Optional[int] = None,
+        end_time: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
         """Get mark price kline data."""
         params = {"symbol": symbol, "interval": interval, "limit": limit}
@@ -593,8 +635,12 @@ class AsterClient:
 
     # Trade History
     async def get_account_trades(
-        self, symbol: str, start_time: Optional[int] = None, end_time: Optional[int] = None,
-        from_id: Optional[int] = None, limit: int = 500
+        self,
+        symbol: str,
+        start_time: Optional[int] = None,
+        end_time: Optional[int] = None,
+        from_id: Optional[int] = None,
+        limit: int = 500,
     ) -> List[Dict[str, Any]]:
         """Get account trade list."""
         params = {"symbol": symbol, "limit": limit}
@@ -607,9 +653,12 @@ class AsterClient:
         return await self._make_request("GET", "/fapi/v1/userTrades", params=params, signed=True)
 
     async def get_income_history(
-        self, symbol: Optional[str] = None, income_type: Optional[str] = None,
-        start_time: Optional[int] = None, end_time: Optional[int] = None,
-        limit: int = 100
+        self,
+        symbol: Optional[str] = None,
+        income_type: Optional[str] = None,
+        start_time: Optional[int] = None,
+        end_time: Optional[int] = None,
+        limit: int = 100,
     ) -> List[Dict[str, Any]]:
         """Get income history."""
         params = {"limit": limit}
@@ -624,10 +673,14 @@ class AsterClient:
         return await self._make_request("GET", "/fapi/v1/income", params=params, signed=True)
 
     # Leverage and Risk Management
-    async def get_leverage_brackets(self, symbol: Optional[str] = None) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
+    async def get_leverage_brackets(
+        self, symbol: Optional[str] = None
+    ) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
         """Get notional and leverage brackets."""
         params = {"symbol": symbol} if symbol else {}
-        return await self._make_request("GET", "/fapi/v1/leverageBracket", params=params, signed=True)
+        return await self._make_request(
+            "GET", "/fapi/v1/leverageBracket", params=params, signed=True
+        )
 
     async def get_adl_quantile(self, symbol: Optional[str] = None) -> List[Dict[str, Any]]:
         """Get position ADL quantile estimation."""
@@ -635,9 +688,12 @@ class AsterClient:
         return await self._make_request("GET", "/fapi/v1/adlQuantile", params=params, signed=True)
 
     async def get_force_orders(
-        self, symbol: Optional[str] = None, auto_close_type: Optional[str] = None,
-        start_time: Optional[int] = None, end_time: Optional[int] = None,
-        limit: int = 50
+        self,
+        symbol: Optional[str] = None,
+        auto_close_type: Optional[str] = None,
+        start_time: Optional[int] = None,
+        end_time: Optional[int] = None,
+        limit: int = 50,
     ) -> List[Dict[str, Any]]:
         """Get user's force orders (liquidations)."""
         params = {"limit": limit}
@@ -654,8 +710,9 @@ class AsterClient:
     async def get_commission_rate(self, symbol: str) -> Dict[str, Any]:
         """Get user's commission rate."""
         params = {"symbol": symbol}
-        return await self._make_request("GET", "/fapi/v1/commissionRate", params=params, signed=True)
-
+        return await self._make_request(
+            "GET", "/fapi/v1/commissionRate", params=params, signed=True
+        )
 
 
 class AsterWebSocketClient:
@@ -671,6 +728,7 @@ class AsterWebSocketClient:
         """Connect to the WebSocket."""
         try:
             import websockets
+
             self._websocket = await websockets.connect(self.base_url + "/ws/")
             self._running = True
         except ImportError:
@@ -689,11 +747,7 @@ class AsterWebSocketClient:
             raise RuntimeError("WebSocket not connected")
 
         request_id = str(int(time.time() * 1000))
-        subscribe_msg = {
-            "method": "SUBSCRIBE",
-            "params": streams,
-            "id": request_id
-        }
+        subscribe_msg = {"method": "SUBSCRIBE", "params": streams, "id": request_id}
 
         await self._websocket.send(json.dumps(subscribe_msg))
 
@@ -709,11 +763,7 @@ class AsterWebSocketClient:
             raise RuntimeError("WebSocket not connected")
 
         request_id = str(int(time.time() * 1000))
-        unsubscribe_msg = {
-            "method": "UNSUBSCRIBE",
-            "params": streams,
-            "id": request_id
-        }
+        unsubscribe_msg = {"method": "UNSUBSCRIBE", "params": streams, "id": request_id}
 
         await self._websocket.send(json.dumps(unsubscribe_msg))
 
@@ -824,7 +874,7 @@ class TrailingStop:
             f"TrailingStop(symbol={self.symbol}, trail_percent={self.trail_percent}, "
             f"high_water_mark={self.high_water_mark}, is_active={self.is_active})"
         )
-    
+
     def activate(self, current_price: float) -> None:
         self.is_active = True
         self.high_water_mark = current_price
@@ -832,7 +882,7 @@ class TrailingStop:
     def should_sell(self, current_price: float) -> bool:
         if not self.is_active or self.high_water_mark is None:
             return False
-        
+
         if current_price > self.high_water_mark:
             self.high_water_mark = current_price
             return False
@@ -840,9 +890,11 @@ class TrailingStop:
         stop_price = self.high_water_mark * (1 - self.trail_percent)
         return current_price < stop_price
 
+
 async def main():
     # Example usage, requires credentials to be set as env vars
     from .credentials import load_credentials
+
     creds = load_credentials()
     client = AsterClient(credentials=creds)
     try:
@@ -852,7 +904,6 @@ async def main():
         print(await client.get_account_info())
     finally:
         await client.close()
-
 
 
 async def test_api_connection():
@@ -891,7 +942,7 @@ async def test_api_connection():
                 print(f"      - {symbol['symbol']} (contract: {symbol['contractType']})")
 
         # Test market data for BTCUSDT if available
-        btcusdt_available = any(s['symbol'] == 'BTCUSDT' for s in symbols)
+        btcusdt_available = any(s["symbol"] == "BTCUSDT" for s in symbols)
         if btcusdt_available:
             print("\n4. Testing market data for BTCUSDT...")
 
@@ -901,8 +952,8 @@ async def test_api_connection():
 
             # Test order book
             depth = await client.get_order_book("BTCUSDT", limit=5)
-            bids = depth.get('bids', [])[:3]
-            asks = depth.get('asks', [])[:3]
+            bids = depth.get("bids", [])[:3]
+            asks = depth.get("asks", [])[:3]
             print(f"   ✅ Order book - Bids: {len(bids)}, Asks: {len(asks)}")
 
             # Test recent trades
@@ -941,7 +992,9 @@ async def test_api_connection():
 
                 print("\n6. Testing account information...")
                 account_info = await auth_client.get_account_info()
-                print(f"   ✅ Account info retrieved (canTrade: {account_info.get('canTrade', 'N/A')})")
+                print(
+                    f"   ✅ Account info retrieved (canTrade: {account_info.get('canTrade', 'N/A')})"
+                )
 
                 print("\n7. Testing position risk...")
                 positions = await auth_client.get_position_risk()
@@ -957,7 +1010,9 @@ async def test_api_connection():
 
                 print("\n10. Testing leverage brackets...")
                 brackets = await auth_client.get_leverage_brackets()
-                print(f"   ✅ Leverage brackets: {len(brackets) if isinstance(brackets, list) else 'single'}")
+                print(
+                    f"   ✅ Leverage brackets: {len(brackets) if isinstance(brackets, list) else 'single'}"
+                )
 
                 print("\n11. Testing ADL quantile...")
                 adl = await auth_client.get_adl_quantile()
@@ -1018,30 +1073,31 @@ def create_exchange_clients(
 ) -> Tuple[AsterClient, Optional[AsterClient]]:
     """
     Factory function to create live and paper trading exchange clients.
-    
+
     Args:
         settings: Settings object with configuration
         live_credentials: Credentials for live trading (if None, will be loaded from settings)
-        
+
     Returns:
         Tuple of (live_client, paper_client). paper_client is None if paper trading is disabled.
     """
     from .credentials import load_credentials
-    
+
     # Create live trading client
     if live_credentials is None:
         live_credentials = load_credentials()
-    
+
     live_client = AsterClient(
         credentials=live_credentials,
         base_url=settings.rest_base_url,
     )
-    
+
     # Create paper trading client if enabled
     paper_client = None
     if settings.paper_trading_enabled:
         if not settings.aster_testnet_api_key or not settings.aster_testnet_api_secret:
             import logging
+
             logger = logging.getLogger(__name__)
             logger.warning("Paper trading enabled but testnet credentials not configured")
         else:
@@ -1053,7 +1109,7 @@ def create_exchange_clients(
                 credentials=paper_credentials,
                 base_url=settings.aster_testnet_rest_url,
             )
-    
+
     return live_client, paper_client
 
 
