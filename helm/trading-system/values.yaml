@@ -172,7 +172,7 @@ mcpCoordinator:
 
 # LLM Agent Services - Open Source Models on Vertex AI
 agents:
-  enabled: true  # Disabled for minimal deployment - enable after core services work
+  enabled: true  # ENABLED FOR LIVE TRADING
 
   # Trend Momentum Agent - Real-time market momentum analysis using PaLM 2 Chat
   trend-momentum-agent:
