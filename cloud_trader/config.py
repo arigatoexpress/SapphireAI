@@ -70,7 +70,7 @@ class Settings(BaseSettings):
 
     # Trading configuration
     symbols: List[str] = Field(
-        default_factory=list  # Load all available symbols from exchange by default
+        default_factory=lambda: ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT"]  # Default popular symbols
     )
     decision_interval_seconds: int = Field(
         default=10, ge=5, le=300
