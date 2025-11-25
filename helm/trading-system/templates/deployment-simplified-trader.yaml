@@ -24,7 +24,7 @@ spec:
       serviceAccountName: {{ include "trading-system.serviceAccountName" $ }}
       containers:
         - name: simplified-trader
-          image: {{ $.Values.global.imageRegistry }}/{{ $.Values.global.projectId }}/{{ $.Values.simplifiedTrader.image.repository }}:{{ $.Values.simplifiedTrader.image.tag }}
+          image: {{ $.Values.customImageRegistry }}/{{ $.Values.global.projectId }}/{{ $.Values.simplifiedTrader.image.repository }}:{{ $.Values.simplifiedTrader.image.tag }}
           imagePullPolicy: {{ $.Values.global.imagePullPolicy }}
           command: ["uvicorn", "cloud_trader.simplified_api:app", "--host", "0.0.0.0", "--port", "8080"]
           ports:

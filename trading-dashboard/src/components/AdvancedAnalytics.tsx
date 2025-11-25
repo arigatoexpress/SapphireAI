@@ -359,10 +359,10 @@ export const AdvancedAnalytics: React.FC = () => {
                     }}
                   >
                     {agentId === 'trend-momentum-agent' ? '🎯' :
-                     agentId === 'strategy-optimization-agent' ? '🧠' :
-                     agentId === 'financial-sentiment-agent' ? '💭' :
-                     agentId === 'market-prediction-agent' ? '🔮' :
-                     agentId === 'volume-microstructure-agent' ? '📊' : '⚡'}
+                      agentId === 'strategy-optimization-agent' ? '🧠' :
+                        agentId === 'financial-sentiment-agent' ? '💭' :
+                          agentId === 'market-prediction-agent' ? '🔮' :
+                            agentId === 'volume-microstructure-agent' ? '📊' : '⚡'}
                   </Avatar>
                   <Box>
                     <Typography variant="h6" sx={{ fontWeight: 600, fontSize: '0.9rem' }}>

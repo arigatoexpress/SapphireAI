@@ -1,19 +1,47 @@
 import { useState, useEffect, useRef } from 'react';
 
+interface AgentMetrics {
+  id: string;
+  name: string;
+  emoji: string;
+  pnl: number;
+  pnlPercent: number;
+  allocation: number;
+  activePositions: number;
+  history: Array<{ time: string; value: number }>;
+}
+
+interface ChatMessage {
+  id: string;
+  agentId: string;
+  agentName: string;
+  role: string;
+  content: string;
+  timestamp: string;
+  tags?: string[];
+  relatedSymbol?: string;
+}
+
+interface Trade {
+  id: string;
+  symbol: string;
+  side: 'BUY' | 'SELL';
+  price: number;
+  quantity: number;
+  total: number;
+  timestamp: string;
+  status: 'FILLED' | 'PENDING' | 'FAILED';
+  agentId: string;
+}
+
 interface DashboardData {
   timestamp: number;
   total_pnl: number;
   portfolio_balance: number;
   total_exposure: number;
-  agents: Array<{
-    id: string;
-    name: string;
-    pnl: number;
-    active_positions: number;
-    total_trades: number;
-  }>;
-  active_positions_count: number;
-  grok_overrides?: number;
+  agents: AgentMetrics[];
+  messages: ChatMessage[];
+  recentTrades: Trade[];
 }
 
 interface UseWebSocketReturn {
@@ -29,14 +57,17 @@ export const useDashboardWebSocket = (url?: string): UseWebSocketReturn => {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const wsUrl = url || `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/dashboard`;
+  // Backoff strategy for reconnection
+  const reconnectAttemptsRef = useRef(0);
+  const maxReconnectDelay = 30000; // 30 seconds
 
   const connect = () => {
     try {
-      // For development, connect to backend API
+      // Use provided URL or fallback to environment/default
       const backendUrl = import.meta.env.VITE_API_URL || 'wss://api.sapphiretrade.xyz';
       const fullWsUrl = url || `${backendUrl}/ws/dashboard`;
 
+      console.log(`🔌 Connecting to WebSocket: ${fullWsUrl}`);
       const ws = new WebSocket(fullWsUrl);
       wsRef.current = ws;
 
@@ -44,11 +75,16 @@ export const useDashboardWebSocket = (url?: string): UseWebSocketReturn => {
         console.log('✅ Dashboard WebSocket connected');
         setConnected(true);
         setError(null);
+        reconnectAttemptsRef.current = 0; // Reset attempts on success
       };
 
       ws.onmessage = (event) => {
         try {
           const update = JSON.parse(event.data);
+
+          // Transform raw API data to frontend format if needed
+          // For now assuming direct mapping, but we can add transformers here
+
           setData(update);
         } catch (e) {
           console.error('Failed to parse WebSocket message:', e);
@@ -58,18 +94,28 @@ export const useDashboardWebSocket = (url?: string): UseWebSocketReturn => {
       ws.onerror = (event) => {
         console.error('WebSocket error:', event);
         setError('Connection error');
-        setConnected(false);
+        // Don't set connected to false here, wait for onclose
       };
 
-      ws.onclose = () => {
-        console.log('🔴 Dashboard WebSocket disconnected');
+      ws.onclose = (event) => {
+        console.log(`🔴 Dashboard WebSocket disconnected: ${event.code} ${event.reason}`);
         setConnected(false);
 
-        // Attempt to reconnect after 5 seconds
+        // Calculate exponential backoff with jitter
+        const baseDelay = 1000;
+        const exponentialDelay = Math.min(
+          maxReconnectDelay,
+          baseDelay * Math.pow(1.5, reconnectAttemptsRef.current)
+        );
+        const jitter = Math.random() * 1000;
+        const delay = exponentialDelay + jitter;
+
+        reconnectAttemptsRef.current += 1;
+
+        console.log(`🔄 Reconnecting in ${Math.round(delay)}ms (Attempt ${reconnectAttemptsRef.current})...`);
         reconnectTimeoutRef.current = setTimeout(() => {
-          console.log('🔄 Attempting to reconnect...');
           connect();
-        }, 5000);
+        }, delay);
       };
     } catch (e) {
       console.error('Failed to create WebSocket connection:', e);
@@ -85,10 +131,12 @@ export const useDashboardWebSocket = (url?: string): UseWebSocketReturn => {
         clearTimeout(reconnectTimeoutRef.current);
       }
       if (wsRef.current) {
+        // Clean close
+        wsRef.current.onclose = null;
         wsRef.current.close();
       }
     };
-  }, [wsUrl]);
+  }, [url]);
 
   return { data, connected, error };
 };

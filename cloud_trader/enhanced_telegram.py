@@ -29,6 +29,7 @@ from .ai_analyzer import AITradingAnalyzer
 from .config import Settings
 from .market_sentiment import MarketSentimentAnalyzer
 from .risk_analyzer import RiskAnalyzer
+from .analytics.performance import PerformanceAnalyzer
 
 logger = logging.getLogger(__name__)
 
@@ -182,6 +183,7 @@ class EnhancedTelegramService:
         ai_analyzer: Optional[AITradingAnalyzer] = None,
         sentiment_analyzer: Optional[MarketSentimentAnalyzer] = None,
         risk_analyzer: Optional[RiskAnalyzer] = None,
+        performance_analyzer: Optional[PerformanceAnalyzer] = None,
     ):
         self.bot = Bot(token=bot_token)
         self.chat_id = chat_id
@@ -191,6 +193,7 @@ class EnhancedTelegramService:
         self.ai_analyzer = ai_analyzer
         self.sentiment_analyzer = sentiment_analyzer
         self.risk_analyzer = risk_analyzer
+        self.performance_analyzer = performance_analyzer or PerformanceAnalyzer()
 
         # Smart throttling and batching
         self.throttler = SmartNotificationThrottler()
@@ -439,7 +442,9 @@ class EnhancedTelegramService:
         message += f"• Total P&L: `${metrics.get('total_pnl', 0):.2f}`\n"
         message += f"• Sharpe Ratio: {metrics.get('sharpe_ratio', 0):.2f}\n"
         message += f"• Max Drawdown: {metrics.get('max_drawdown', 0):.1%}\n"
-        message += f"• Total Volume: `${metrics.get('total_volume', 0):.0f}`\n\n"
+        # Fix volume formatting if it's None
+        total_volume = metrics.get('total_volume', 0) or 0
+        message += f"• Total Volume: `${total_volume:.0f}`\n\n"
 
         # AI commentary
         if ai_commentary:
@@ -581,7 +586,13 @@ class EnhancedTelegramService:
             "3. 🚀 BUY SOL/USDT @ $98.45\n"
             "   Qty: 10.2 | Notional: $1,005\n"
             "   AI: Breakout above key level\n\n"
-            "[Showing 3 of 5 trades]"
+            "4. 🚀 BUY XRP/USDT @ $0.55\n"
+            "   Qty: 1500 | Notional: $825\n"
+            "   AI: Volume spike detected\n\n"
+            "5. 📉 SELL ADA/USDT @ $0.48\n"
+            "   Qty: 2000 | Notional: $960\n"
+            "   P&L: -$12.50 | AI: Stop loss triggered\n\n"
+            "[Showing 5 of 5 trades]"
         )
 
         keyboard = [
@@ -669,9 +680,9 @@ class EnhancedTelegramService:
             "• Profit taking opportunity (6h ago)\n\n"
             "**Alert Settings:**\n"
             "• Risk Alerts: 🔔 Enabled\n"
-            "• Trade Alerts: 🔔 Enabled\n"
+            "• Trade Notifications: 🔔 Enabled\n"
             "• Market Alerts: 🔕 Disabled\n"
-            "• Performance Alerts: 🔔 Enabled"
+            "• Performance Reports: 🔔 Enabled"
         )
 
         keyboard = [
@@ -802,26 +813,37 @@ class EnhancedTelegramService:
     # Scheduled Tasks
     async def _send_daily_summary(self, context: ContextTypes.DEFAULT_TYPE):
         """Send daily performance summary."""
-        # Mock data - would integrate with actual trading service
-        daily_metrics = {
-            "total_trades": 5,
-            "win_rate": 0.8,
-            "total_pnl": 127.45,
-            "sharpe_ratio": 2.34,
-            "max_drawdown": 0.021,
-            "total_volume": 5032.0,
-            "recommendations": [
-                "Maintain current risk parameters",
-                "Consider increasing BTC exposure",
-                "Monitor ETH for breakout continuation",
-            ],
-        }
-
-        ai_commentary = (
-            "Today's performance shows strong execution with 80% win rate. "
-            "The Sharpe ratio of 2.34 indicates excellent risk-adjusted returns. "
-            "Continue with current strategy while monitoring for increased volatility."
-        )
+        # Get actual metrics if analyzer available
+        if self.performance_analyzer:
+            try:
+                # TODO: Fetch yesterday's trades from database via analyzer
+                # For now, use mock or in-memory data
+                daily_metrics = self.performance_analyzer.calculate_metrics([])
+                ai_commentary = "Daily analysis pending database integration."
+            except Exception as e:
+                logger.error(f"Failed to calculate daily metrics: {e}")
+                daily_metrics = {}
+                ai_commentary = "Error calculating metrics."
+        else:
+            # Fallback mock data
+            daily_metrics = {
+                "total_trades": 5,
+                "win_rate": 0.8,
+                "total_pnl": 127.45,
+                "sharpe_ratio": 2.34,
+                "max_drawdown": 0.021,
+                "total_volume": 5032.0,
+                "recommendations": [
+                    "Maintain current risk parameters",
+                    "Consider increasing BTC exposure",
+                    "Monitor ETH for breakout continuation",
+                ],
+            }
+            ai_commentary = (
+                "Today's performance shows strong execution with 80% win rate. "
+                "The Sharpe ratio of 2.34 indicates excellent risk-adjusted returns. "
+                "Continue with current strategy while monitoring for increased volatility."
+            )
 
         await self.send_performance_summary("daily", daily_metrics, ai_commentary)
 
@@ -871,6 +893,7 @@ async def create_enhanced_telegram_service(
     ai_analyzer: Optional[AITradingAnalyzer] = None,
     sentiment_analyzer: Optional[MarketSentimentAnalyzer] = None,
     risk_analyzer: Optional[RiskAnalyzer] = None,
+    performance_analyzer: Optional[PerformanceAnalyzer] = None,
 ) -> Optional[EnhancedTelegramService]:
     """Create enhanced Telegram service with AI capabilities."""
     if not (settings.telegram_bot_token and settings.telegram_chat_id):
@@ -884,6 +907,7 @@ async def create_enhanced_telegram_service(
             ai_analyzer=ai_analyzer,
             sentiment_analyzer=sentiment_analyzer,
             risk_analyzer=risk_analyzer,
+            performance_analyzer=performance_analyzer,
         )
 
         logger.info("Enhanced Telegram AI bot service created")

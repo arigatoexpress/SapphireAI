@@ -162,7 +162,7 @@ AGENT_DEFINITIONS: List[Dict[str, Any]] = [
         "adaptive_leverage": True,
         "intelligence_tp_sl": True,
         "max_leverage_limit": 12.0,
-        "min_position_size_pct": 0.02,
+        "min_position_size_pct": 0.08,  # Increased to ensure $8+ orders with $100 capital
         "max_position_size_pct": 0.25,
         "risk_tolerance": "high",
         "time_horizon": "very_short",
@@ -185,7 +185,7 @@ AGENT_DEFINITIONS: List[Dict[str, Any]] = [
         "adaptive_leverage": True,
         "intelligence_tp_sl": True,
         "max_leverage_limit": 10.0,
-        "min_position_size_pct": 0.015,
+        "min_position_size_pct": 0.08,  # Increased to ensure $8+ orders with $100 capital
         "max_position_size_pct": 0.22,
         "risk_tolerance": "moderate",
         "time_horizon": "short",
@@ -208,7 +208,7 @@ AGENT_DEFINITIONS: List[Dict[str, Any]] = [
         "adaptive_leverage": True,
         "intelligence_tp_sl": True,
         "max_leverage_limit": 14.0,
-        "min_position_size_pct": 0.018,
+        "min_position_size_pct": 0.08,  # Increased to ensure $8+ orders with $100 capital
         "max_position_size_pct": 0.28,
         "risk_tolerance": "high",
         "time_horizon": "short_medium",
@@ -231,7 +231,7 @@ AGENT_DEFINITIONS: List[Dict[str, Any]] = [
         "adaptive_leverage": True,
         "intelligence_tp_sl": True,
         "max_leverage_limit": 11.0,
-        "min_position_size_pct": 0.016,
+        "min_position_size_pct": 0.08,  # Increased to ensure $8+ orders with $100 capital
         "max_position_size_pct": 0.24,
         "risk_tolerance": "moderate_high",
         "time_horizon": "medium",
@@ -254,7 +254,7 @@ AGENT_DEFINITIONS: List[Dict[str, Any]] = [
         "adaptive_leverage": True,
         "intelligence_tp_sl": True,
         "max_leverage_limit": 16.0,
-        "min_position_size_pct": 0.012,
+        "min_position_size_pct": 0.08,  # Increased to ensure $8+ orders with $100 capital
         "max_position_size_pct": 0.20,
         "risk_tolerance": "high",
         "time_horizon": "very_short",
@@ -277,7 +277,7 @@ AGENT_DEFINITIONS: List[Dict[str, Any]] = [
         "adaptive_leverage": True,
         "intelligence_tp_sl": True,  # AI-powered take profit/stop loss
         "max_leverage_limit": 30.0,
-        "min_position_size_pct": 0.01,
+        "min_position_size_pct": 0.08,  # Increased to ensure $8+ orders with $100 capital
         "max_position_size_pct": 0.10,
         "risk_tolerance": "very_high",
         "time_horizon": "very_short",
@@ -489,6 +489,9 @@ class TradingService:
         # standard agent logic here.
         await self._execute_all_agents()
 
+    async def _fetch_historical_klines(
+        self, symbol: str, interval: str = "1h", limit: int = 100
+    ) -> Optional[Any]:
         """Fetch historical kline data for technical analysis with caching."""
         # Check cache first
         if self._cache:
@@ -936,12 +939,28 @@ class TradingService:
         min_notional = filters.get("min_notional", Decimal("0"))
         if min_notional > 0 and notional_dec < min_notional:
             logger.info(
-                "Notional %.2f below exchange minimum %.2f for %s; skipping",
+                "Notional %.2f below exchange minimum %.2f for %s; attempting to adjust up to minimum",
                 desired_notional,
                 float(min_notional),
                 symbol,
             )
-            return None
+            # Adjust logic: if the desired notional is at least 50% of min_notional, scale it up
+            if notional_dec >= min_notional * Decimal("0.5"):
+                notional_dec = min_notional * Decimal("1.05") # Add 5% buffer
+                logger.info(
+                    "Adjusted notional to %.2f to meet minimum %.2f for %s",
+                    float(notional_dec),
+                    float(min_notional),
+                    symbol
+                )
+            else:
+                logger.warning(
+                    "Notional %.2f is too far below minimum %.2f for %s; skipping",
+                    desired_notional,
+                    float(min_notional),
+                    symbol
+                )
+                return None
 
         step = filters.get("step_size", Decimal("1"))
         min_qty = filters.get("min_qty", Decimal("0"))

@@ -29,7 +29,7 @@ spec:
       serviceAccountName: {{ include "trading-system.serviceAccountName" . }}
       containers:
         - name: mcp-coordinator
-          image: {{ .Values.global.imageRegistry }}/{{ .Values.global.projectId }}/{{ .Values.mcpCoordinator.image.repository }}:{{ .Values.mcpCoordinator.image.tag }}
+          image: {{ .Values.customImageRegistry }}/{{ .Values.global.projectId }}/{{ .Values.mcpCoordinator.image.repository }}:{{ .Values.mcpCoordinator.image.tag }}
           imagePullPolicy: {{ .Values.global.imagePullPolicy }}
           command: ["python", "-m", "cloud_trader.mcp_coordinator"]
           ports:

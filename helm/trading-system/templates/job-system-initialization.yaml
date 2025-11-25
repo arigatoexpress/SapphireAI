@@ -20,7 +20,7 @@ spec:
       restartPolicy: Never
       containers:
         - name: system-initializer
-          image: {{ .Values.global.imageRegistry }}/{{ .Values.global.projectId }}/{{ .Values.systemInitialization.image.repository }}:{{ .Values.systemInitialization.image.tag }}
+          image: {{ .Values.customImageRegistry }}/{{ .Values.global.projectId }}/{{ .Values.systemInitialization.image.repository }}:{{ .Values.systemInitialization.image.tag }}
           imagePullPolicy: {{ .Values.global.imagePullPolicy }}
           command: ["python3", "/app/system_initializer.py"]
           env:

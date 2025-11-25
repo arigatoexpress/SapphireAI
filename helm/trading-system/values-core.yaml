@@ -3,9 +3,12 @@
 # Use this for staged deployment: deploy core first, then add agents
 
 global:
-  imageRegistry: us-central1-docker.pkg.dev
+  imageRegistry: ""  # Empty to allow subcharts to use their defaults
   projectId: sapphireinfinite
   imagePullPolicy: Always
+
+# Custom image registry for our cloud-trader images
+customImageRegistry: us-central1-docker.pkg.dev
 
 # Global readiness probe configuration for AI agent warm-up
 readinessProbe:
@@ -46,6 +49,11 @@ redis:
   architecture: standalone
   auth:
     enabled: true
+    password: "sapphire-redis-pass"
+  image:
+    registry: docker.io
+    repository: bitnami/redis
+    tag: 7.2-debian-12
   master:
     resources:
       requests:
@@ -57,7 +65,7 @@ redis:
   replica:
     replicaCount: 0  # No replicas for minimal deployment
   metrics:
-    enabled: true
+    enabled: false  # Disable metrics exporter to avoid image pull issues
   persistence:
     enabled: true
     size: 4Gi  # Smaller size for core deployment

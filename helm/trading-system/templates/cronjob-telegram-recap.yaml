@@ -24,7 +24,7 @@ spec:
           serviceAccountName: {{ include "trading-system.serviceAccountName" . }}
           containers:
           - name: telegram-recap
-            image: {{ .Values.global.imageRegistry }}/{{ .Values.global.projectId }}/{{ .Values.cloudTrader.image.repository }}:{{ .Values.cloudTrader.image.tag }}
+            image: {{ .Values.customImageRegistry }}/{{ .Values.global.projectId }}/{{ .Values.cloudTrader.image.repository }}:{{ .Values.cloudTrader.image.tag }}
             imagePullPolicy: {{ .Values.global.imagePullPolicy }}
             command: ["python3", "/scripts/recap.py"]
             volumeMounts:

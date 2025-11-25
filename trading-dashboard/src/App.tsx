@@ -1,138 +1,140 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { ThemeProvider } from '@mui/material/styles';
-import { CssBaseline, Box, Typography } from '@mui/material';
-import { TradingProvider } from './contexts/TradingContext';
-import Navbar from './components/Navbar';
-import AnimatedBackground from './components/AnimatedBackground';
-import Dashboard from './pages/Dashboard';
-import Portfolio from './pages/Portfolio';
-import Agents from './pages/Agents';
-import Analytics from './pages/Analytics';
-import MissionControl from './pages/MissionControl';
-import Workflow from './pages/Workflow';
-import { mobileTheme } from './theme/mobileOptimizedTheme';
+import React, { useState, useEffect } from 'react';
+import { AppShell } from './layouts/AppShell';
+import { BotPerformanceBoard } from './components/BotPerformanceBoard';
+import { LiveAgentChat } from './components/LiveAgentChat';
+import { TradeActivityFeed } from './components/TradeActivityFeed';
+import { useDashboardWebSocket } from './hooks/useWebSocket';
 
-// Using enhanced futuristic theme with optimal readability and contrast
+// Mock data for initial render
+const MOCK_BOTS = [
+  {
+    id: 'trend-momentum-agent',
+    name: 'Trend Momentum',
+    emoji: '⚡',
+    pnl: 12.45,
+    pnlPercent: 12.45,
+    allocation: 100,
+    activePositions: 2,
+    history: [
+      { time: '00:00', value: 100 },
+      { time: '04:00', value: 102 },
+      { time: '08:00', value: 101 },
+      { time: '12:00', value: 108 },
+      { time: '16:00', value: 112.45 },
+    ]
+  },
+  {
+    id: 'financial-sentiment-agent',
+    name: 'Sentiment Analysis',
+    emoji: '💭',
+    pnl: -2.30,
+    pnlPercent: -2.30,
+    allocation: 100,
+    activePositions: 1,
+    history: [
+      { time: '00:00', value: 100 },
+      { time: '04:00', value: 99 },
+      { time: '08:00', value: 98 },
+      { time: '12:00', value: 98.5 },
+      { time: '16:00', value: 97.7 },
+    ]
+  },
+  {
+    id: 'market-prediction-agent',
+    name: 'Market Prediction',
+    emoji: '🔮',
+    pnl: 5.10,
+    pnlPercent: 5.10,
+    allocation: 100,
+    activePositions: 0,
+    history: [
+      { time: '00:00', value: 100 },
+      { time: '04:00', value: 101 },
+      { time: '08:00', value: 103 },
+      { time: '12:00', value: 104 },
+      { time: '16:00', value: 105.1 },
+    ]
+  },
+];
 
+const MOCK_MESSAGES = [
+  {
+    id: '1',
+    agentId: 'trend-momentum-agent',
+    agentName: 'Trend Momentum',
+    role: 'ANALYSIS',
+    content: 'BTCUSDT showing strong bullish divergence on 15m timeframe. RSI oversold.',
+    timestamp: new Date().toISOString(),
+    tags: ['technical', 'bullish'],
+    relatedSymbol: 'BTCUSDT'
+  },
+  {
+    id: '2',
+    agentId: 'financial-sentiment-agent',
+    agentName: 'Sentiment Analysis',
+    role: 'CONFIRMATION',
+    content: 'Social sentiment score +0.85. High volume of positive mentions on X regarding ETF inflows.',
+    timestamp: new Date().toISOString(),
+    tags: ['sentiment', 'news'],
+    relatedSymbol: 'BTCUSDT'
+  },
+  {
+    id: '3',
+    agentId: 'system',
+    agentName: 'System',
+    role: 'DECISION',
+    content: 'Consensus reached: BUY BTCUSDT. Confidence: 0.88',
+    timestamp: new Date().toISOString(),
+  }
+];
 
-function AppContent() {
-  return (
-    <Router>
-      <AnimatedBackground />
-      <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'transparent' }}>
-        <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-          <Navbar />
-          <Box
-            component="main"
-            sx={{
-              flexGrow: 1,
-              p: { xs: 2, sm: 3 },
-              overflow: 'auto',
-              background: 'transparent',
-            }}
-          >
-            <Routes>
-              <Route path="/" element={<Analytics />} />
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/portfolio" element={<Portfolio />} />
-              <Route path="/agents" element={<Agents />} />
-              <Route path="/analytics" element={<Analytics />} />
-              <Route path="/mission-control" element={<MissionControl />} />
-              <Route path="/workflow" element={<Workflow />} />
-              <Route path="*" element={<Navigate to="/" />} />
-            </Routes>
-
-            {/* Professional System Footer */}
-            <Box
-              component="footer"
-              sx={{
-                mt: 'auto',
-                py: { xs: 2, sm: 3 },
-                px: { xs: 2, sm: 3 },
-                borderTop: '1px solid rgba(0, 212, 170, 0.2)',
-                background: 'linear-gradient(135deg, rgba(0, 0, 0, 0.6) 0%, rgba(26, 26, 26, 0.8) 100%)',
-                backdropFilter: 'blur(20px)',
-                textAlign: 'center'
-              }}
-            >
-              <Box sx={{ mb: { xs: 1.5, sm: 2 } }}>
-                <Typography
-                  variant="h6"
-                  sx={{
-                    fontWeight: 700,
-                    fontSize: { xs: '1rem', sm: '1.2rem' },
-                    background: 'linear-gradient(135deg, #00d4aa 0%, #00f5d4 50%, #8a2be2 100%)',
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    mb: 1.5,
-                    letterSpacing: '0.5px'
-                  }}
-                >
-                  🤖 INSTITUTIONAL-GRADE AI TRADING
-                </Typography>
-                <Typography
-                  variant="body2"
-                  sx={{
-                    color: 'rgba(255, 255, 255, 0.85)',
-                    fontSize: { xs: '0.85rem', sm: '0.9rem' },
-                    fontWeight: 500,
-                    mb: 1.5,
-                    lineHeight: 1.4
-                  }}
-                >
-                  Multi-Agent Consensus Intelligence • Sub-2μs Latency • Enterprise Risk Management
-                </Typography>
-              </Box>
-
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 1 }}>
-                <Typography
-                  variant="body2"
-                  sx={{
-                    color: 'rgba(255, 255, 255, 0.9)',
-                    fontSize: { xs: '0.85rem', sm: '0.95rem' },
-                    fontWeight: 600,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 0.5
-                  }}
-                >
-                  <span style={{ color: '#00d4aa' }}>⚡</span>
-                  <strong style={{ color: '#00d4aa' }}>Sapphire AI</strong>
-                  <span style={{ color: 'rgba(255, 255, 255, 0.6)' }}>on</span>
-                  <strong style={{ color: '#8a2be2' }}>Aster DEX</strong>
-                  <span style={{ color: '#8a2be2' }}>🔷</span>
-                </Typography>
-              </Box>
-
-              <Typography
-                variant="caption"
-                sx={{
-                  color: 'rgba(255, 255, 255, 0.65)',
-                  fontSize: { xs: '0.7rem', sm: '0.75rem' },
-                  fontWeight: 400,
-                  fontStyle: 'italic',
-                  display: { xs: 'none', sm: 'block' },
-                  letterSpacing: '0.3px'
-                }}
-              >
-                Advanced Multi-Agent Coordination Protocol • Agent Network Signal Processing • Real-time Anomaly Detection
-              </Typography>
-            </Box>
-          </Box>
-        </Box>
-      </Box>
-    </Router>
-  );
-}
+const MOCK_TRADES = [
+  {
+    id: 't1',
+    symbol: 'BTCUSDT',
+    side: 'BUY',
+    type: 'MARKET',
+    price: 97450.20,
+    quantity: 0.0005,
+    total: 48.72,
+    timestamp: new Date().toISOString(),
+    status: 'FILLED',
+    agentId: 'trend-momentum-agent'
+  }
+] as const;
 
 function App() {
+  const { data, connected } = useDashboardWebSocket();
+  
+  // Use real data if available, otherwise fallback to mock for visual testing
+  const bots = data?.agents || MOCK_BOTS;
+  const messages = data?.messages || MOCK_MESSAGES;
+  const trades = data?.recentTrades || MOCK_TRADES;
+  
+  const totalValue = bots.reduce((acc: number, bot: any) => acc + bot.allocation + bot.pnl, 0);
+  const totalPnl = bots.reduce((acc: number, bot: any) => acc + bot.pnl, 0);
+  const pnlPercent = (totalPnl / 600) * 100; // Based on $600 initial capital
+
   return (
-    <ThemeProvider theme={mobileTheme}>
-      <CssBaseline />
-      <TradingProvider>
-        <AppContent />
-      </TradingProvider>
-    </ThemeProvider>
+    <AppShell connectionStatus={connected ? 'connected' : 'disconnected'}>
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        {/* Left Column: Performance & Trades */}
+        <div className="xl:col-span-2 space-y-6">
+          <BotPerformanceBoard 
+            bots={bots}
+            totalValue={totalValue}
+            dayChange={totalPnl}
+            dayChangePercent={pnlPercent}
+          />
+          <TradeActivityFeed trades={trades as any} />
+        </div>
+
+        {/* Right Column: Agent Chat */}
+        <div className="xl:col-span-1">
+          <LiveAgentChat messages={messages} />
+        </div>
+      </div>
+    </AppShell>
   );
 }
 

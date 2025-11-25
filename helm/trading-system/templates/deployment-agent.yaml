@@ -42,14 +42,34 @@ tolerations:
       serviceAccountName: {{ include "trading-system.serviceAccountName" $ }}
       containers:
         - name: cloud-trader
-          image: {{ $.Values.global.imageRegistry }}/{{ $.Values.global.projectId }}/{{ $agentConfig.image.repository }}:{{ $agentConfig.image.tag }}
+          image: {{ $.Values.customImageRegistry }}/{{ $.Values.global.projectId }}/{{ $agentConfig.image.repository }}:{{ $agentConfig.image.tag }}
           imagePullPolicy: {{ $.Values.global.imagePullPolicy }}
-          command: ["uvicorn", "cloud_trader.api:build_app", "--host", "0.0.0.0", "--port", "8080"]
+          command: ["python3", "start.py"]
           ports:
             - name: http
               containerPort: 8080
               protocol: TCP
           env:
+            - name: ASTER_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: cloud-trader-secrets
+                  key: ASTER_API_KEY
+            - name: ASTER_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: cloud-trader-secrets
+                  key: ASTER_SECRET_KEY
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: cloud-trader-secrets
+                  key: DATABASE_URL
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: cloud-trader-secrets
+                  key: DB_PASSWORD
             {{- include "trading-system.commonEnv" $ | nindent 12 }}
             - name: MCP_COORDINATOR_URL
               value: "http://{{ include "trading-system.fullname" $ }}-mcp-coordinator.trading.svc.cluster.local:{{ $.Values.mcpCoordinator.service.port }}"
@@ -76,6 +96,19 @@ tolerations:
               path: /healthz
               port: 8080
             {{- include "trading-system.readinessProbe" $ | nindent 12 }}
+        {{- if $.Values.database.enabled }}
+        - name: cloud-sql-proxy
+          image: gcr.io/cloudsql-docker/gce-proxy:1.33.2
+          command:
+            - "/cloud_sql_proxy"
+            - "-instances={{ $.Values.database.cloudSqlInstance }}=tcp:5432"
+          securityContext:
+            runAsNonRoot: true
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+        {{- end }}
 {{- end }}
 {{- end }}
 {{- end }}

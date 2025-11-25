@@ -38,7 +38,7 @@ spec:
       serviceAccountName: {{ include "trading-system.serviceAccountName" . }}
       containers:
         - name: cloud-trader
-          image: {{ .Values.global.imageRegistry }}/{{ .Values.global.projectId }}/{{ .Values.cloudTrader.image.repository }}:{{ .Values.cloudTrader.image.tag }}
+          image: {{ .Values.customImageRegistry }}/{{ .Values.global.projectId }}/{{ .Values.cloudTrader.image.repository }}:{{ .Values.cloudTrader.image.tag }}
           imagePullPolicy: {{ .Values.global.imagePullPolicy }}
           command: ["python3", "start.py"]
           ports:
@@ -46,6 +46,16 @@ spec:
               containerPort: {{ .Values.cloudTrader.service.port }}
               protocol: TCP
           env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: cloud-trader-secrets
+                  key: DATABASE_URL
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: cloud-trader-secrets
+                  key: DB_PASSWORD
             {{- include "trading-system.commonEnv" . | nindent 12 }}
             {{- with .Values.cloudTrader.env }}
             {{- toYaml . | nindent 12 }}
@@ -74,4 +84,24 @@ spec:
             periodSeconds: 30
             timeoutSeconds: 10
             failureThreshold: 10
+        {{- if .Values.database.enabled }}
+        - name: cloud-sql-proxy
+          image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.14.0
+          args:
+            - "--port=5432"
+            - "--health-check"
+            - "{{ .Values.database.cloudSqlInstance }}"
+          securityContext:
+            runAsNonRoot: true
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+          startupProbe:
+            httpGet:
+              path: /startup
+              port: 9090
+            failureThreshold: 30
+            periodSeconds: 2
+        {{- end }}
 {{- end }}

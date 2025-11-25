@@ -15,7 +15,7 @@ interface BotPerformance {
   avg_trade_size: number;
   best_trade: number;
   worst_trade: number;
-  equity_curve?: Array<{time: number, value: number}>;
+  equity_curve?: Array<{ time: number, value: number }>;
 }
 
 interface BotPerformanceComparisonProps {

@@ -86,9 +86,16 @@ class TradingLogger:
 
     def _configure_standard_logging(self, log_level: str):
         """Configure standard Python logging with JSON formatter."""
-        # Create logs directory
-        log_dir = Path("/app/logs") if Path("/app").exists() else Path("./logs")
-        log_dir.mkdir(exist_ok=True)
+        # Create logs directory - use /tmp for container environments to avoid permission issues
+        if Path("/app").exists():
+            log_dir = Path("/tmp/app-logs")
+        else:
+            log_dir = Path("./logs")
+        try:
+            log_dir.mkdir(exist_ok=True, parents=True)
+        except PermissionError:
+            log_dir = Path("/tmp/app-logs")
+            log_dir.mkdir(exist_ok=True, parents=True)
 
         # JSON formatter for structured logs
         json_formatter = jsonlogger.JsonFormatter(

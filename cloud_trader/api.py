@@ -2388,10 +2388,15 @@ async def dashboard_websocket(websocket: WebSocket) -> None:
         while True:
             await asyncio.sleep(2)
             live_data = await get_live_dashboard_data()
+            
+            # Add trade execution events if available in a buffer
+            # trade_events = trading_service.get_recent_trade_events(last_poll_time)
+            # live_data["trade_events"] = trade_events
+            
             await websocket.send_json(live_data)
 
     except Exception as exc:
-        logger.info("Dashboard WebSocket disconnected")
+        logger.info(f"Dashboard WebSocket disconnected: {exc}")
     finally:
         logger.info("Dashboard WebSocket connection closed")
 

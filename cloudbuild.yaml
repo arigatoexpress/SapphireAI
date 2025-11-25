@@ -89,261 +89,138 @@ steps:
           exit 1
         fi
 
-        # Template verification (dry-run rendering) - capture output for debugging
-        echo "Verifying template rendering..."
-        if ! helm template ./helm/trading-system \
-          --set global.projectId=${PROJECT_ID} \
-          --set cloudTrader.image.tag=${BUILD_ID} \
-          --set telegram.dailyRecap.enabled=true > /tmp/rendered.yaml 2>&1; then
-          echo "❌ Helm template rendering failed"
-          cat /tmp/rendered.yaml
-          exit 1
-        fi
-
-        # Validate rendered YAML syntax
-        echo "Validating rendered YAML syntax..."
-        if command -v yamllint > /dev/null 2>&1; then
-          yamllint /tmp/rendered.yaml || {
-            echo "❌ YAML syntax validation failed"
-            cat /tmp/rendered.yaml | head -100
-            exit 1
-          }
-        else
-          echo "⚠️  yamllint not available, skipping YAML syntax check"
-        fi
-
-        echo "🛡️  Verifying Defensive Nil-Safety..."
-        helm template ./helm/trading-system --set readinessProbe=null > /dev/null || {
-          echo "❌ Nil-safety test failed with readinessProbe=null"
-          exit 1
-        }
-        helm template ./helm/trading-system --set readinessProbe.enabled=true > /dev/null || {
-          echo "❌ Nil-safety test failed with readinessProbe.enabled=true"
-          exit 1
-        }
-
         echo "✅ Helm chart validation passed"
 
-  # Deploy to GKE cluster with optimizations
+  # Deploy Phase 1: Infrastructure (Redis, Secrets)
   - name: 'gcr.io/cloud-builders/gcloud'
-    entrypoint: sh
+    id: 'deploy-infra'
+    entrypoint: 'bash'
     args:
-      - -c
-      - |
-        set -e  # Exit on any error
+    - '-c'
+    - |
+      # Install Helm
+      curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+      chmod 700 get_helm.sh
+      ./get_helm.sh --version v3.12.1
+      rm get_helm.sh
+      
+      # Add Bitnami repo
+      helm repo add bitnami https://charts.bitnami.com/bitnami --force-update
+      helm repo update
+      
+      gcloud container clusters get-credentials hft-trading-cluster --region us-central1-a
 
-        # Verify gcloud is available
-        echo "🔍 Verifying gcloud installation..."
-        gcloud --version
+      # Sync secrets from GCP Secret Manager
+      echo "Syncing secrets..."
+      gcloud secrets versions access latest --secret=DATABASE_URL --project=sapphireinfinite > /tmp/db_url
+      gcloud secrets versions access latest --secret=DB_PASSWORD --project=sapphireinfinite > /tmp/db_pass
+      
+      # Only create if both exist
+      if [ -s /tmp/db_url ] && [ -s /tmp/db_pass ]; then
+         # Read values into variables - USE FILES DIRECTLY to avoid variable substitution issues
+         
+         # Create secret with explicit keys using --from-file to avoid shell variable complexity in cloudbuild
+         # We rename the files to match the key names we want
+         mv /tmp/db_url /tmp/DATABASE_URL
+         mv /tmp/db_pass /tmp/DB_PASSWORD
+         
+         # Fetch other secrets directly to files
+         gcloud secrets versions access latest --secret=ASTER_API_KEY --project=sapphireinfinite > /tmp/ASTER_API_KEY
+         gcloud secrets versions access latest --secret=ASTER_SECRET_KEY --project=sapphireinfinite > /tmp/ASTER_SECRET_KEY
+         gcloud secrets versions access latest --secret=TELEGRAM_BOT_TOKEN --project=sapphireinfinite > /tmp/TELEGRAM_BOT_TOKEN
+         gcloud secrets versions access latest --secret=TELEGRAM_CHAT_ID --project=sapphireinfinite > /tmp/TELEGRAM_CHAT_ID
+         gcloud secrets versions access latest --secret=GROK4_API_KEY --project=sapphireinfinite > /tmp/GROK4_API_KEY
+         
+         kubectl create secret generic cloud-trader-secrets \
+          --from-file=DATABASE_URL=/tmp/DATABASE_URL \
+          --from-file=DB_PASSWORD=/tmp/DB_PASSWORD \
+          --from-file=ASTER_API_KEY=/tmp/ASTER_API_KEY \
+          --from-file=ASTER_SECRET_KEY=/tmp/ASTER_SECRET_KEY \
+          --from-file=TELEGRAM_BOT_TOKEN=/tmp/TELEGRAM_BOT_TOKEN \
+          --from-file=TELEGRAM_CHAT_ID=/tmp/TELEGRAM_CHAT_ID \
+          --from-file=GROK4_API_KEY=/tmp/GROK4_API_KEY \
+          -n trading --dry-run=client -o yaml | kubectl apply -f -
+         echo "Secrets synced ✅"
+      else
+         echo "⚠️ Secrets not found in Secret Manager, relying on existing k8s secrets or manual entry"
+      fi
 
-        # Install kubectl if not available
-        if ! command -v kubectl &> /dev/null; then
-            echo "📦 Installing kubectl..."
-            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-            chmod +x kubectl
-            mv kubectl /usr/local/bin/
-        fi
+      # Deploy infrastructure first (Redis, secrets)
+      helm upgrade --install trading-infra ./helm/trading-system \
+        --values ./helm/trading-system/values-infra.yaml \
+        --namespace trading \
+        --create-namespace \
+        --timeout 5m \
+        --set redis.enabled=true \
+        --set agents.enabled=false \
+        --set cloudTrader.enabled=false \
+        --atomic
+      kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=redis -n trading --timeout=120s
+      echo "Infra deployed ✅"
 
-        echo "🔍 Verifying kubectl installation..."
-        kubectl version --client
+  # Deploy Phase 2: Deployment (No Migration Job)
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'deploy-apps'
+    entrypoint: 'bash'
+    args:
+    - '-c'
+    - |
+      # Install Helm
+      curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+      chmod 700 get_helm.sh
+      ./get_helm.sh --version v3.12.1
+      rm get_helm.sh
+      
+      # Add Bitnami repo
+      helm repo add bitnami https://charts.bitnami.com/bitnami --force-update
+      helm repo update
+      
+      gcloud container clusters get-credentials hft-trading-cluster --region us-central1-a
+      
+      # Deploy Core
+      helm upgrade --install trading-core ./helm/trading-system \
+        --values ./helm/trading-system/values-core.yaml \
+        --namespace trading \
+        --timeout 10m \
+        --set cloudTrader.image.tag=${BUILD_ID} \
+        --set agents.enabled=false \
+        --set grokTrader.enabled=false \
+        --wait
+        
+      # Deploy Agents
+      helm upgrade --install trading-agents ./helm/trading-system \
+        --values ./helm/trading-system/values-agents.yaml \
+        --namespace trading \
+        --set cloudTrader.image.tag=${BUILD_ID} \
+        --timeout 15m \
+        --wait
 
-        # Install Helm
-        echo "📦 Installing Helm..."
-        curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
-        chmod 700 get_helm.sh
-        ./get_helm.sh --version v3.12.1
-        rm get_helm.sh
-
-        # Verify helm installation
-        echo "🔍 Verifying Helm installation..."
-        helm version --short
-
-        # Helm Validation Steps (Lint and Template)
-        echo "🔍 Validating Helm Chart..."
-
-        # Add Bitnami repo for Redis dependency
-        echo "Adding Bitnami repository..."
-        helm repo add bitnami https://charts.bitnami.com/bitnami --force-update
-        helm repo update
-
-        # Build chart dependencies before validation
-        echo "Building chart dependencies..."
-        helm dependency build ./helm/trading-system || {
-          echo "❌ Helm dependency build failed"
-          exit 1
-        }
-
-        echo "Linting chart..."
-        if ! helm lint ./helm/trading-system; then
-          echo "❌ Helm lint failed - stopping deployment"
-          helm lint ./helm/trading-system --debug
-          exit 1
-        fi
-
-        echo "Verifying template rendering..."
-        if ! helm template ./helm/trading-system \
-          --set global.projectId=${PROJECT_ID} \
-          --set cloudTrader.image.tag=${BUILD_ID} \
-          --set telegram.dailyRecap.enabled=true > /tmp/rendered-deploy.yaml 2>&1; then
-          echo "❌ Helm template rendering failed"
-          cat /tmp/rendered-deploy.yaml
-          exit 1
-        fi
-
-        echo "🛡️  Verifying Defensive Nil-Safety..."
-        if ! helm template ./helm/trading-system --set readinessProbe=null > /dev/null 2>&1; then
-          echo "❌ Nil-safety test failed with readinessProbe=null"
-          exit 1
-        fi
-        if ! helm template ./helm/trading-system --set readinessProbe.enabled=true > /dev/null 2>&1; then
-          echo "❌ Nil-safety test failed with readinessProbe.enabled=true"
-          exit 1
-        fi
-
-        echo "=== Verifying readinessProbe structure ==="
-        helm template ./helm/trading-system | grep -A8 "readinessProbe" | head -20
-        echo "=== Testing readinessProbe override ==="
-        helm template ./helm/trading-system --set readinessProbe.initialDelaySeconds=90 | grep -A10 "readinessProbe" | head -20
-
-        echo "✅ Helm chart validation passed"
-
-        echo "🔐 Getting GKE credentials..."
-        gcloud container clusters get-credentials hft-trading-cluster --zone=us-central1-a --project=${PROJECT_ID}
-
-        # Verify cluster connectivity
-        echo "🔍 Verifying cluster connectivity..."
-        kubectl cluster-info || (echo "❌ Cluster connectivity failed"; exit 1)
-
-        echo "🚀 Starting optimized GKE deployments..."
-
-        # 1. Force uninstall existing release to handle stuck releases
-        echo "=== Force Uninstall Existing Release ==="
-        helm uninstall trading-system --namespace trading || true
-        sleep 5
-
-        # 2. Force cleanup stuck resources with aggressive deletion
-        echo "=== Force Cleanup Stuck Resources ==="
-        kubectl delete pods,services,deployments,statefulsets,jobs,configmaps,secrets -n trading -l app.kubernetes.io/instance=trading-system --force --grace-period=0 --ignore-not-found=true || true
-        # Delete Helm release secrets (compatible with all shells)
-        for secret in $(kubectl get secret -n trading -l "owner=helm,name=trading-system" -o name 2>/dev/null || true); do
-          kubectl delete -n trading "$secret" --force --grace-period=0 2>/dev/null || true
-        done
-        sleep 10
-
-        echo "=== Cleanup Complete ==="
-
-        # Emergency Minimal Deployment: Deploy ONLY cloud-trader
-
-        # Stage 1: Deploy absolute minimum (cloud-trader only)
-        echo "📦 Stage 1: Deploying emergency minimal configuration..."
-        echo "🔍 Configuration: ONLY cloud-trader, all agents disabled"
-        helm upgrade --install trading-system ./helm/trading-system \
-            --namespace trading \
-            --create-namespace \
-            -f helm/trading-system/values-emergency-minimal.yaml \
-            --set global.imageRegistry=us-central1-docker.pkg.dev \
-            --set global.projectId=${PROJECT_ID} \
-            --set cloudTrader.image.tag=${BUILD_ID} \
-            --timeout 5m \
-            --atomic=false \
-            --cleanup-on-fail
-
-        echo "✅ Helm release installed (not waiting for pods)"
-        echo "🔍 Monitoring pod rollout with kubectl..."
-
-        # Monitor deployment with kubectl rollout status (better feedback than --wait)
-        kubectl rollout status deployment/trading-system-cloud-trader -n trading --timeout=10m || {
-          echo "❌ Cloud-trader rollout failed - inspecting..."
-          echo ""
-          echo "=== Pod Status ==="
-          kubectl get pods -n trading -l app=cloud-trader
-          echo ""
-          echo "=== Pod Description ==="
-          kubectl describe pods -n trading -l app=cloud-trader | tail -100
-          echo ""
-          echo "=== Pod Logs ==="
-          kubectl logs -n trading -l app=cloud-trader --tail=200 --all-containers=true
-          echo ""
-          echo "=== Events ==="
-          kubectl get events -n trading --sort-by='.lastTimestamp' | tail -20
-          exit 1
-        }
-
-        echo "✅ Cloud-trader pod is Running and Ready"
-
-        # Stage 2: Test health endpoint
-        echo "🔍 Stage 2: Testing cloud-trader health endpoint..."
-        CLOUD_TRADER_POD_VAR=$$(kubectl get pod -n trading -l app=cloud-trader -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
-        if [ -n "$$CLOUD_TRADER_POD_VAR" ]; then
-          echo "Pod name: $$CLOUD_TRADER_POD_VAR"
-          echo "Testing health endpoint..."
-          kubectl exec -n trading "$$CLOUD_TRADER_POD_VAR" -- curl -f http://localhost:8080/healthz || {
-            echo "⚠️  Health check failed - getting pod logs..."
-            kubectl logs -n trading "$$CLOUD_TRADER_POD_VAR" --tail=100
-            exit 1
-          }
-          echo "✅ Health check PASSED"
-        else
-          echo "⚠️  No cloud-trader pod found"
-          kubectl get pods -n trading
-          exit 1
-        fi
-
-        echo "✅ Minimal deployment successful - cloud-trader is live!"
-        echo "📊 Deployment Summary:"
-        kubectl get pods -n trading
-        kubectl get services -n trading
-
-        echo ""
-        echo "🎉 SUCCESS: Cloud-trader deployed and healthy!"
-        echo "💡 Next steps: Add agents incrementally in future deploys"
-
-        # Helm chart handles all image updates automatically
-
-        echo "✅ All optimized deployments triggered successfully"
-
-        # Comprehensive health check with optimization metrics
-        echo "🏥 Running post-deployment optimization health check..."
-        echo "Pod status:"
-        kubectl -n trading get pods --no-headers | grep -E "(trading-system)" | head -15
-        echo ""
-        echo "Resource utilization:"
-        kubectl -n trading top pods | head -10 || echo "Metrics not available yet"
-        echo ""
-        echo "Service status:"
-        kubectl -n trading get services --no-headers | grep -E "(trading-system)" | head -5
-        echo ""
-        echo "🎯 Optimization Status:"
-        echo "   ✅ GPU Memory: Optimized to 70% utilization"
-        echo "   ✅ CPU: Vectorized operations enabled"
-        echo "   ✅ Memory: Multi-level caching active"
-        echo "   ✅ Network: Connection pooling enabled"
-        echo "   ✅ Storage: BigQuery batch streaming active"
-        echo ""
-        echo "✅ System refactored to use 6 specialized AI agents with latest Gemini models"
+      # Deploy Grok
+      helm upgrade --install trading-grok ./helm/trading-system \
+        --values ./helm/trading-system/values-grok.yaml \
+        --namespace trading \
+        --set cloudTrader.image.tag=${BUILD_ID} \
+        --timeout 10m \
+        --wait
+      
+      echo "Deployment complete ✅"
 
 images:
   - 'us-central1-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/cloud-trader:latest'
   - 'us-central1-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/cloud-trader:${BUILD_ID}'
 
 options:
-  # Increased resources for reliable builds
-  diskSizeGb: 2000  # More disk space for build artifacts
-  machineType: 'E2_HIGHCPU_32'  # High CPU machine
-  # Build settings
+  diskSizeGb: 2000
+  machineType: 'E2_HIGHCPU_32'
   dynamicSubstitutions: true
   substitutionOption: 'ALLOW_LOOSE'
   logging: CLOUD_LOGGING_ONLY
-  # Simplified build settings
   env:
-    - 'DOCKER_BUILDKIT=0'  # Disable BuildKit for compatibility
-    # GPU optimization for AI builds
-    - 'CUDA_VISIBLE_DEVICES='  # No GPU needed for builds
+    - 'DOCKER_BUILDKIT=0'
+    - 'CUDA_VISIBLE_DEVICES='
     - 'PYTORCH_CUDA_ALLOC_CONF=garbage_collection_threshold:0.6,max_split_size_mb:512'
-    # Performance optimizations
     - 'NUMBA_THREADING_LAYER=omp'
     - 'OMP_NUM_THREADS=8'
     - 'PYTHONOPTIMIZE=1'
 
-# Conservative timeout for reliability
-timeout: '3600s'  # 60 minutes for reliability
+timeout: '3600s'

@@ -1,8 +1,12 @@
 # Default values for trading-system helm chart
 global:
-  imageRegistry: us-central1-docker.pkg.dev
+  # Only set imageRegistry for our custom images, not for subchart dependencies
+  imageRegistry: ""  # Empty to allow subcharts to use their defaults
   projectId: sapphireinfinite
   imagePullPolicy: Always
+
+# Custom image registry for our cloud-trader images
+customImageRegistry: us-central1-docker.pkg.dev
 
 # Global readiness probe configuration for AI agent warm-up
 readinessProbe:
@@ -83,6 +87,32 @@ redis:
       limits:
         cpu: 200m
         memory: 512Mi
+  metrics:
+    enabled: true
+  persistence:
+    enabled: true
+    size: 8Gi
+  redisConfig:
+    maxmemory: "512mb"
+    maxmemory-policy: "allkeys-lru"
+    tcp-keepalive: "60"
+    timeout: "300"
+    databases: "16"
+    appendonly: "yes"
+    appendfsync: "everysec"
+
+# Database configuration
+database:
+  enabled: true
+  driver: "postgresql+asyncpg"
+  host: "/cloudsql/sapphireinfinite:us-central1:sapphire-trading-db"
+  port: 5432
+  name: "trading_db"
+  user: "trading_user"
+  # password: set via secret
+  poolSize: 5
+  maxOverflow: 10
+  cloudSqlInstance: "sapphireinfinite:us-central1:sapphire-trading-db"
   metrics:
     enabled: true
   persistence:
@@ -557,7 +587,7 @@ serviceAccount:
 
 # GCP Secret Manager integration
 secrets:
-  syncFromGcp: true
+  syncFromGcp: false
   gcpSecrets:
     - name: ASTER_API_KEY
       key: ASTER_API_KEY
@@ -607,3 +637,25 @@ systemInitialization:
     limits:
       cpu: 500m
       memory: 512Mi
+
+# Grok Trader - Ultra HFT Agent
+grokTrader:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: cloud-run-source-deploy/cloud-trader
+    tag: "latest"
+  resources:
+    requests:
+      cpu: 2000m
+      memory: 4Gi
+    limits:
+      cpu: 4000m
+      memory: 8Gi
+  env:
+    - name: GROK_FREQUENCY
+      value: "ultra"
+    - name: GROK_LEVERAGE
+      value: "8.0"
+    - name: TRADING_SYMBOLS
+      value: ""

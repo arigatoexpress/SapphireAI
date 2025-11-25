@@ -368,3 +368,6 @@ zipp==3.23.0
 python-json-logger==2.0.7
     # via cloud-trader (pyproject.toml)
 matplotlib
+alembic>=1.12.0
+sqlalchemy>=2.0.0
+bandit

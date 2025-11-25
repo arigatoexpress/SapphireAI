@@ -46,6 +46,8 @@ WORKDIR /app
 # Copy Python packages from builder stage to system-wide location
 # pip install --target=/install creates a flat directory of packages
 COPY --from=builder /install /usr/local/lib/python3.11/site-packages
+# Binaries (like alembic) might be in /install/bin
+COPY --from=builder /install/bin /usr/local/bin
 
 # Copy application code with forced cache invalidation
 ARG CACHE_BUST
@@ -53,10 +55,14 @@ RUN echo "Cache bust: $CACHE_BUST"
 COPY --chown=trader:trader cloud_trader ./cloud_trader
 COPY --chown=trader:trader start.py ./
 COPY --chown=trader:trader pyproject.toml ./
+COPY --chown=trader:trader requirements.txt ./
+COPY --chown=trader:trader alembic.ini ./
 
 # Set environment and permissions
 # Ensure system site-packages are in PYTHONPATH for all Python invocations
+# Also ensure /usr/local/bin is in PATH
 ENV PYTHONPATH=/usr/local/lib/python3.11/site-packages:$PYTHONPATH \
+    PATH=/usr/local/bin:$PATH \
     PYTHONUNBUFFERED=1
 
 # Switch to non-root user

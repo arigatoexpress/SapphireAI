@@ -1,0 +1,10 @@
+# Agent deployment values
+global:
+  imageRegistry: ""
+  projectId: sapphireinfinite
+  imagePullPolicy: Always
+
+customImageRegistry: us-central1-docker.pkg.dev
+
+agents:
+  enabled: true
