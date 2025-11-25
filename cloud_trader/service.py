@@ -423,10 +423,19 @@ class TradingService:
         self._safeguards = TradingSafeguards(self._settings)
         self._storage: Optional[TradingStorage] = None
         self._feature_store: Optional[TradingFeatureStore] = None
+        # Initialize services with feature flags
         self._bigquery: Optional[BigQueryStreamer] = None
-        self._storage_ready: bool = False
-        self._feature_store_ready: bool = False
         self._bigquery_ready: bool = False
+        if self._settings.enable_pubsub:
+            try:
+                self._bigquery = get_bigquery_streamer(self._settings)
+                self._bigquery_ready = True
+            except Exception as e:
+                logger.warning(f"Failed to initialize BigQuery streamer: {e}")
+
+        # Telegram initialized lazily if enabled
+        if not self._settings.enable_telegram:
+            self._telegram = None
         self._pubsub_connected: bool = False
         self._peak_balance = self._portfolio.balance
         self._targets = {
@@ -946,19 +955,19 @@ class TradingService:
             )
             # Adjust logic: if the desired notional is at least 50% of min_notional, scale it up
             if notional_dec >= min_notional * Decimal("0.5"):
-                notional_dec = min_notional * Decimal("1.05") # Add 5% buffer
+                notional_dec = min_notional * Decimal("1.05")  # Add 5% buffer
                 logger.info(
                     "Adjusted notional to %.2f to meet minimum %.2f for %s",
                     float(notional_dec),
                     float(min_notional),
-                    symbol
+                    symbol,
                 )
             else:
                 logger.warning(
                     "Notional %.2f is too far below minimum %.2f for %s; skipping",
                     desired_notional,
                     float(min_notional),
-                    symbol
+                    symbol,
                 )
                 return None
 
@@ -1058,7 +1067,12 @@ class TradingService:
 
     async def _init_telegram(self) -> None:
         """Initialize enhanced Telegram notification service and AI components."""
-        # Skip Telegram initialization if not configured
+        # Skip Telegram initialization if disabled or not configured
+        if not self._settings.enable_telegram:
+            logger.info("Telegram notifications disabled by configuration")
+            self._telegram = None
+            return
+
         if not (self._settings.telegram_bot_token and self._settings.telegram_chat_id):
             logger.info("Telegram notifications disabled (token/chat_id not configured)")
             self._telegram = None

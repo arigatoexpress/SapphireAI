@@ -272,6 +272,8 @@ class Settings(BaseSettings):
         validation_alias="ENABLE_RL_STRATEGIES",
         description="Enable reinforcement learning strategies",
     )
+    enable_telegram: bool = Field(default=False, validation_alias="ENABLE_TELEGRAM")
+    enable_pubsub: bool = Field(default=False, validation_alias="ENABLE_PUBSUB")
 
     # Paper trading testnet configuration
     aster_testnet_api_key: str | None = Field(
