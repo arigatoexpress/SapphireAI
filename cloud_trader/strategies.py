@@ -549,6 +549,9 @@ class StrategySelector:
     """Manages multiple strategies and selects optimal strategy per symbol."""
 
     def __init__(self, enable_rl: bool = True):
+        # Initialize settings
+        self.settings = get_settings()
+
         # Initialize RL manager if enabled
         self.rl_manager = RLStrategyManager() if enable_rl else None
 
