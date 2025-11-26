@@ -35,7 +35,7 @@ from .circuit_breaker import (
 from .config import Settings, get_settings
 from .credentials import CredentialManager, load_credentials
 from .enhanced_telegram import EnhancedTelegramService, create_enhanced_telegram_service
-from .enums import OrderSide, OrderStatus
+from .enums import OrderSide, OrderStatus, OrderType
 from .exchange import (
     AsterClient,
     Execution,
@@ -1044,23 +1044,24 @@ class TradingService:
                 slippage_bps,
                 tolerance_bps,
             )
-            await self._streams.publish_reasoning(
-                {
-                    "bot_id": self._settings.bot_id,
-                    "symbol": symbol,
-                    "strategy": "execution_guard",
-                    "message": "slippage_rejection",
-                    "context": json.dumps(
-                        {
-                            "reference_price": round(reference_price, 6),
-                            "market_price": round(market_price, 6),
-                            "slippage_bps": round(slippage_bps, 2),
-                            "tolerance_bps": tolerance_bps,
-                        }
-                    ),
-                    "timestamp": datetime.utcnow().isoformat(),
-                }
-            )
+            if self._streams:
+                await self._streams.publish_reasoning(
+                    {
+                        "bot_id": self._settings.bot_id,
+                        "symbol": symbol,
+                        "strategy": "execution_guard",
+                        "message": "slippage_rejection",
+                        "context": json.dumps(
+                            {
+                                "reference_price": round(reference_price, 6),
+                                "market_price": round(market_price, 6),
+                                "slippage_bps": round(slippage_bps, 2),
+                                "tolerance_bps": tolerance_bps,
+                            }
+                        ),
+                        "timestamp": datetime.utcnow().isoformat(),
+                    }
+                )
             return False, market_price
 
         return True, market_price
@@ -1146,22 +1147,25 @@ class TradingService:
                 }
 
             try:
-                reasoning = await self._streams.publish_reasoning(
-                    {
-                        "bot_id": self._settings.bot_id,
-                        "symbol": "dashboard",
-                        "strategy": "snapshot",
-                        "message": "dashboard_snapshot_generated",
-                        "context": json.dumps(
-                            {
-                                "portfolio_balance": portfolio.get("balance"),
-                                "positions": len(portfolio.get("positions", {})),
-                                "timestamp": datetime.utcnow().isoformat(),
-                            }
-                        ),
-                        "timestamp": datetime.utcnow().isoformat(),
-                    }
-                )
+                if self._streams:
+                    reasoning = await self._streams.publish_reasoning(
+                        {
+                            "bot_id": self._settings.bot_id,
+                            "symbol": "dashboard",
+                            "strategy": "snapshot",
+                            "message": "dashboard_snapshot_generated",
+                            "context": json.dumps(
+                                {
+                                    "portfolio_balance": portfolio.get("balance"),
+                                    "positions": len(portfolio.get("positions", {})),
+                                    "timestamp": datetime.utcnow().isoformat(),
+                                }
+                            ),
+                            "timestamp": datetime.utcnow().isoformat(),
+                        }
+                    )
+                else:
+                    reasoning = None
             except Exception as exc:
                 logger.debug("Dashboard: failed to publish reasoning event: %s", exc)
                 reasoning = None
@@ -1616,9 +1620,14 @@ class TradingService:
         logger.info("Aster client initialized.")
 
         try:
-            await self._streams.connect()
-            self._pubsub_connected = self._streams.is_connected()
-            logger.info("PubSub client connected (ready=%s).", self._pubsub_connected)
+            if self._settings.enable_pubsub:
+                await self._streams.connect()
+                self._pubsub_connected = self._streams.is_connected()
+                logger.info("PubSub client connected (ready=%s).", self._pubsub_connected)
+            else:
+                logger.info("PubSub disabled by configuration.")
+                self._pubsub_connected = False
+
             await self._init_telegram()
             logger.info("Telegram service initialized.")
 
@@ -1860,22 +1869,23 @@ class TradingService:
 
                 # Map strategy signal to legacy decision format
                 if strategy_signal.direction == "HOLD":
-                    await self._streams.publish_reasoning(
-                        {
-                            "bot_id": self._settings.bot_id,
-                            "symbol": symbol,
-                            "strategy": strategy_signal.strategy_name,
-                            "message": "hold_position",
-                            "context": json.dumps(
-                                {
-                                    "reasoning": strategy_signal.reasoning,
-                                    "confidence": strategy_signal.confidence,
-                                    "metadata": strategy_signal.metadata,
-                                }
-                            ),
-                            "timestamp": datetime.utcnow().isoformat(),
-                        }
-                    )
+                    if self._streams:
+                        await self._streams.publish_reasoning(
+                            {
+                                "bot_id": self._settings.bot_id,
+                                "symbol": symbol,
+                                "strategy": strategy_signal.strategy_name,
+                                "message": "hold_position",
+                                "context": json.dumps(
+                                    {
+                                        "reasoning": strategy_signal.reasoning,
+                                        "confidence": strategy_signal.confidence,
+                                        "metadata": strategy_signal.metadata,
+                                    }
+                                ),
+                                "timestamp": datetime.utcnow().isoformat(),
+                            }
+                        )
                     continue
 
                 decision = strategy_signal.direction
@@ -2003,15 +2013,16 @@ class TradingService:
                 # Only send notifications for actual executed trades
 
                 if not self._bandit.allow(symbol):
-                    await self._streams.publish_reasoning(
-                        {
-                            "bot_id": self._settings.bot_id,
-                            "symbol": symbol,
-                            "strategy": "bandit",
-                            "message": "bandit_suppressed_trade",
-                            "timestamp": datetime.utcnow().isoformat(),
-                        }
-                    )
+                    if self._streams:
+                        await self._streams.publish_reasoning(
+                            {
+                                "bot_id": self._settings.bot_id,
+                                "symbol": symbol,
+                                "strategy": "bandit",
+                                "message": "bandit_suppressed_trade",
+                                "timestamp": datetime.utcnow().isoformat(),
+                            }
+                        )
                     continue
 
                 # Use Kelly Criterion for position sizing if enabled
@@ -2029,23 +2040,24 @@ class TradingService:
                             await self._telegram.send_message(alert_msg)
                         except Exception as exc:
                             logger.warning(f"Failed to send margin breach Telegram alert: {exc}")
-                    await self._streams.publish_reasoning(
-                        {
-                            "bot_id": agent_id_for_symbol,
-                            "symbol": symbol,
-                            "strategy": "margin",
-                            "message": "agent_margin_exceeded",
-                            "context": json.dumps(
-                                {
-                                    "requested_notional": round(notional, 2),
-                                    "remaining_margin": round(
-                                        self._get_agent_margin_remaining(agent_id_for_symbol), 2
-                                    ),
-                                }
-                            ),
-                            "timestamp": datetime.utcnow().isoformat(),
-                        }
-                    )
+                    if self._streams:
+                        await self._streams.publish_reasoning(
+                            {
+                                "bot_id": agent_id_for_symbol,
+                                "symbol": symbol,
+                                "strategy": "margin",
+                                "message": "agent_margin_exceeded",
+                                "context": json.dumps(
+                                    {
+                                        "requested_notional": round(notional, 2),
+                                        "remaining_margin": round(
+                                            self._get_agent_margin_remaining(agent_id_for_symbol), 2
+                                        ),
+                                    }
+                                ),
+                                "timestamp": datetime.utcnow().isoformat(),
+                            }
+                        )
                     continue
                 # Enhanced risk check with volatility awareness
                 volatility_estimate = getattr(strategy_signal, "volatility", 1.0)
@@ -2066,15 +2078,16 @@ class TradingService:
                             logger.warning(
                                 f"Failed to send position size risk Telegram alert: {exc}"
                             )
-                    await self._streams.publish_reasoning(
-                        {
-                            "bot_id": self._settings.bot_id,
-                            "symbol": symbol,
-                            "strategy": "risk",
-                            "message": "risk_limit_block",
-                            "timestamp": datetime.utcnow().isoformat(),
-                        }
-                    )
+                    if self._streams:
+                        await self._streams.publish_reasoning(
+                            {
+                                "bot_id": self._settings.bot_id,
+                                "symbol": symbol,
+                                "strategy": "risk",
+                                "message": "risk_limit_block",
+                                "timestamp": datetime.utcnow().isoformat(),
+                            }
+                        )
                     continue
 
                 TRADING_DECISIONS.labels(
@@ -2120,24 +2133,25 @@ class TradingService:
                     "trail_step": f"{trail_step:.4f}",
                     "timestamp": datetime.utcnow().isoformat(),
                 }
-                await self._streams.publish_decision(decision_event)
-                await self._streams.publish_reasoning(
-                    {
-                        "bot_id": self._settings.bot_id,
-                        "symbol": symbol,
-                        "strategy": "momentum",
-                        "message": "24h_change_crossed_threshold",
-                        "context": json.dumps(
-                            {
-                                "change_24h": round(snapshot.change_24h, 4),
-                                "take_profit": round(take_profit, 4),
-                                "stop_loss": round(stop_loss, 4),
-                                "trail_step": trail_step,
-                            }
-                        ),
-                        "timestamp": decision_event["timestamp"],
-                    }
-                )
+                if self._streams:
+                    await self._streams.publish_decision(decision_event)
+                    await self._streams.publish_reasoning(
+                        {
+                            "bot_id": self._settings.bot_id,
+                            "symbol": symbol,
+                            "strategy": "momentum",
+                            "message": "24h_change_crossed_threshold",
+                            "context": json.dumps(
+                                {
+                                    "change_24h": round(snapshot.change_24h, 4),
+                                    "take_profit": round(take_profit, 4),
+                                    "stop_loss": round(stop_loss, 4),
+                                    "trail_step": trail_step,
+                                }
+                            ),
+                            "timestamp": decision_event["timestamp"],
+                        }
+                    )
 
                 if self.paper_trading:
                     logger.info("[PAPER] %s %s @ %.2f", decision, symbol, snapshot.price)
@@ -4507,16 +4521,17 @@ The output should be a JSON object with these keys.
         positions = {
             symbol: position.notional for symbol, position in self._portfolio.positions.items()
         }
-        await self._streams.publish_position(
-            {
-                "bot_id": self._settings.bot_id,
-                "paper": str(self.paper_trading).lower(),
-                "balance": f"{self._portfolio.balance:.2f}",
-                "total_exposure": f"{self._portfolio.total_exposure:.2f}",
-                "positions": json.dumps(positions),
-                "timestamp": datetime.utcnow().isoformat(),
-            }
-        )
+        if self._streams:
+            await self._streams.publish_position(
+                {
+                    "bot_id": self._settings.bot_id,
+                    "paper": str(self.paper_trading).lower(),
+                    "balance": f"{self._portfolio.balance:.2f}",
+                    "total_exposure": f"{self._portfolio.total_exposure:.2f}",
+                    "positions": json.dumps(positions),
+                    "timestamp": datetime.utcnow().isoformat(),
+                }
+            )
 
     async def _publish_trade_execution(
         self,
@@ -4566,7 +4581,8 @@ The output should be a JSON object with these keys.
             "source": source,
             "timestamp": datetime.utcnow().isoformat(),
         }
-        await self._streams.publish_trade_execution(trade_payload)
+        if self._streams:
+            await self._streams.publish_trade_execution(trade_payload)
 
         metadata = {
             "entry_price": round(entry_price, 4),
@@ -4615,21 +4631,22 @@ The output should be a JSON object with these keys.
             return notional
 
         adjusted = max(notional * factor, 0.0)
-        await self._streams.publish_reasoning(
-            {
-                "bot_id": self._settings.bot_id,
-                "symbol": symbol,
-                "strategy": "auto_delever",
-                "message": "volatility_threshold_triggered",
-                "context": json.dumps(
-                    {
-                        "change_24h": round(snapshot.change_24h, 4),
-                        "factor": factor,
-                    }
-                ),
-                "timestamp": datetime.utcnow().isoformat(),
-            }
-        )
+        if self._streams:
+            await self._streams.publish_reasoning(
+                {
+                    "bot_id": self._settings.bot_id,
+                    "symbol": symbol,
+                    "strategy": "auto_delever",
+                    "message": "volatility_threshold_triggered",
+                    "context": json.dumps(
+                        {
+                            "change_24h": round(snapshot.change_24h, 4),
+                            "factor": factor,
+                        }
+                    ),
+                    "timestamp": datetime.utcnow().isoformat(),
+                }
+            )
         return adjusted
 
     @property

@@ -43,7 +43,11 @@ class ChatLogger:
                 logger.warning(f"Failed to initialize Firestore for chat logging: {e}")
 
         # Ensure local storage directory exists
-        self.local_log_dir = Path("logs/chat_history")
+        # Use /tmp for container environments to avoid permission issues
+        if Path("/app").exists():
+            self.local_log_dir = Path("/tmp/app-logs/chat_history")
+        else:
+            self.local_log_dir = Path("logs/chat_history")
         self.local_log_dir.mkdir(parents=True, exist_ok=True)
 
     async def log_message(

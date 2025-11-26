@@ -1,0 +1,246 @@
+# Production values for Sapphire AI
+# Consolidated configuration for optimized deployment
+
+global:
+  imageRegistry: ""  # Empty to allow subcharts to use their defaults
+  projectId: sapphireinfinite
+  imagePullPolicy: Always
+  # Ensure Vertex AI uses the correct region
+  vertexAiRegion: us-central1
+
+# Custom image registry for our cloud-trader images
+customImageRegistry: us-central1-docker.pkg.dev
+
+# Trading configuration
+trading:
+  enabled: true
+  capitalAllocation: 600  # $100 per agent * 6 agents
+  riskMultiplier: 0.02
+  maxLeverage: 10
+  disableRateLimiter: true
+
+# Redis configuration
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: true
+    password: "sapphire-redis-pass"
+  image:
+    registry: docker.io
+    repository: bitnami/redis
+    tag: 7.4.1-debian-12-r0
+  master:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+  persistence:
+    enabled: true
+    size: 4Gi
+
+# Secrets configuration
+secrets:
+  syncFromGcp: true
+
+# Core Services
+cloudTrader:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: cloud-run-source-deploy/cloud-trader
+    tag: "latest"
+  env:
+    - name: ENABLE_PAPER_TRADING
+      value: "false"
+    - name: PAPER_TRADING_ENABLED
+      value: "false"
+    - name: ENABLE_PUBSUB
+      value: "false"
+    - name: LOG_LEVEL
+      value: "INFO"
+    - name: MCP_ENABLED
+      value: "true"
+    - name: TOTAL_CAPITAL
+      value: "600"
+    - name: AGENT_CAPITAL
+      value: "100" # Set to $100 per agent
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+
+mcpCoordinator:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: cloud-run-source-deploy/cloud-trader
+    tag: "latest"
+
+# Agents
+agents:
+  enabled: true
+
+# Individual Agents
+trend-momentum-agent:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: cloud-run-source-deploy/cloud-trader
+    tag: "latest"
+  env:
+    - name: ENABLE_PAPER_TRADING
+      value: "false"
+    - name: ENABLE_PUBSUB
+      value: "false"
+    - name: ENABLED_AGENTS
+      value: '["trend-momentum-agent"]'
+    - name: ENABLE_VERTEX_AI
+      value: "true"
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+financial-sentiment-agent:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: cloud-run-source-deploy/cloud-trader
+    tag: "latest"
+  env:
+    - name: ENABLE_PAPER_TRADING
+      value: "false"
+    - name: ENABLE_PUBSUB
+      value: "false"
+    - name: ENABLED_AGENTS
+      value: '["financial-sentiment-agent"]'
+    - name: ENABLE_VERTEX_AI
+      value: "true"
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+strategy-optimization-agent:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: cloud-run-source-deploy/cloud-trader
+    tag: "latest"
+  env:
+    - name: ENABLE_PAPER_TRADING
+      value: "false"
+    - name: ENABLE_PUBSUB
+      value: "false"
+    - name: ENABLED_AGENTS
+      value: '["strategy-optimization-agent"]'
+    - name: ENABLE_VERTEX_AI
+      value: "true"
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+market-prediction-agent:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: cloud-run-source-deploy/cloud-trader
+    tag: "latest"
+  env:
+    - name: ENABLE_PAPER_TRADING
+      value: "false"
+    - name: ENABLE_PUBSUB
+      value: "false"
+    - name: ENABLED_AGENTS
+      value: '["market-prediction-agent"]'
+    - name: ENABLE_VERTEX_AI
+      value: "true"
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+volume-microstructure-agent:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: cloud-run-source-deploy/cloud-trader
+    tag: "latest"
+  env:
+    - name: ENABLE_PAPER_TRADING
+      value: "false"
+    - name: ENABLE_PUBSUB
+      value: "false"
+    - name: ENABLED_AGENTS
+      value: '["volume-microstructure-agent"]'
+    - name: ENABLE_VERTEX_AI
+      value: "true"
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+vpin-hft-agent:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: cloud-run-source-deploy/cloud-trader
+    tag: "latest"
+  env:
+    - name: ENABLE_PAPER_TRADING
+      value: "false"
+    - name: ENABLE_PUBSUB
+      value: "false"
+    - name: ENABLED_AGENTS
+      value: '["vpin-hft"]'
+    - name: ENABLE_VERTEX_AI
+      value: "true"
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+# Grok Trader
+grokTrader:
+  enabled: true
+  replicaCount: 1
+  env:
+    - name: TRADING_SYMBOLS
+      value: "" # All Market Mode
+    - name: ENABLE_PAPER_TRADING
+      value: "false"
+    - name: ENABLE_PUBSUB
+      value: "false"
+    - name: GROK_CAPITAL
+      value: "100" # $100 for Grok Trader
+
+# Telegram Features
+telegram:
+  dailyRecap:
+    enabled: true
