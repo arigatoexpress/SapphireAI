@@ -1,1 +1,15 @@
-{"projects": {"default": "sapphireinfinite"}}
+{
+  "projects": {
+    "default": "sapphire-479610"
+  },
+  "targets": {
+    "sapphire-479610": {
+      "hosting": {
+        "production": [
+          "sapphire-479610"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}

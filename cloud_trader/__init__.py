@@ -3,6 +3,7 @@
 from .config import Settings, get_settings
 from .optimization.bandit import EpsilonGreedyBandit
 from .optimization.trailing import TrailingConfig, optimise_trailing_stop
+
 # from .service import TradingService  # Removed to prevent heavy load
 
 __all__ = [

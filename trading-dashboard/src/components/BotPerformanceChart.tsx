@@ -52,13 +52,13 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 };
 
 export const BotPerformanceChart: React.FC<BotPerformanceChartProps> = ({ bots }) => {
-  
+
   const data = useMemo(() => {
     if (!bots || bots.length === 0) return [];
 
     // 1. Collect all unique timestamps and map values
     const timeMap: Record<string, any> = {};
-    
+
     bots.forEach(bot => {
       if (bot.history && Array.isArray(bot.history)) {
         bot.history.forEach((point: any) => {
@@ -73,13 +73,13 @@ export const BotPerformanceChart: React.FC<BotPerformanceChartProps> = ({ bots }
 
     // 2. Convert to array and sort
     let result = Object.values(timeMap);
-    
+
     // Sort by time string (HH:MM)
     result.sort((a, b) => a.time.localeCompare(b.time));
-    
+
     // 3. Fill gaps (optional, but good for line charts)
     // For now, recharts connects points automatically.
-    
+
     return result;
   }, [bots]);
 
@@ -99,30 +99,30 @@ export const BotPerformanceChart: React.FC<BotPerformanceChartProps> = ({ bots }
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
-          <XAxis 
-            dataKey="time" 
-            stroke="#94a3b8" 
-            fontSize={10} 
+          <XAxis
+            dataKey="time"
+            stroke="#94a3b8"
+            fontSize={10}
             tickLine={false}
             axisLine={false}
             minTickGap={30}
           />
-          <YAxis 
-            stroke="#94a3b8" 
-            fontSize={10} 
-            tickLine={false} 
+          <YAxis
+            stroke="#94a3b8"
+            fontSize={10}
+            tickLine={false}
             axisLine={false}
             tickFormatter={(value) => `$${value}`}
           />
           <Tooltip content={<CustomTooltip />} />
-          <Legend 
-            wrapperStyle={{ paddingTop: '10px' }} 
-            iconType="circle" 
+          <Legend
+            wrapperStyle={{ paddingTop: '10px' }}
+            iconType="circle"
             iconSize={8}
             formatter={(value) => <span className="text-slate-400 text-xs ml-1">{value}</span>}
           />
           <ReferenceLine y={0} stroke="#ffffff20" strokeDasharray="3 3" />
-          
+
           {activeBots.map((bot, index) => (
             <Line
               key={bot.id}
@@ -141,4 +141,3 @@ export const BotPerformanceChart: React.FC<BotPerformanceChartProps> = ({ bots }
     </div>
   );
 };
-

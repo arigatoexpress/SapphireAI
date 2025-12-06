@@ -1,10 +1,10 @@
 import React, { useMemo } from 'react';
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  Wallet, 
-  Target, 
-  PieChart, 
+import {
+  TrendingUp,
+  TrendingDown,
+  Wallet,
+  Target,
+  PieChart,
   BarChart3,
   Globe,
   Zap,
@@ -20,7 +20,7 @@ interface PortfolioProps {
 }
 
 export const Portfolio: React.FC<PortfolioProps> = ({ totalValue, totalPnl, pnlPercent, trades, openPositions }) => {
-  
+
   // Calculate real asset allocation
   const positionGroups: { [key: string]: number } = {};
   let totalPositionValue = 0;
@@ -32,7 +32,7 @@ export const Portfolio: React.FC<PortfolioProps> = ({ totalValue, totalPnl, pnlP
   });
 
   const cashValue = Math.max(0, totalValue - totalPositionValue);
-  
+
   const allocations = Object.entries(positionGroups).map(([symbol, value]) => ({
     symbol,
     value,
@@ -105,7 +105,7 @@ export const Portfolio: React.FC<PortfolioProps> = ({ totalValue, totalPnl, pnlP
       {/* Header */}
       <div className="glass-card p-8 rounded-3xl relative overflow-hidden">
          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500"></div>
-         
+
          <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-6">
            <div>
              <h1 className="text-3xl font-black text-white mb-2 flex items-center gap-3 tracking-tight">
@@ -118,7 +118,7 @@ export const Portfolio: React.FC<PortfolioProps> = ({ totalValue, totalPnl, pnlP
                System-Wide Asset Distribution
              </p>
            </div>
-           
+
            <div className="flex gap-3">
               <div className="px-4 py-2 bg-white/5 border border-white/10 rounded-xl backdrop-blur-sm text-right">
                  <div className="text-[10px] text-white/40 uppercase font-bold tracking-wider">Risk Model</div>
@@ -133,7 +133,7 @@ export const Portfolio: React.FC<PortfolioProps> = ({ totalValue, totalPnl, pnlP
         {stats.map((stat, index) => (
           <div key={index} className="glass-card p-6 rounded-2xl relative overflow-hidden group hover:-translate-y-1 transition-all duration-300">
              <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${stat.gradient} rounded-bl-[100px] -mr-8 -mt-8 transition-all group-hover:scale-110 opacity-50`}></div>
-            
+
             <div className="relative z-10">
               <div className="flex justify-between items-start mb-4">
                 <div className={`p-3 rounded-xl bg-white/5 border border-white/10 ${stat.color}`}>
@@ -145,7 +145,7 @@ export const Portfolio: React.FC<PortfolioProps> = ({ totalValue, totalPnl, pnlP
                    </div>
                 )}
               </div>
-              
+
               <div>
                 <p className="text-white/40 text-[10px] font-bold uppercase tracking-wider mb-1">{stat.title}</p>
                 <h3 className="text-2xl font-code font-bold text-white">{stat.value}</h3>
@@ -158,7 +158,7 @@ export const Portfolio: React.FC<PortfolioProps> = ({ totalValue, totalPnl, pnlP
 
       {/* Split Position View */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        
+
         {/* ASTER POSITIONS */}
         <div className="glass-card rounded-3xl border border-blue-500/20 bg-blue-950/5 overflow-hidden">
           <div className="p-6 border-b border-white/5 flex justify-between items-center bg-blue-500/5">
@@ -233,13 +233,13 @@ export const Portfolio: React.FC<PortfolioProps> = ({ totalValue, totalPnl, pnlP
           <BarChart3 className="w-5 h-5 text-white/60" />
           ALLOCATION BREAKDOWN
         </h2>
-        
+
         <div className="flex h-4 w-full rounded-full overflow-hidden mb-6 bg-white/5">
           {allocations.map((asset, i) => (
-            <div 
+            <div
               key={asset.symbol}
               className={`h-full hover:opacity-80 transition-opacity`}
-              style={{ 
+              style={{
                 width: `${asset.percentage}%`,
                 backgroundColor: `hsl(${210 + (i * 40)}, 70%, 60%)`
               }}
@@ -251,8 +251,8 @@ export const Portfolio: React.FC<PortfolioProps> = ({ totalValue, totalPnl, pnlP
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
           {allocations.map((asset, i) => (
             <div key={asset.symbol} className="flex items-center gap-3 p-3 rounded-lg bg-white/5 border border-white/5">
-               <div 
-                 className="w-2 h-2 rounded-full" 
+               <div
+                 className="w-2 h-2 rounded-full"
                  style={{ backgroundColor: `hsl(${210 + (i * 40)}, 70%, 60%)` }}
                />
                <div>

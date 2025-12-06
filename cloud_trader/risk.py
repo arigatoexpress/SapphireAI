@@ -26,7 +26,9 @@ class Position:
     partial_closed_0: bool = False
     partial_closed_1: bool = False
     # Intelligent TP/SL management
-    take_profit_levels: Dict[float, float] = field(default_factory=dict)  # percentage: size_to_close
+    take_profit_levels: Dict[float, float] = field(
+        default_factory=dict
+    )  # percentage: size_to_close
     stop_loss_level: float = 0.0  # percentage below entry
     trailing_stop_level: float = 0.0  # percentage below highest point
     leverage_used: float = 1.0
@@ -40,8 +42,9 @@ class Position:
 @dataclass
 class PortfolioState:
     """Track portfolio state."""
+
     balance: float = 0.0
-    equity: float = 0.0 # Added for dynamic margin scaling
+    equity: float = 0.0  # Added for dynamic margin scaling
     unrealized_pnl: float = 0.0
     margin_used: float = 0.0
     leverage: float = 0.0
@@ -72,7 +75,7 @@ class RiskManager:
         """Starts the Pub/Sub listener for VPIN position updates."""
         if not self._pubsub_client.is_connected():
             await self._pubsub_client.connect()
-        
+
         self._vpin_subscription_task = asyncio.create_task(
             self._pubsub_client.subscribe("vpin_positions", self._handle_vpin_position_update)
         )
@@ -93,7 +96,9 @@ class RiskManager:
         if symbol:
             self._vpin_positions[symbol] = message
 
-    def can_open_position(self, portfolio: PortfolioState, notional: float, volatility: float = 1.0) -> bool:
+    def can_open_position(
+        self, portfolio: PortfolioState, notional: float, volatility: float = 1.0
+    ) -> bool:
         """Enhanced position opening with liquidation prevention."""
         # Basic leverage check
         new_leverage = (portfolio.total_exposure + notional) / portfolio.balance
@@ -124,12 +129,16 @@ class RiskManager:
         volatility_adjusted = base_size / (volatility * self._volatility_multiplier)
 
         # Adjust for current leverage
-        current_leverage = portfolio.total_exposure / portfolio.balance if portfolio.balance > 0 else 0
+        current_leverage = (
+            portfolio.total_exposure / portfolio.balance if portfolio.balance > 0 else 0
+        )
         leverage_adjusted = volatility_adjusted * (1 - current_leverage / self._max_leverage)
 
         # Ensure we don't exceed maintenance margin requirements
         margin_available = portfolio.balance - portfolio.total_exposure
-        margin_based_limit = margin_available / (self._maintenance_margin_ratio * (1 + self._liquidation_buffer))
+        margin_based_limit = margin_available / (
+            self._maintenance_margin_ratio * (1 + self._liquidation_buffer)
+        )
 
         return min(volatility_adjusted, leverage_adjusted, margin_based_limit, base_size)
 
@@ -160,7 +169,7 @@ class RiskManager:
     def get_liquidation_distance(self, portfolio: PortfolioState) -> float:
         """Calculate distance to liquidation as a percentage."""
         if portfolio.total_exposure == 0:
-            return float('inf')
+            return float("inf")
 
         required_margin = portfolio.total_exposure * self._maintenance_margin_ratio
         available_margin = portfolio.balance - portfolio.total_exposure
@@ -168,9 +177,13 @@ class RiskManager:
         if available_margin <= 0:
             return 0.0
 
-        return (available_margin / required_margin - 1.0) * 100  # Percentage above maintenance margin
+        return (
+            available_margin / required_margin - 1.0
+        ) * 100  # Percentage above maintenance margin
 
-    def calculate_optimal_tp_sl(self, entry_price: float, volatility: float, confidence: float) -> Dict[str, float]:
+    def calculate_optimal_tp_sl(
+        self, entry_price: float, volatility: float, confidence: float
+    ) -> Dict[str, float]:
         """Calculate optimal take profit and stop loss levels based on market conditions."""
         # Base risk-reward ratio of 1:2
         risk_reward_ratio = 2.0
@@ -180,19 +193,22 @@ class RiskManager:
 
         # Stop loss based on volatility and confidence
         base_sl_pct = volatility * 0.03  # 3% of volatility as base for live trading
-        stop_loss_pct = base_sl_pct * confidence_multiplier * 2.0  # More conservative for live trading
+        stop_loss_pct = (
+            base_sl_pct * confidence_multiplier * 2.0
+        )  # More conservative for live trading
 
         # Take profit based on risk-reward and confidence
         take_profit_pct = stop_loss_pct * risk_reward_ratio / confidence_multiplier
 
         return {
-            'stop_loss_pct': stop_loss_pct,
-            'take_profit_pct': take_profit_pct,
-            'trailing_stop_pct': stop_loss_pct * 0.8,  # Tighter trailing stop
+            "stop_loss_pct": stop_loss_pct,
+            "take_profit_pct": take_profit_pct,
+            "trailing_stop_pct": stop_loss_pct * 0.8,  # Tighter trailing stop
         }
 
-    def calculate_asymmetric_position_size(self, portfolio: PortfolioState, confidence: float,
-                                         volatility: float, conviction: float) -> float:
+    def calculate_asymmetric_position_size(
+        self, portfolio: PortfolioState, confidence: float, volatility: float, conviction: float
+    ) -> float:
         """Calculate asymmetric position size based on confidence and market conditions."""
         # Base safe position size
         safe_size = self.get_safe_position_size(portfolio, volatility)
@@ -207,12 +223,16 @@ class RiskManager:
         # Volatility adjustment (higher volatility = smaller positions)
         volatility_multiplier = 1.0 / (1.0 + volatility)
 
-        asymmetric_size = safe_size * conviction_multiplier * confidence_multiplier * volatility_multiplier
+        asymmetric_size = (
+            safe_size * conviction_multiplier * confidence_multiplier * volatility_multiplier
+        )
 
         # Ensure we don't exceed safe limits
         return min(asymmetric_size, safe_size * 1.5)  # Max 1.5x safe size for high conviction bets
 
-    def should_close_position(self, position: Position, current_price: float, entry_price: float) -> tuple[bool, str, float]:
+    def should_close_position(
+        self, position: Position, current_price: float, entry_price: float
+    ) -> tuple[bool, str, float]:
         """Determine if a position should be closed based on TP/SL levels."""
         # Calculate current P&L percentage
         if position.quantity > 0:  # Long position
@@ -242,7 +262,9 @@ class RiskManager:
 
         return False, "", pnl_pct
 
-    def get_agent_dynamic_config(self, agent_config: Dict[str, Any], market_conditions: Dict[str, Any]) -> Dict[str, Any]:
+    def get_agent_dynamic_config(
+        self, agent_config: Dict[str, Any], market_conditions: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Allow agents to dynamically configure their trading parameters based on market conditions."""
         risk_tolerance = agent_config.get("risk_tolerance", "medium")
         time_horizon = agent_config.get("time_horizon", "medium")
@@ -301,8 +323,13 @@ class RiskManager:
 
         return base_config
 
-    def calculate_agent_position_size(self, agent_config: Dict[str, Any], portfolio: PortfolioState,
-                                    market_conditions: Dict[str, Any], conviction: float) -> float:
+    def calculate_agent_position_size(
+        self,
+        agent_config: Dict[str, Any],
+        portfolio: PortfolioState,
+        market_conditions: Dict[str, Any],
+        conviction: float,
+    ) -> float:
         """Calculate position size based on agent's dynamic configuration."""
         dynamic_config = self.get_agent_dynamic_config(agent_config, market_conditions)
 
@@ -326,8 +353,13 @@ class RiskManager:
         # Ensure it doesn't exceed safe limits
         return min(position_size, safe_size * 1.5)  # Allow up to 1.5x safe size for high conviction
 
-    def calculate_agent_tp_sl(self, agent_config: Dict[str, Any], market_conditions: Dict[str, Any],
-                             entry_price: float, conviction: float) -> Dict[str, float]:
+    def calculate_agent_tp_sl(
+        self,
+        agent_config: Dict[str, Any],
+        market_conditions: Dict[str, Any],
+        entry_price: float,
+        conviction: float,
+    ) -> Dict[str, float]:
         """Calculate TP/SL levels based on agent's dynamic configuration."""
         dynamic_config = self.get_agent_dynamic_config(agent_config, market_conditions)
 
@@ -336,9 +368,9 @@ class RiskManager:
 
         # Base stop loss based on volatility and risk tolerance
         base_sl_multiplier = {
-            "low": 0.01,      # 1% stop loss
+            "low": 0.01,  # 1% stop loss
             "medium": 0.015,  # 1.5% stop loss
-            "high": 0.025,    # 2.5% stop loss
+            "high": 0.025,  # 2.5% stop loss
             "extreme": 0.04,  # 4% stop loss
         }.get(risk_tolerance, 0.02)
 
@@ -372,26 +404,34 @@ class RiskManager:
         Updates and checks the overall portfolio risk, including VPIN positions.
         """
         vpin_exposure = sum(
-            pos.get('notional', 0) * pos.get('leverage', 30)
+            pos.get("notional", 0) * pos.get("leverage", 30)
             for pos in self._vpin_positions.values()
         )
         total_exposure = portfolio.total_exposure + vpin_exposure
-        
+
         if self._total_capital > 0:
             current_leverage = total_exposure / self._total_capital
             if current_leverage > self._max_leverage:
-                return False, f"Portfolio leverage {current_leverage:.2f} exceeds max leverage {self._max_leverage}"
+                return (
+                    False,
+                    f"Portfolio leverage {current_leverage:.2f} exceeds max leverage {self._max_leverage}",
+                )
 
         if portfolio.unrealized_pnl < -self._max_loss:
-            return False, f"Maximum loss limit of ${self._max_loss} exceeded. Current PnL: ${portfolio.unrealized_pnl:.2f}"
+            return (
+                False,
+                f"Maximum loss limit of ${self._max_loss} exceeded. Current PnL: ${portfolio.unrealized_pnl:.2f}",
+            )
 
         return True, ""
 
-    def register_fill(self, portfolio: PortfolioState, symbol: str, notional: float) -> PortfolioState:
+    def register_fill(
+        self, portfolio: PortfolioState, symbol: str, notional: float
+    ) -> PortfolioState:
         if symbol not in portfolio.positions:
             portfolio.positions[symbol] = Position(symbol=symbol, notional=0.0)
-        
+
         portfolio.positions[symbol].notional += notional
         portfolio.total_exposure = sum(pos.notional for pos in portfolio.positions.values())
-        
+
         return portfolio

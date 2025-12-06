@@ -1,0 +1,5 @@
+steps:
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['build', '-t', 'gcr.io/sapphire-479610/symphony-conductor', '-f', 'symphony_conductor/Dockerfile', '.']
+images:
+- 'gcr.io/sapphire-479610/symphony-conductor'

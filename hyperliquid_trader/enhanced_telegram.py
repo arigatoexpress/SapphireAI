@@ -15,11 +15,13 @@ from telegram.ext import ApplicationBuilder
 
 logger = logging.getLogger(__name__)
 
+
 class NotificationPriority(Enum):
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
     CRITICAL = "critical"
+
 
 @dataclass
 class TradeNotification:
@@ -38,6 +40,7 @@ class TradeNotification:
     def __post_init__(self):
         if self.timestamp is None:
             self.timestamp = datetime.now()
+
 
 class EnhancedTelegramService:
     """Simplified Telegram notification service for Hyperliquid."""
@@ -61,10 +64,7 @@ class EnhancedTelegramService:
 
     async def send_startup_notification(self):
         """Send startup notification (Silent/Low Priority)."""
-        message = (
-            "🚀 *Hyperliquid Trader Online*\n"
-            "📊 Daily Summary Mode Active"
-        )
+        message = "🚀 *Hyperliquid Trader Online*\n" "📊 Daily Summary Mode Active"
         # Send silently
         await self.send_message(message, priority=NotificationPriority.LOW)
 
@@ -96,25 +96,25 @@ class EnhancedTelegramService:
 
         # ONLY send immediate notification for Profit Sweeps or High Priority
         if priority in [NotificationPriority.HIGH, NotificationPriority.CRITICAL]:
-             action_emoji = "🔵" if trade.side.upper() == "BUY" else "🔴"
-             symbol_md = trade.symbol.replace("-", "\\-").replace(".", "\\.")
-             
-             message = (
+            action_emoji = "🔵" if trade.side.upper() == "BUY" else "🔴"
+            symbol_md = trade.symbol.replace("-", "\\-").replace(".", "\\.")
+
+            message = (
                 f"{action_emoji} **HYPERLIQUID {trade.side.upper()} {symbol_md}**\n"
                 f"💰 Price: `${trade.price:.4f}`\n"
                 f"💵 Value: `${trade.notional:.2f}`"
-             )
-             if trade.pnl:
-                 message += f"\n✅ P&L: `${trade.pnl:.2f}`"
-                 
-             await self.send_message(message, priority=priority)
+            )
+            if trade.pnl:
+                message += f"\n✅ P&L: `${trade.pnl:.2f}`"
+
+            await self.send_message(message, priority=priority)
 
     async def send_daily_summary(self):
         """Send a data-rich daily summary."""
         trades_count = self.daily_stats["trades"]
         volume = self.daily_stats["volume"]
         pnl = self.daily_stats["pnl"]
-        
+
         if trades_count == 0:
             return
 
@@ -125,9 +125,9 @@ class EnhancedTelegramService:
             f"💰 Estimated P&L: `${pnl:,.2f}`\n\n"
             "🤖 *AI Performance: Optimized*"
         )
-        
+
         await self.send_message(message, priority=NotificationPriority.HIGH)
-        
+
         # Reset stats
         self.daily_stats = {"trades": 0, "volume": 0.0, "pnl": 0.0}
 

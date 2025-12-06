@@ -15,8 +15,10 @@ except ImportError:
 try:
     from google.cloud.exceptions import NotFound
 except ImportError:
+
     class NotFound(Exception):
         pass
+
 
 from .config import Settings, get_settings
 
@@ -25,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 class BigQueryStreamer:
     """Stream trading data to BigQuery for analytics."""
-    
+
     def __init__(self, settings: Optional[Settings] = None):
         self._settings = settings or get_settings()
         self._client: Optional[bigquery.Client] = None
@@ -44,16 +46,16 @@ class BigQueryStreamer:
             "trade_theses": "trade_theses_stream",
             "strategy_discussions": "strategy_discussions_stream",
         }
-    
+
     async def initialize(self) -> None:
         """Initialize BigQuery client and ensure dataset/tables exist."""
         if not self._project_id:
             logger.warning("GCP project ID not configured, BigQuery streaming disabled")
             return
-        
+
         try:
             self._client = bigquery.Client(project=self._project_id)
-            
+
             # Ensure dataset exists
             dataset_ref = bigquery.DatasetReference(self._project_id, self._dataset_id)
             try:
@@ -65,21 +67,21 @@ class BigQueryStreamer:
                 dataset.description = "Real-time trading analytics data"
                 self._client.create_dataset(dataset, exists_ok=True)
                 logger.info(f"Created BigQuery dataset {self._dataset_id}")
-            
+
             # Ensure tables exist
             await self._ensure_tables()
-            
+
             self._initialized = True
             logger.info("BigQuery streaming initialized")
         except Exception as e:
             logger.error(f"Failed to initialize BigQuery streaming: {e}")
             self._client = None
-    
+
     async def _ensure_tables(self) -> None:
         """Create tables if they don't exist."""
         if not self._client:
             return
-        
+
         # Trades table schema
         trades_schema = [
             bigquery.SchemaField("timestamp", "TIMESTAMP", mode="REQUIRED"),
@@ -97,7 +99,7 @@ class BigQueryStreamer:
             bigquery.SchemaField("mode", "STRING", mode="NULLABLE"),  # 'live' or 'paper'
             bigquery.SchemaField("metadata", "JSON", mode="NULLABLE"),
         ]
-        
+
         # Positions table schema
         positions_schema = [
             bigquery.SchemaField("timestamp", "TIMESTAMP", mode="REQUIRED"),
@@ -114,7 +116,7 @@ class BigQueryStreamer:
             bigquery.SchemaField("status", "STRING", mode="REQUIRED"),
             bigquery.SchemaField("metadata", "JSON", mode="NULLABLE"),
         ]
-        
+
         # Market data table schema
         market_data_schema = [
             bigquery.SchemaField("timestamp", "TIMESTAMP", mode="REQUIRED"),
@@ -128,7 +130,7 @@ class BigQueryStreamer:
             bigquery.SchemaField("open_interest", "FLOAT", mode="NULLABLE"),
             bigquery.SchemaField("metadata", "JSON", mode="NULLABLE"),
         ]
-        
+
         # Agent performance table schema
         agent_performance_schema = [
             bigquery.SchemaField("timestamp", "TIMESTAMP", mode="REQUIRED"),
@@ -233,14 +235,13 @@ class BigQueryStreamer:
             "trade_theses": trade_theses_schema,
             "strategy_discussions": strategy_discussions_schema,
         }
-        
+
         for table_name, schema in schemas.items():
             table_id = self._tables[table_name]
             table_ref = bigquery.TableReference(
-                bigquery.DatasetReference(self._project_id, self._dataset_id),
-                table_id
+                bigquery.DatasetReference(self._project_id, self._dataset_id), table_id
             )
-            
+
             try:
                 self._client.get_table(table_ref)
                 logger.debug(f"BigQuery table {table_id} exists")
@@ -249,7 +250,7 @@ class BigQueryStreamer:
                 table.description = f"Streaming table for {table_name}"
                 self._client.create_table(table)
                 logger.info(f"Created BigQuery table {table_id}")
-    
+
     async def stream_trade(
         self,
         symbol: str,
@@ -270,13 +271,11 @@ class BigQueryStreamer:
         """Stream a trade to BigQuery."""
         if not self._initialized or not self._client:
             return False
-        
+
         try:
             table_id = self._tables["trades"]
-            table_ref = self._client.get_table(
-                f"{self._project_id}.{self._dataset_id}.{table_id}"
-            )
-            
+            table_ref = self._client.get_table(f"{self._project_id}.{self._dataset_id}.{table_id}")
+
             row = {
                 "timestamp": (timestamp or datetime.utcnow()).isoformat(),
                 "symbol": symbol.upper(),
@@ -293,17 +292,17 @@ class BigQueryStreamer:
                 "mode": mode or "live",
                 "metadata": json.dumps(metadata) if metadata else None,
             }
-            
+
             errors = self._client.insert_rows_json(table_ref, [row])
             if errors:
                 logger.warning(f"BigQuery insert errors: {errors}")
                 return False
-            
+
             return True
         except Exception as e:
             logger.warning(f"Failed to stream trade to BigQuery: {e}")
             return False
-    
+
     async def stream_position(
         self,
         timestamp: datetime,
@@ -323,13 +322,11 @@ class BigQueryStreamer:
         """Stream a position snapshot to BigQuery."""
         if not self._initialized or not self._client:
             return False
-        
+
         try:
             table_id = self._tables["positions"]
-            table_ref = self._client.get_table(
-                f"{self._project_id}.{self._dataset_id}.{table_id}"
-            )
-            
+            table_ref = self._client.get_table(f"{self._project_id}.{self._dataset_id}.{table_id}")
+
             row = {
                 "timestamp": timestamp.isoformat(),
                 "symbol": symbol.upper(),
@@ -345,17 +342,17 @@ class BigQueryStreamer:
                 "status": status,
                 "metadata": json.dumps(metadata) if metadata else None,
             }
-            
+
             errors = self._client.insert_rows_json(table_ref, [row])
             if errors:
                 logger.warning(f"BigQuery insert errors: {errors}")
                 return False
-            
+
             return True
         except Exception as e:
             logger.warning(f"Failed to stream position to BigQuery: {e}")
             return False
-    
+
     async def stream_market_data(
         self,
         timestamp: datetime,
@@ -372,13 +369,11 @@ class BigQueryStreamer:
         """Stream market data to BigQuery."""
         if not self._initialized or not self._client:
             return False
-        
+
         try:
             table_id = self._tables["market_data"]
-            table_ref = self._client.get_table(
-                f"{self._project_id}.{self._dataset_id}.{table_id}"
-            )
-            
+            table_ref = self._client.get_table(f"{self._project_id}.{self._dataset_id}.{table_id}")
+
             row = {
                 "timestamp": timestamp.isoformat(),
                 "symbol": symbol.upper(),
@@ -391,17 +386,17 @@ class BigQueryStreamer:
                 "open_interest": open_interest,
                 "metadata": json.dumps(metadata) if metadata else None,
             }
-            
+
             errors = self._client.insert_rows_json(table_ref, [row])
             if errors:
                 logger.warning(f"BigQuery insert errors: {errors}")
                 return False
-            
+
             return True
         except Exception as e:
             logger.warning(f"Failed to stream market data to BigQuery: {e}")
             return False
-    
+
     async def stream_agent_performance(
         self,
         timestamp: datetime,
@@ -419,13 +414,11 @@ class BigQueryStreamer:
         """Stream agent performance to BigQuery."""
         if not self._initialized or not self._client:
             return False
-        
+
         try:
             table_id = self._tables["agent_performance"]
-            table_ref = self._client.get_table(
-                f"{self._project_id}.{self._dataset_id}.{table_id}"
-            )
-            
+            table_ref = self._client.get_table(f"{self._project_id}.{self._dataset_id}.{table_id}")
+
             row = {
                 "timestamp": timestamp.isoformat(),
                 "agent_id": agent_id,
@@ -439,12 +432,12 @@ class BigQueryStreamer:
                 "active_positions": active_positions,
                 "metadata": json.dumps(metadata) if metadata else None,
             }
-            
+
             errors = self._client.insert_rows_json(table_ref, [row])
             if errors:
                 logger.warning(f"BigQuery insert errors: {errors}")
                 return False
-            
+
             return True
         except Exception as e:
             logger.warning(f"Failed to stream agent performance to BigQuery: {e}")
@@ -658,4 +651,3 @@ async def close_bigquery_streamer() -> None:
     if _streamer:
         await _streamer.close()
         _streamer = None
-

@@ -1,2 +1,1 @@
-from .models_advanced import Base, MarketCandle, TechnicalIndicator, TradeHistory, AgentLearning
-
+from .models_advanced import AgentLearning, Base, MarketCandle, TechnicalIndicator, TradeHistory

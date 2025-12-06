@@ -67,11 +67,11 @@ export const LiveAgentChat: React.FC<Props> = ({ messages }) => {
 const MessageBubble = ({ message }: { message: ChatMessage }) => {
   const isSystem = message.agentId === 'system';
   const isGrok = message.agentId.includes('grok');
-  
+
   // Determine color scheme based on agent type
   let roleColor = "text-slate-400 border-slate-700 bg-slate-800";
   let contentBg = "bg-white/5 border-white/5 text-slate-200";
-  
+
   if (isGrok) {
     roleColor = "text-purple-300 border-purple-500/30 bg-purple-500/10";
     contentBg = "bg-purple-500/5 border-purple-500/10 text-purple-100";

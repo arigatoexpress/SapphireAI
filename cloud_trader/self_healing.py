@@ -1,18 +1,20 @@
-
+import logging
+import os
 import threading
 import time
-import requests
+
 import redis
-import os
-import logging
+import requests
 
 logger = logging.getLogger(__name__)
+
 
 class SelfHealingWatchdog:
     """
     Monitors critical system components and restarts/alerts if they fail.
     Designed to run in a background thread.
     """
+
     def __init__(self, check_interval=60):
         self.check_interval = check_interval
         self.redis_url = os.getenv("REDIS_URL", "redis://redis:6379/0")
@@ -40,7 +42,7 @@ class SelfHealingWatchdog:
                 self._check_api()
             except Exception as e:
                 logger.error(f"Watchdog error: {e}")
-            
+
             time.sleep(self.check_interval)
 
     def _check_redis(self):
@@ -61,24 +63,31 @@ class SelfHealingWatchdog:
         except Exception as e:
             logger.error(f"❌ API Unreachable: {e}")
 
+
 # Legacy support for full service import
 def get_self_healing_manager():
     return None
 
+
 def initialize_graceful_degradation():
     pass
+
 
 def recover_database_connection():
     pass
 
+
 def recover_redis_connection():
     pass
+
 
 def recover_exchange_connection():
     pass
 
+
 def recover_vertex_ai_connection():
     pass
+
 
 def recover_feature_store_connection():
     pass

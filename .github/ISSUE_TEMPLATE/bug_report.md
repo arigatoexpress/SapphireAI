@@ -22,9 +22,9 @@ If applicable, add screenshots to help explain your problem.
 
 ## 🖥️ Environment
 - **Component**: (cloud-trader / dashboard / conductor)
-- **Browser** (if frontend): 
-- **Python Version**: 
-- **Node Version**: 
+- **Browser** (if frontend):
+- **Python Version**:
+- **Node Version**:
 
 ## 📝 Additional Context
 Add any other context about the problem here.

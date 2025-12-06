@@ -33,11 +33,18 @@ resource "google_compute_router" "sapphire_router" {
   region  = var.region
 }
 
+# Static IP for Cloud NAT
+resource "google_compute_address" "sapphire_nat_ip" {
+  name   = "sapphire-nat-ip"
+  region = var.region
+}
+
 resource "google_compute_router_nat" "sapphire_nat" {
   name                               = "sapphire-nat"
   router                             = google_compute_router.sapphire_router.name
   region                             = google_compute_router.sapphire_router.region
-  nat_ip_allocate_option             = "AUTO_ONLY"
+  nat_ip_allocate_option             = "MANUAL_ONLY"
+  nat_ips                            = [google_compute_address.sapphire_nat_ip.self_link]
   source_subnetwork_ip_ranges_to_nat = "ALL_SUBNETWORKS_ALL_IP_RANGES"
 }
 
@@ -50,35 +57,10 @@ resource "google_vpc_access_connector" "sapphire_connector" {
   max_throughput = 300
 }
 
-# Montreal Infrastructure (for Hyperliquid Geofencing)
-resource "google_compute_subnetwork" "sapphire_subnet_ca" {
-  name          = "sapphire-subnet-ca"
-  ip_cidr_range = "10.2.0.0/24"
-  network       = google_compute_network.sapphire_net.id
-  region        = "northamerica-northeast1"
-}
-
-resource "google_vpc_access_connector" "sapphire_connector_ca" {
-  name           = "sapphire-conn-ca"
-  region         = "northamerica-northeast1"
-  ip_cidr_range  = "10.8.2.0/28"
-  network        = google_compute_network.sapphire_net.id
-  min_throughput = 200
-  max_throughput = 300
-}
-
-resource "google_compute_router" "sapphire_router_ca" {
-  name    = "sapphire-router-ca"
-  network = google_compute_network.sapphire_net.name
-  region  = "northamerica-northeast1"
-}
-
-resource "google_compute_router_nat" "sapphire_nat_ca" {
-  name                               = "sapphire-nat-ca"
-  router                             = google_compute_router.sapphire_router_ca.name
-  region                             = google_compute_router.sapphire_router_ca.region
-  nat_ip_allocate_option             = "AUTO_ONLY"
-  source_subnetwork_ip_ranges_to_nat = "ALL_SUBNETWORKS_ALL_IP_RANGES"
+# Output the static IP
+output "static_nat_ip" {
+  value       = google_compute_address.sapphire_nat_ip.address
+  description = "Static IP address for NAT gateway - whitelist this on Aster exchange"
 }
 
 # Database (Cloud SQL)
@@ -150,4 +132,48 @@ resource "google_storage_bucket" "sapphire_history" {
   force_destroy = true
 
   uniform_bucket_level_access = true
+}
+
+# Cloud DNS
+resource "google_dns_managed_zone" "sapphire_zone" {
+  name        = "sapphire-zone"
+  dns_name    = "sapphiretrade.xyz."
+  description = "Zone for sapphiretrade.xyz"
+  visibility  = "public"
+}
+
+# Enable APIs
+resource "google_project_service" "firebase" {
+  service = "firebase.googleapis.com"
+  disable_on_destroy = false
+}
+
+resource "google_project_service" "firebase_hosting" {
+  service = "firebasehosting.googleapis.com"
+  disable_on_destroy = false
+}
+
+# Agent Symphony Pub/Sub
+resource "google_pubsub_topic" "symphony_strategy" {
+  name = "symphony-strategy"
+}
+
+resource "google_pubsub_topic" "symphony_execution" {
+  name = "symphony-execution"
+}
+
+# Subscriptions
+resource "google_pubsub_subscription" "aster_strategy_sub" {
+  name  = "aster-strategy-sub"
+  topic = google_pubsub_topic.symphony_strategy.name
+}
+
+resource "google_pubsub_subscription" "hyperliquid_strategy_sub" {
+  name  = "hyperliquid-strategy-sub"
+  topic = google_pubsub_topic.symphony_strategy.name
+}
+
+resource "google_pubsub_subscription" "dashboard_execution_sub" {
+  name  = "dashboard-execution-sub"
+  topic = google_pubsub_topic.symphony_execution.name
 }

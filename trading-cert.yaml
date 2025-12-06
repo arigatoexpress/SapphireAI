@@ -1,9 +1,0 @@
-apiVersion: networking.gke.io/v1
-kind: ManagedCertificate
-metadata:
-  name: sapphire-trading-cert
-  namespace: trading-system
-spec:
-  domains:
-    - api.sapphiretrade.xyz
-    - trader.sapphiretrade.xyz

@@ -17,14 +17,14 @@ Agent Symphony is a distributed trading system built on a **Conductor-Orchestra*
 ```mermaid
 C4Context
     title System Context Diagram
-    
+
     Person(trader, "Trader", "Human operator monitoring system")
     System(symphony, "Agent Symphony", "AI-powered multi-agent trading system")
     System_Ext(aster, "Aster Exchange", "Primary trading venue")
     System_Ext(hyperliquid, "Hyperliquid", "HFT venue")
     System_Ext(gemini, "Gemini AI", "Market analysis")
     System_Ext(telegram, "Telegram", "Notifications")
-    
+
     Rel(trader, symphony, "Monitors via Dashboard")
     Rel(symphony, aster, "Trades via API")
     Rel(symphony, hyperliquid, "Trades via API")
@@ -47,7 +47,7 @@ flowchart LR
         GA --> RC[Regime Classification]
         RC --> PS[Publish to Pub/Sub]
     end
-    
+
     PS --> Topic[symphony-strategy topic]
 ```
 
@@ -81,7 +81,7 @@ classDiagram
         +_run_trading_loop()
         +_execute_agent_trading()
     }
-    
+
     class AgentState {
         +id: str
         +name: str
@@ -90,14 +90,14 @@ classDiagram
         +symbols: List
         +daily_loss_breached: bool
     }
-    
+
     class AsterClient {
         +place_order()
         +close_position()
         +get_ticker()
         +position_risk()
     }
-    
+
     MinimalTradingService --> AgentState
     MinimalTradingService --> AsterClient
 ```
@@ -126,11 +126,11 @@ flowchart TB
         State --> Charts[Recharts Visualization]
         State --> Grid[Position Grid]
     end
-    
+
     subgraph Backend
         API[FastAPI] --> WSM[WebSocket Manager]
     end
-    
+
     WSM <-->|JSON Updates| WS
 ```
 
@@ -169,16 +169,16 @@ sequenceDiagram
     participant PS as Pub/Sub
     participant CT as Cloud Trader
     participant HT as Hyperliquid Trader
-    
+
     loop Every 5 minutes
         C->>C: Fetch market data
         C->>C: Gemini AI analysis
         C->>PS: Publish MarketRegime
     end
-    
+
     PS-->>CT: Regime update
     PS-->>HT: Regime update
-    
+
     Note over CT: Adjusts agent aggressiveness
     Note over HT: Adjusts position sizing
 ```
@@ -193,12 +193,12 @@ sequenceDiagram
     participant EX as Exchange
     participant TG as Telegram
     participant WS as WebSocket
-    
+
     TL->>Agent: Select random agent
     Agent->>Agent: Pick symbol to analyze
     Agent->>AI: Analyze market for signal
     AI-->>Agent: BUY/SELL/HOLD + confidence
-    
+
     alt confidence >= 0.65
         Agent->>EX: Place order
         EX-->>Agent: Order confirmation
@@ -235,17 +235,17 @@ flowchart TD
     START[Start] --> SELECT[Select Active Agent]
     SELECT --> SYMBOL[Pick Symbol]
     SYMBOL --> CHECK{Has Open Position?}
-    
+
     CHECK -->|Yes| MANAGE[Manage Position]
     MANAGE --> PROFIT{Hit TP/SL?}
     PROFIT -->|Yes| CLOSE[Close Position]
     PROFIT -->|No| HOLD[Hold Position]
-    
+
     CHECK -->|No| ANALYZE[Analyze Market]
     ANALYZE --> SIGNAL{Strong Signal?}
     SIGNAL -->|Yes, conf >= 0.65| OPEN[Open New Trade]
     SIGNAL -->|No| SKIP[Skip]
-    
+
     CLOSE --> END[End Tick]
     HOLD --> END
     OPEN --> END
@@ -265,12 +265,12 @@ graph TB
         A2[⚡ Breakout Sniper<br/>Key level breaks]
         A3[🏄 Trend Surfer<br/>Ride extended moves]
     end
-    
+
     subgraph Bear Agents
         B1[🌊 Volatility Harvester<br/>Vol spikes]
         B2[📊 Mean Reversion<br/>Oversold bounces]
     end
-    
+
     subgraph Special Agents
         S1[🧠 Grok Alpha<br/>Advanced reasoning]
         S2[🐋 Whale Tracker<br/>Large player mimicry]
@@ -302,24 +302,24 @@ flowchart TB
             CR2[hyperliquid-trader<br/>northamerica-northeast1]
             CR3[symphony-conductor<br/>northamerica-northeast1]
         end
-        
+
         subgraph "Data Services"
             PS[(Pub/Sub<br/>symphony-strategy)]
             REDIS[(Memorystore Redis)]
             PG[(Cloud SQL PostgreSQL)]
         end
-        
+
         subgraph "Security"
             SM[Secret Manager]
             VPC[VPC Connector<br/>sapphire-conn]
             NAT[Cloud NAT<br/>Static IP]
         end
-        
+
         subgraph "Frontend"
             FB[Firebase Hosting<br/>sapphiretrade.xyz]
         end
     end
-    
+
     CR1 --> PS
     CR2 --> PS
     CR3 --> PS
@@ -352,17 +352,17 @@ flowchart TB
         USER[User]
         EXCHANGE[Exchange APIs]
     end
-    
+
     subgraph "Google Cloud"
         IAM[IAM Policies]
         SM[Secret Manager]
         VPC[VPC Network]
-        
+
         subgraph "Cloud Run"
             SERVICE[Trading Service]
         end
     end
-    
+
     USER -->|HTTPS| SERVICE
     SERVICE -->|Fetch secrets| SM
     SERVICE -->|VPC Connector| VPC

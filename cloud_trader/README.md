@@ -17,11 +17,11 @@ Cloud Trader is a Python FastAPI service that:
 flowchart TB
     API[FastAPI Server :8080] --> TL[Trading Loop]
     API --> WS[WebSocket Manager]
-    
+
     TL --> Agents[AI Agents]
     TL --> PM[Position Manager]
     TL --> MDM[Market Data Manager]
-    
+
     Agents --> EX[Aster Exchange]
     PM --> REDIS[(Redis)]
     WS --> DASH[Dashboard]

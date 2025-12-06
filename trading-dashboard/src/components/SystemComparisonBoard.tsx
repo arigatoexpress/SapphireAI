@@ -83,38 +83,38 @@ export const SystemComparisonBoard: React.FC<SystemComparisonBoardProps> = ({ as
 
       {/* Metrics Grid */}
       <div className="space-y-1">
-        <MetricRow 
-          label="Net Profit (PnL)" 
-          asterValue={asterMetrics.pnl} 
-          hlValue={hyperliquidMetrics.pnl} 
+        <MetricRow
+          label="Net Profit (PnL)"
+          asterValue={asterMetrics.pnl}
+          hlValue={hyperliquidMetrics.pnl}
         />
-        <MetricRow 
-          label="Trading Volume" 
-          asterValue={asterMetrics.volume} 
-          hlValue={hyperliquidMetrics.volume} 
+        <MetricRow
+          label="Trading Volume"
+          asterValue={asterMetrics.volume}
+          hlValue={hyperliquidMetrics.volume}
         />
-        <MetricRow 
-          label="Win Rate" 
-          asterValue={asterMetrics.win_rate} 
-          hlValue={hyperliquidMetrics.win_rate} 
+        <MetricRow
+          label="Win Rate"
+          asterValue={asterMetrics.win_rate}
+          hlValue={hyperliquidMetrics.win_rate}
           format="percent"
         />
-        <MetricRow 
-          label="Fees Paid" 
-          asterValue={asterMetrics.fees} 
-          hlValue={hyperliquidMetrics.fees} 
+        <MetricRow
+          label="Fees Paid"
+          asterValue={asterMetrics.fees}
+          hlValue={hyperliquidMetrics.fees}
           inverse={true}
         />
-        <MetricRow 
-          label="Active Agents" 
-          asterValue={asterMetrics.active_agents} 
-          hlValue={hyperliquidMetrics.active_agents} 
+        <MetricRow
+          label="Active Agents"
+          asterValue={asterMetrics.active_agents}
+          hlValue={hyperliquidMetrics.active_agents}
           format="number"
         />
-        <MetricRow 
-          label="Swept Profits" 
-          asterValue={asterMetrics.swept_profits} 
-          hlValue={hyperliquidMetrics.swept_profits} 
+        <MetricRow
+          label="Swept Profits"
+          asterValue={asterMetrics.swept_profits}
+          hlValue={hyperliquidMetrics.swept_profits}
         />
       </div>
 
@@ -141,4 +141,3 @@ const GlobeIcon = ({ className }: { className?: string }) => (
     <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
   </svg>
 );
-

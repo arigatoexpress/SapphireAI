@@ -13,7 +13,16 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import httpx
-from fastapi import Depends, FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect, status
+from fastapi import (
+    Depends,
+    FastAPI,
+    HTTPException,
+    Query,
+    Request,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
+)
 from fastapi.middleware.cors import CORSMiddleware  # CORS handled manually
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -201,7 +210,7 @@ async def healthz() -> Dict[str, object]:
                 "last_error": status.last_error,
             }
         else:
-             data = {
+            data = {
                 "running": False,
                 "paper_trading": False,
                 "last_error": "Trading service not initialized (None)",

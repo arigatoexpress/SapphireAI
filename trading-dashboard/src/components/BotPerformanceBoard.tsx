@@ -152,11 +152,11 @@ const StatCard = ({ label, value, subValue, trend, icon }: any) => (
 
 const BotCard = ({ bot, rank }: { bot: BotMetrics; rank: number }) => {
     const isWinner = rank === 1;
-    
+
     return (
       <div className={`bg-slate-900/50 border rounded-xl p-4 transition-all duration-300 group relative overflow-hidden ${
-        isWinner 
-            ? 'border-amber-500/50 shadow-lg shadow-amber-500/10 bg-gradient-to-b from-amber-500/5 to-slate-900/50' 
+        isWinner
+            ? 'border-amber-500/50 shadow-lg shadow-amber-500/10 bg-gradient-to-b from-amber-500/5 to-slate-900/50'
             : 'border-slate-800 hover:border-slate-700'
       }`}>
         {/* Rank Badge */}

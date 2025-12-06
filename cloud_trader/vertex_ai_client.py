@@ -9,6 +9,7 @@ import time
 from typing import Any, Dict, Optional, Union
 
 import httpx
+
 try:
     from google.api_core.exceptions import GoogleAPIError
     from google.cloud import aiplatform
@@ -78,13 +79,13 @@ class VertexAIClient:
 
         # Model mapping for Direct API Mode
         self._model_map = {
-            "trend-momentum-agent": "gemini-1.5-flash-002",
-            "strategy-optimization-agent": "gemini-1.5-flash-002",
-            "financial-sentiment-agent": "gemini-1.5-flash-002",
-            "market-prediction-agent": "gemini-1.5-flash-002",
-            "volume-microstructure-agent": "gemini-1.5-flash-002",
-            "vpin-hft": "gemini-1.5-flash-002",
-            "market-analysis": "gemini-1.5-flash-002",
+            "trend-momentum-agent": "gemini-flash-latest",
+            "strategy-optimization-agent": "gemini-flash-latest",
+            "financial-sentiment-agent": "gemini-flash-latest",
+            "market-prediction-agent": "gemini-flash-latest",
+            "volume-microstructure-agent": "gemini-flash-latest",
+            "vpin-hft": "gemini-flash-latest",
+            "market-analysis": "gemini-flash-latest",
         }
 
     async def initialize(self) -> None:
@@ -96,8 +97,7 @@ class VertexAIClient:
             try:
                 # Run blocking init in executor
                 await asyncio.get_event_loop().run_in_executor(
-                    None, 
-                    lambda: aiplatform.init(project=self._project_id, location=self._region)
+                    None, lambda: aiplatform.init(project=self._project_id, location=self._region)
                 )
                 logger.info("Vertex AI initialized successfully")
                 self._initialized = True
@@ -139,15 +139,16 @@ class VertexAIClient:
         except Exception as e:
             # Detailed error logging
             import traceback
+
             logger.error(f"Prediction error for {agent_id}: {str(e)}")
             logger.error(f"Traceback: {traceback.format_exc()}")
-            
+
             # Check for specific Google API errors
-            if hasattr(e, 'code'):
+            if hasattr(e, "code"):
                 logger.error(f"Google API Error Code: {e.code}")
-            if hasattr(e, 'message'):
+            if hasattr(e, "message"):
                 logger.error(f"Google API Error Message: {e.message}")
-            if hasattr(e, 'details'):
+            if hasattr(e, "details"):
                 logger.error(f"Google API Error Details: {e.details}")
 
             self._record_failure(agent_id)
@@ -155,7 +156,7 @@ class VertexAIClient:
 
     async def _predict_with_api_key(self, agent_id: str, prompt: str, **kwargs) -> Dict[str, Any]:
         """Make prediction using Google AI Studio API Key."""
-        model_name = self._model_map.get(agent_id, "gemini-2.0-flash-exp")
+        model_name = self._model_map.get(agent_id, "gemini-flash-latest")
 
         try:
             model = genai.GenerativeModel(model_name)
@@ -197,14 +198,14 @@ class VertexAIClient:
     async def _predict_with_vertex(self, agent_id: str, prompt: str, **kwargs) -> Dict[str, Any]:
         """Make prediction using Vertex AI (GenerativeModel or Endpoint)."""
         start_time = time.time()
-        
+
         # 1. Check if it's a Generative Model (Gemini)
         model_name = self._model_map.get(agent_id)
         if model_name:
             try:
                 # Initialize model
                 model = GenerativeModel(model_name)
-                
+
                 # Config
                 generation_config = {
                     "max_output_tokens": kwargs.get("max_tokens", 1024),
@@ -216,30 +217,32 @@ class VertexAIClient:
                 # Run prediction (in executor to be async-friendly)
                 # Note: stream=False by default
                 response = await asyncio.get_event_loop().run_in_executor(
-                    None, 
-                    lambda: model.generate_content(prompt, generation_config=generation_config)
+                    None,
+                    lambda: model.generate_content(prompt, generation_config=generation_config),
                 )
-                
+
                 inference_time = time.time() - start_time
-                
+
                 # Safe response extraction
                 try:
                     text_response = response.text
                 except Exception:
                     # Fallback if .text property fails (e.g. safety blocks)
                     if response.candidates and response.candidates[0].content.parts:
-                         text_response = response.candidates[0].content.parts[0].text
+                        text_response = response.candidates[0].content.parts[0].text
                     else:
-                         # Log safety ratings if available
-                         logger.warning(f"Empty response from Vertex AI for {agent_id}. Safety attributes: {getattr(response, 'prompt_feedback', 'N/A')}")
-                         raise ValueError("Vertex AI returned empty response (possibly blocked)")
+                        # Log safety ratings if available
+                        logger.warning(
+                            f"Empty response from Vertex AI for {agent_id}. Safety attributes: {getattr(response, 'prompt_feedback', 'N/A')}"
+                        )
+                        raise ValueError("Vertex AI returned empty response (possibly blocked)")
 
                 self._record_success(agent_id)
                 self._record_performance_metric(agent_id, inference_time)
-                
+
                 return {
                     "response": text_response,
-                    "confidence": 0.9, 
+                    "confidence": 0.9,
                     "metadata": {
                         "inference_time": inference_time,
                         "model": model_name,
@@ -248,25 +251,27 @@ class VertexAIClient:
                     },
                 }
             except Exception as e:
-                # If it fails, we log it. 
+                # If it fails, we log it.
                 # We ONLY fall back to endpoint if one is explicitly configured.
-                logger.error(f"GenerativeModel prediction failed for {agent_id} ({model_name}): {e}")
+                logger.error(
+                    f"GenerativeModel prediction failed for {agent_id} ({model_name}): {e}"
+                )
                 if not self._endpoints.get(agent_id):
                     raise e
 
         # 2. Fallback to Custom Endpoint (if configured)
         endpoint_url = self._endpoints.get(agent_id)
         if not endpoint_url:
-            # This is where the previous error came from. 
+            # This is where the previous error came from.
             # If we had a model_name but failed, and have no endpoint, we should have raised e above.
             if not model_name:
-                 raise ValueError(f"No Vertex AI endpoint or model configured for agent: {agent_id}")
+                raise ValueError(f"No Vertex AI endpoint or model configured for agent: {agent_id}")
             # If we are here, it means model_name existed, failed, and we fell through.
             # But the updated logic above raises e if no endpoint, so we shouldn't reach here in that case.
             return {
-                "response": "", 
-                "confidence": 0.0, 
-                "metadata": {"error": f"Prediction failed and no fallback endpoint for {agent_id}"}
+                "response": "",
+                "confidence": 0.0,
+                "metadata": {"error": f"Prediction failed and no fallback endpoint for {agent_id}"},
             }
 
         # Extract endpoint ID from URL

@@ -7,12 +7,14 @@ import logging
 from typing import Any, Dict, Optional
 
 try:
-    from google.cloud import pubsub_v1
     from google.api_core.exceptions import NotFound
+    from google.cloud import pubsub_v1
 except ImportError:
     pubsub_v1 = None
+
     class NotFound(Exception):
         pass
+
     print("⚠️ PubSub not found. Messaging disabled.")
 
 from .config import Settings
@@ -23,22 +25,26 @@ logger = logging.getLogger(__name__)
 
 class PubSubClient:
     """Google Cloud Pub/Sub client wrapper."""
-    
-    def __init__(self, project_id: str, topic_id: str, subscription_id: str):
-        self.project_id = project_id
-        self.topic_id = topic_id
-        self.subscription_id = subscription_id
-        self.publisher = None
-        self.subscriber = None
+
+    def __init__(self, settings: Settings):
+        self._settings = settings
+        self._project_id = settings.gcp_project_id
         
-        if pubsub_v1:
+        # Topics
+        self._decisions_topic = settings.decisions_topic
+        self._positions_topic = settings.positions_topic
+        self._reasoning_topic = settings.reasoning_topic
+
+        self._publisher = None
+        self._subscriber = None
+
+        if pubsub_v1 and self._project_id:
             try:
-                self.publisher = pubsub_v1.PublisherClient()
-                self.subscriber = pubsub_v1.SubscriberClient()
-                self.topic_path = self.publisher.topic_path(project_id, topic_id)
-                self.subscription_path = self.subscriber.subscription_path(project_id, subscription_id)
+                self._publisher = pubsub_v1.PublisherClient()
+                self._subscriber = pubsub_v1.SubscriberClient()
             except Exception as e:
                 print(f"⚠️ Failed to init PubSub: {e}")
+                self._publisher = None
 
     async def connect(self) -> None:
         """Instantiate the Pub/Sub publisher client."""
@@ -144,9 +150,9 @@ class PubSubClient:
 
     async def subscribe(self, topic_name: str, callback: Any) -> None:
         """Subscribe to a topic with a callback function.
-        
-        Note: In Cloud Run, pulling messages is generally done via push subscriptions 
-        triggering an HTTP endpoint, or a background worker. This implementation 
+
+        Note: In Cloud Run, pulling messages is generally done via push subscriptions
+        triggering an HTTP endpoint, or a background worker. This implementation
         assumes a background worker context where streaming pull is feasible.
         """
         if not self._settings.enable_pubsub or not self._project_id:
@@ -156,5 +162,7 @@ class PubSubClient:
         # Basic subscription logic - simplified for now as we primarily use push events
         # or this service is mainly a publisher.
         # A real implementation would need a SubscriberClient and proper flow control.
-        logger.warning(f"Subscribe called for {topic_name} but standard client is publisher-only. Use dedicated subscriber if needed.")
+        logger.warning(
+            f"Subscribe called for {topic_name} but standard client is publisher-only. Use dedicated subscriber if needed."
+        )
         return

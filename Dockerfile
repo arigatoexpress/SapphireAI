@@ -1,11 +1,23 @@
 # Multi-stage build for optimized image size
+
+# Stage 0: Build Frontend
+FROM node:18-slim as frontend-builder
+WORKDIR /app
+COPY trading-dashboard ./trading-dashboard
+WORKDIR /app/trading-dashboard
+RUN npm install
+ARG VITE_API_URL
+ENV VITE_API_URL=$VITE_API_URL
+RUN npm run build
+
 # Stage 1: Build dependencies
 FROM python:3.11-slim as builder
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    DEBIAN_FRONTEND=noninteractive
 
 # Install build dependencies
 RUN apt-get update && \
@@ -49,6 +61,9 @@ COPY --from=builder /install /usr/local/lib/python3.11/site-packages
 # Binaries (like alembic) might be in /install/bin
 COPY --from=builder /install/bin /usr/local/bin
 
+# Copy frontend build artifacts
+COPY --from=frontend-builder /app/trading-dashboard/dist /app/static
+
 # Copy application code with forced cache invalidation
 ARG CACHE_BUST
 RUN echo "CACHE_BUST=1764645934" > /dev/null
@@ -57,6 +72,7 @@ COPY --chown=trader:trader start.py ./
 COPY --chown=trader:trader pyproject.toml ./
 COPY --chown=trader:trader requirements.txt ./
 COPY --chown=trader:trader alembic.ini ./
+COPY --chown=trader:trader symphony_lib ./symphony_lib
 
 # Set environment and permissions
 # Ensure system site-packages are in PYTHONPATH for all Python invocations

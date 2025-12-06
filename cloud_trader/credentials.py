@@ -1,4 +1,5 @@
 """Credential loading for Aster."""
+
 from __future__ import annotations
 
 import base64
@@ -36,9 +37,11 @@ def load_credentials(gcp_secret_project: Optional[str] = None) -> Credentials:
         gcp_secret_project = settings.gcp_project_id
 
     if not api_key and gcp_secret_project:
+        print(f"DEBUG: Fetching ASTER_API_KEY from Secret Manager (project={gcp_secret_project})...", flush=True)
         api_key = _secret_manager.get_secret("ASTER_API_KEY", gcp_secret_project)
 
     if not api_secret and gcp_secret_project:
+        print(f"DEBUG: Fetching ASTER_SECRET_KEY from Secret Manager (project={gcp_secret_project})...", flush=True)
         api_secret = _secret_manager.get_secret("ASTER_SECRET_KEY", gcp_secret_project)
 
     # It's possible the secret is base64-encoded
@@ -53,7 +56,7 @@ def load_credentials(gcp_secret_project: Optional[str] = None) -> Credentials:
     if api_key:
         api_key = api_key.strip()
         print(f"DEBUG: Loaded API Key: {api_key[:4]}... (len={len(api_key)})")
-    
+
     if api_secret:
         api_secret = api_secret.strip()
         # Don't print secret parts for security, just length

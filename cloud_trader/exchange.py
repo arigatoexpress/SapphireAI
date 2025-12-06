@@ -251,28 +251,28 @@ class AsterClient:
                 # httpx might reorder params, so we construct the body string manually.
                 if not self._credentials or not self._credentials.api_secret:
                     raise ValueError("API secret is not configured")
-                
-                # Timestamp is already added by _sign_request if we called it, 
+
+                # Timestamp is already added by _sign_request if we called it,
                 # but here we are handling it manually to control the string.
                 # Let's NOT call _sign_request above for these methods to avoid double timestamping/signing issues
                 # if we were to refactor. But currently _sign_request is called above.
                 # Wait, if we call _sign_request above, params has 'signature' and 'timestamp'.
                 # And it is sorted? No, params is a dict.
-                
-                # Let's redo the signing here to be safe and explicit, 
+
+                # Let's redo the signing here to be safe and explicit,
                 # OR trust that we can reconstruct the string from params.
                 # Better to redo it or modify the flow.
-                
+
                 # RE-IMPLEMENTING logic to avoid the _sign_request call above which returns a dict.
                 # We need the sorted query string.
-                pass 
+                pass
 
         # Let's rewrite the whole block to be cleaner.
-        
+
         if signed:
             if not self._credentials or not self._credentials.api_key:
                 raise ValueError("API key is not configured for a signed request")
-            
+
             if not self._credentials.api_secret:
                 raise ValueError("API secret is not configured")
 
@@ -284,13 +284,15 @@ class AsterClient:
                 query_string.encode("utf-8"),
                 hashlib.sha256,
             ).hexdigest()
-            
+
             headers = {"X-MBX-APIKEY": self._credentials.api_key}
-            
+
             if method.upper() in ["POST", "PUT", "DELETE"]:
                 payload = query_string + "&signature=" + signature
                 headers["Content-Type"] = "application/x-www-form-urlencoded"
-                response = await self._client.request(method, endpoint, content=payload, headers=headers)
+                response = await self._client.request(
+                    method, endpoint, content=payload, headers=headers
+                )
             else:
                 # For GET, we must also ensure the query string in the URL matches the signature.
                 # httpx might reorder params if we pass them as a dict.
@@ -300,9 +302,13 @@ class AsterClient:
         else:
             headers = {}
             if method.upper() in ["POST", "PUT", "DELETE"]:
-                response = await self._client.request(method, endpoint, data=params, headers=headers)
+                response = await self._client.request(
+                    method, endpoint, data=params, headers=headers
+                )
             else:
-                response = await self._client.request(method, endpoint, params=params, headers=headers)
+                response = await self._client.request(
+                    method, endpoint, params=params, headers=headers
+                )
 
         try:
             response.raise_for_status()
@@ -531,7 +537,10 @@ class AsterClient:
         return await self._make_request("POST", "/fapi/v1/order", params=params, signed=True)
 
     async def get_order(
-        self, symbol: str, order_id: Optional[str] = None, orig_client_order_id: Optional[str] = None
+        self,
+        symbol: str,
+        order_id: Optional[str] = None,
+        orig_client_order_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Check an order's status."""
         params = {"symbol": symbol}
@@ -1196,13 +1205,15 @@ def create_exchange_clients(
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+
 class AsterSpotClient(AsterClient):
     """Client for Aster Spot API."""
 
     def __init__(
         self,
         credentials: Optional[Credentials] = None,
-        base_url: str = "https://api.asterdex.com", # Spot API URL
+        base_url: str = "https://api.asterdex.com",  # Spot API URL
     ):
         super().__init__(credentials, base_url)
 
@@ -1229,8 +1240,8 @@ class AsterSpotClient(AsterClient):
         time_in_force: Optional[TimeInForce] = None,
         new_client_order_id: Optional[str] = None,
         stop_price: Optional[float] = None,
-        quote_order_qty: Optional[float] = None, # Spot specific
-        **kwargs
+        quote_order_qty: Optional[float] = None,  # Spot specific
+        **kwargs,
     ) -> Dict[str, Any]:
         """Place a Spot order."""
         params = {

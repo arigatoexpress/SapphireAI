@@ -87,7 +87,7 @@ const DiamondSparkle: React.FC<DiamondSparkleProps> = ({
         let currentOpacity = fadeOut
           ? sparkle.opacity * (1 - (sparkle.life - duration * 0.7) / (duration * 0.3))
           : sparkle.opacity;
-        
+
         currentOpacity = Math.max(0, currentOpacity);
 
         return (
@@ -164,4 +164,3 @@ const DiamondSparkle: React.FC<DiamondSparkleProps> = ({
 };
 
 export default DiamondSparkle;
-

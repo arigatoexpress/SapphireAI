@@ -25,23 +25,23 @@ flowchart TB
         CONDUCTOR[Symphony Conductor<br/>Gemini AI]
         PUBSUB[(Google Pub/Sub<br/>Market Regime)]
     end
-    
+
     subgraph "⚡ Execution Layer"
         CT[Cloud Trader<br/>Aster Exchange]
         HT[Hyperliquid Trader<br/>Hyperliquid Exchange]
     end
-    
+
     subgraph "📊 Visualization Layer"
         DASH[Trading Dashboard<br/>React + WebSocket]
         TG[Telegram Bot<br/>Notifications]
     end
-    
+
     subgraph "🔐 Infrastructure"
         REDIS[(Redis<br/>State Cache)]
         PG[(PostgreSQL<br/>Trade History)]
         SM[Secret Manager<br/>API Keys]
     end
-    
+
     CONDUCTOR -->|Publishes Regime| PUBSUB
     PUBSUB -->|Subscribes| CT
     PUBSUB -->|Subscribes| HT
@@ -158,15 +158,15 @@ sequenceDiagram
     participant T as Cloud Trader
     participant E as Exchange
     participant D as Dashboard
-    
+
     loop Every 5 minutes
         M->>C: Price & Volume Data
         C->>C: Gemini AI Analysis
         C->>PS: Publish MarketRegime
     end
-    
+
     PS->>T: Market Regime Update
-    
+
     loop Every 5 seconds
         T->>T: Agent Analysis
         T->>E: Place/Manage Orders

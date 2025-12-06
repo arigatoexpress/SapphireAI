@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { 
-  Activity, 
-  Server, 
-  Database, 
-  Cpu, 
-  Globe, 
-  Shield, 
-  Zap, 
+import {
+  Activity,
+  Server,
+  Database,
+  Cpu,
+  Globe,
+  Shield,
+  Zap,
   Layout,
   GitBranch,
   Terminal,
@@ -77,7 +77,7 @@ export const CommandControl = () => {
     <div className="min-h-screen bg-[#0a0a12] text-white p-6 relative overflow-hidden">
       {/* Background Grid */}
       <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none" />
-      
+
       <header className="relative z-10 mb-8 flex justify-between items-end">
         <div>
           <h1 className="text-3xl font-black tracking-tight flex items-center gap-3">
@@ -99,22 +99,22 @@ export const CommandControl = () => {
       </header>
 
       <div className="relative z-10 max-w-7xl mx-auto">
-        
+
         {/* TOP LAYER: EXTERNAL EXCHANGES */}
         <div className="flex justify-center gap-12 mb-4">
-          <SystemNode 
-            icon={Globe} 
-            title="Aster DEX" 
+          <SystemNode
+            icon={Globe}
+            title="Aster DEX"
             status="active"
-            color="blue" 
-            details={["REST API v1", "WebSocket Feed", "Order Execution"]} 
+            color="blue"
+            details={["REST API v1", "WebSocket Feed", "Order Execution"]}
           />
-          <SystemNode 
-            icon={Zap} 
-            title="Hyperliquid" 
+          <SystemNode
+            icon={Zap}
+            title="Hyperliquid"
             status="active"
-            color="green" 
-            details={["L1 Chain", "Perps Engine", "Hype Staking"]} 
+            color="green"
+            details={["L1 Chain", "Perps Engine", "Hype Staking"]}
           />
         </div>
 
@@ -127,12 +127,12 @@ export const CommandControl = () => {
         <div className="grid grid-cols-3 gap-8 items-center mb-4">
           {/* Aster Engine */}
           <div className="col-span-1 flex flex-col items-center">
-            <SystemNode 
-              icon={Cpu} 
-              title="Cloud Trader (Aster)" 
-              status="active" 
+            <SystemNode
+              icon={Cpu}
+              title="Cloud Trader (Aster)"
+              status="active"
               color="indigo"
-              details={["Agent Orchestrator", "Strategy Engine", "Risk Manager"]} 
+              details={["Agent Orchestrator", "Strategy Engine", "Risk Manager"]}
             />
           </div>
 
@@ -146,12 +146,12 @@ export const CommandControl = () => {
 
           {/* Hyperliquid Engine */}
           <div className="col-span-1 flex flex-col items-center">
-            <SystemNode 
-              icon={GitBranch} 
-              title="HL Trader (Velocity)" 
-              status="active" 
+            <SystemNode
+              icon={GitBranch}
+              title="HL Trader (Velocity)"
+              status="active"
               color="emerald"
-              details={["Python SDK", "Grok HL", "Profit Sweeper"]} 
+              details={["Python SDK", "Grok HL", "Profit Sweeper"]}
             />
           </div>
         </div>
@@ -165,26 +165,26 @@ export const CommandControl = () => {
 
         {/* BOTTOM LAYER: STORAGE & FRONTEND */}
         <div className="flex justify-center gap-12">
-          <SystemNode 
-            icon={Server} 
-            title="PostgreSQL" 
+          <SystemNode
+            icon={Server}
+            title="PostgreSQL"
             status="active"
-            color="orange" 
-            details={["Trade History", "User Data", "Analytics"]} 
+            color="orange"
+            details={["Trade History", "User Data", "Analytics"]}
           />
-          <SystemNode 
-            icon={Layout} 
-            title="Dashboard UI" 
+          <SystemNode
+            icon={Layout}
+            title="Dashboard UI"
             status="active"
-            color="cyan" 
-            details={["React App", "WebSocket Client", "Duality View"]} 
+            color="cyan"
+            details={["React App", "WebSocket Client", "Duality View"]}
           />
-          <SystemNode 
-            icon={Shield} 
-            title="Security Layer" 
+          <SystemNode
+            icon={Shield}
+            title="Security Layer"
             status="active"
-            color="red" 
-            details={["API Encryption", "IP Whitelisting", "Circuit Breakers"]} 
+            color="red"
+            details={["API Encryption", "IP Whitelisting", "Circuit Breakers"]}
           />
         </div>
 
@@ -212,5 +212,3 @@ export const CommandControl = () => {
     </div>
   );
 };
-
-

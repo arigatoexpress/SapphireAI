@@ -1,0 +1,5 @@
+steps:
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['build', '-t', 'gcr.io/sapphire-479610/cloud-trader', '-f', 'Dockerfile.backend', '.']
+images:
+- 'gcr.io/sapphire-479610/cloud-trader'

@@ -8,7 +8,7 @@ export const SystemArchitecture: React.FC = () => {
       <div className="relative overflow-hidden rounded-3xl bg-slate-900/50 border border-slate-800 p-8">
         <div className="absolute top-0 right-0 -mt-4 -mr-4 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl"></div>
         <div className="absolute bottom-0 left-0 -mb-4 -ml-4 w-32 h-32 bg-purple-500/10 rounded-full blur-3xl"></div>
-        
+
         <div className="relative z-10">
           <h1 className="text-3xl font-bold text-white mb-2 flex items-center gap-3">
             <Network className="text-blue-400" size={32} />
@@ -23,12 +23,12 @@ export const SystemArchitecture: React.FC = () => {
       {/* Architecture Diagram Container */}
       <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-8 overflow-x-auto relative">
         {/* Grid Pattern Background */}
-        <div className="absolute inset-0 opacity-10" 
+        <div className="absolute inset-0 opacity-10"
              style={{ backgroundImage: 'linear-gradient(to right, #334155 1px, transparent 1px), linear-gradient(to bottom, #334155 1px, transparent 1px)', backgroundSize: '40px 40px' }}>
         </div>
 
         <div className="relative min-w-[1000px] flex flex-col gap-16 z-10">
-          
+
           {/* LAYER 1: External Market */}
           <div className="flex justify-center">
             <div className="bg-slate-950/90 border border-slate-700 rounded-2xl p-6 w-full max-w-4xl flex items-center justify-between shadow-2xl shadow-blue-900/10">
@@ -61,7 +61,7 @@ export const SystemArchitecture: React.FC = () => {
               <div className="absolute -top-3 left-8 bg-blue-500 text-white text-xs font-bold px-3 py-1 rounded-full">
                 CORE ENGINE (Python/FastAPI)
               </div>
-              
+
               <div className="space-y-6">
                 <div className="flex items-center gap-4 mb-6">
                   <div className="p-3 bg-blue-500/20 rounded-lg">
@@ -75,29 +75,29 @@ export const SystemArchitecture: React.FC = () => {
 
                 {/* Sub-components of Core */}
                 <div className="grid grid-cols-2 gap-4">
-                  <SystemNode 
-                    icon={<Brain size={20} />} 
-                    title="Grok 4.1 Manager" 
-                    desc="Strategy Optimization & CIO" 
-                    color="purple" 
+                  <SystemNode
+                    icon={<Brain size={20} />}
+                    title="Grok 4.1 Manager"
+                    desc="Strategy Optimization & CIO"
+                    color="purple"
                   />
-                  <SystemNode 
-                    icon={<MessageSquare size={20} />} 
-                    title="MCP Protocol" 
-                    desc="Inter-Agent Communication" 
-                    color="pink" 
+                  <SystemNode
+                    icon={<MessageSquare size={20} />}
+                    title="MCP Protocol"
+                    desc="Inter-Agent Communication"
+                    color="pink"
                   />
-                  <SystemNode 
-                    icon={<Activity size={20} />} 
-                    title="Risk Engine" 
-                    desc="Position Sizing & Stops" 
-                    color="rose" 
+                  <SystemNode
+                    icon={<Activity size={20} />}
+                    title="Risk Engine"
+                    desc="Position Sizing & Stops"
+                    color="rose"
                   />
-                  <SystemNode 
-                    icon={<Zap size={20} />} 
-                    title="HFT Executor" 
-                    desc="Order Routing & Fill Check" 
-                    color="amber" 
+                  <SystemNode
+                    icon={<Zap size={20} />}
+                    title="HFT Executor"
+                    desc="Order Routing & Fill Check"
+                    color="amber"
                   />
                 </div>
               </div>
@@ -156,7 +156,7 @@ export const SystemArchitecture: React.FC = () => {
                     <div className="w-0.5 h-12 bg-gradient-to-b from-slate-700 to-blue-500"></div>
                     <div className="px-3 py-1 bg-slate-800 rounded-full text-[10px] text-slate-400 border border-slate-700 z-20 -mt-6">WebSocket Stream</div>
                 </div>
-                
+
                 <div className="bg-slate-950/90 border border-slate-700 rounded-t-2xl p-1 pt-4">
                     <div className="flex gap-2 mb-2 px-4">
                         <div className="w-3 h-3 rounded-full bg-red-500/20 border border-red-500/50"></div>
@@ -176,19 +176,19 @@ export const SystemArchitecture: React.FC = () => {
 
         </div>
       </div>
-      
+
       {/* Description Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <InfoCard 
-            title="Data Flow" 
+        <InfoCard
+            title="Data Flow"
             content="Market data is ingested via WebSocket from Aster DEX, processed by the Core Engine, analyzed by Agents, and results are streamed to the Frontend in real-time."
         />
-        <InfoCard 
-            title="Agent Autonomy" 
+        <InfoCard
+            title="Agent Autonomy"
             content="Each agent operates independently with its own strategy but communicates via the MCP protocol to reach consensus on major market moves."
         />
-        <InfoCard 
-            title="Grok 4.1 Integration" 
+        <InfoCard
+            title="Grok 4.1 Integration"
             content="The Grok Manager acts as a CIO, monitoring portfolio health every 5 minutes and dynamically adjusting agent leverage and risk parameters."
         />
       </div>
@@ -223,4 +223,3 @@ const InfoCard = ({ title, content }: any) => (
 );
 
 export default SystemArchitecture;
-

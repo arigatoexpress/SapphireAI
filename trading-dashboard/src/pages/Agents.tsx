@@ -17,8 +17,8 @@ export const Agents: React.FC<AgentsProps> = ({ bots, messages }) => {
   };
 
   const agentDetails = [
-    { 
-      id: 'trend-momentum-agent', 
+    {
+      id: 'trend-momentum-agent',
       name: 'Trend Momentum',
       emoji: '⚡',
       model: 'Gemini 2.0 Flash',
@@ -28,8 +28,8 @@ export const Agents: React.FC<AgentsProps> = ({ bots, messages }) => {
       system: 'aster',
       description: 'Identifies and exploits strong directional moves using advanced technical analysis and market momentum indicators.'
     },
-    { 
-      id: 'strategy-optimization-agent', 
+    {
+      id: 'strategy-optimization-agent',
       name: 'Strategy Optimizer',
       emoji: '🧠',
       model: 'Gemini 2.0 Flash',
@@ -39,8 +39,8 @@ export const Agents: React.FC<AgentsProps> = ({ bots, messages }) => {
       system: 'aster',
       description: 'Continuously optimizes trading approaches using complex reasoning and market analysis to find optimal strategies.'
     },
-    { 
-      id: 'financial-sentiment-agent', 
+    {
+      id: 'financial-sentiment-agent',
       name: 'Sentiment Analyst',
       emoji: '💭',
       model: 'Gemini 2.0 Flash',
@@ -50,8 +50,8 @@ export const Agents: React.FC<AgentsProps> = ({ bots, messages }) => {
       system: 'aster',
       description: 'Analyzes market psychology and news impact to identify sentiment-driven trading opportunities.'
     },
-    { 
-      id: 'market-prediction-agent', 
+    {
+      id: 'market-prediction-agent',
       name: 'Market Predictor',
       emoji: '🔮',
       model: 'Gemini 2.0 Flash',
@@ -61,8 +61,8 @@ export const Agents: React.FC<AgentsProps> = ({ bots, messages }) => {
       system: 'aster',
       description: 'Uses advanced models to forecast market movements and identify high-probability setups.'
     },
-    { 
-      id: 'grok-special-ops', 
+    {
+      id: 'grok-special-ops',
       name: 'Grok Alpha',
       emoji: '👨‍💼',
       model: 'Grok Beta',
@@ -72,10 +72,10 @@ export const Agents: React.FC<AgentsProps> = ({ bots, messages }) => {
       system: 'aster',
       description: 'The Chief Investment Officer. Orchestrates the swarm, learns from history, and executes high-conviction strategic bets.'
     },
-    { 
-      id: 'hype-agent', 
+    {
+      id: 'hype-agent',
       name: 'Hype Bull Agent',
-      emoji: 'Zap', 
+      emoji: 'Zap',
       model: 'Gemini 2.0 Flash',
       specialty: 'Perp Scalping & Sweeping',
       riskLevel: 'Extreme',
@@ -107,7 +107,7 @@ export const Agents: React.FC<AgentsProps> = ({ bots, messages }) => {
       {/* Header */}
       <div className="glass-card p-8 rounded-3xl relative overflow-hidden">
          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 via-blue-500 to-emerald-500"></div>
-         
+
          <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
            <div>
              <div className="flex items-center gap-3 mb-2">
@@ -122,7 +122,7 @@ export const Agents: React.FC<AgentsProps> = ({ bots, messages }) => {
                OPERATIONAL STATUS: <span className="text-emerald-400">ONLINE</span> • SWARM INTELLIGENCE: <span className="text-blue-400">ACTIVE</span>
              </p>
            </div>
-           
+
            <div className="flex gap-4">
              <div className="px-5 py-3 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm">
                <div className="text-[10px] text-slate-400 uppercase tracking-widest mb-1">Total Agents</div>
@@ -150,8 +150,8 @@ export const Agents: React.FC<AgentsProps> = ({ bots, messages }) => {
             <div
               key={agent.id}
               className={`group relative glass-card p-6 rounded-3xl transition-all duration-500 hover:-translate-y-2 cursor-pointer ${
-                selectedAgent === agent.id 
-                  ? 'border-purple-500/50 shadow-[0_0_30px_rgba(168,85,247,0.2)]' 
+                selectedAgent === agent.id
+                  ? 'border-purple-500/50 shadow-[0_0_30px_rgba(168,85,247,0.2)]'
                   : isHype ? 'hover:border-emerald-500/30' : 'hover:border-blue-500/30'
               }`}
               onClick={() => setSelectedAgent(selectedAgent === agent.id ? null : agent.id)}
@@ -161,8 +161,8 @@ export const Agents: React.FC<AgentsProps> = ({ bots, messages }) => {
                 <div className="flex justify-between items-start mb-6">
                   <div className="flex items-center gap-4">
                     <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-3xl shadow-lg border ${
-                      isHype 
-                        ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
+                      isHype
+                        ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
                         : agent.id === 'grok-special-ops'
                           ? 'bg-purple-500/10 border-purple-500/20 text-purple-400'
                           : 'bg-blue-500/10 border-blue-500/20 text-blue-400'
@@ -182,7 +182,7 @@ export const Agents: React.FC<AgentsProps> = ({ bots, messages }) => {
                       </div>
                     </div>
                   </div>
-                  
+
                   {winRate > 60 && (
                     <div className="absolute -top-2 -right-2">
                       <div className="relative flex h-3 w-3">
@@ -221,7 +221,7 @@ export const Agents: React.FC<AgentsProps> = ({ bots, messages }) => {
                     <span className="text-slate-500 font-mono uppercase">Horizon</span>
                     <span className="text-slate-300 font-bold">{agent.timeHorizon}</span>
                   </div>
-                  
+
                   {/* Progress Bar */}
                   <div className="pt-2">
                     <div className="flex justify-between items-center mb-1">
@@ -229,7 +229,7 @@ export const Agents: React.FC<AgentsProps> = ({ bots, messages }) => {
                       <span className="text-[10px] text-purple-400 font-mono font-bold">{score.toFixed(2)}</span>
                     </div>
                     <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
-                      <div 
+                      <div
                         className="h-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 rounded-full transition-all duration-1000"
                         style={{ width: `${Math.min(100, score * 100)}%` }}
                       />

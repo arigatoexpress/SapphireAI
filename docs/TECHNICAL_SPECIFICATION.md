@@ -53,18 +53,18 @@ stateDiagram-v2
     [*] --> AgentSelection
     AgentSelection --> SymbolSelection
     SymbolSelection --> PositionCheck
-    
+
     PositionCheck --> ManagePosition: Has Position
     PositionCheck --> MarketAnalysis: No Position
-    
+
     ManagePosition --> ProfitCheck
     ProfitCheck --> ClosePosition: TP/SL Hit
     ProfitCheck --> HoldPosition: Continue
-    
+
     MarketAnalysis --> SignalEvaluation
     SignalEvaluation --> OpenPosition: Confidence ≥ 0.65
     SignalEvaluation --> Skip: Confidence < 0.65
-    
+
     ClosePosition --> [*]
     HoldPosition --> [*]
     OpenPosition --> [*]
@@ -113,12 +113,12 @@ graph TB
         A2["⚡ Breakout Sniper<br/>Support/Resistance breaks"]
         A3["🏄 Trend Surfer<br/>Extended moves"]
     end
-    
+
     subgraph "Bear Market Agents"
         B1["🌊 Volatility Harvester<br/>Vol expansion"]
         B2["📊 Mean Reversion<br/>Oversold conditions"]
     end
-    
+
     subgraph "Quantitative Agents"
         Q1["⚡ VPIN HFT<br/>Volume-informed trading"]
         Q2["🧠 Strategy Optimizer<br/>Meta-learning"]
@@ -195,25 +195,25 @@ flowchart TB
             CT[cloud-trader<br/>min: 1, max: 10]
             SC[symphony-conductor<br/>min: 1, max: 3]
         end
-        
+
         subgraph "Data Layer"
             PS[(Pub/Sub<br/>symphony-strategy)]
             RD[(Memorystore Redis<br/>10.30.22.187)]
             PG[(Cloud SQL PostgreSQL<br/>10.127.2.3)]
         end
-        
+
         subgraph "Security"
             SM[Secret Manager<br/>6 secrets]
             VPC[VPC Connector<br/>sapphire-conn]
             NAT[Cloud NAT<br/>34.118.185.110]
         end
     end
-    
+
     subgraph "External"
         ASTER[Aster Exchange API]
         GEMINI[Gemini AI API]
     end
-    
+
     CT --> PS
     SC --> PS
     CT --> RD & PG

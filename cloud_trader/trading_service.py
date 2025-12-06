@@ -16,23 +16,28 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import aiohttp
 
+from symphony_lib import MarketRegime, SymphonyClient
+
+from .analysis_engine import AnalysisEngine
 from .config import Settings, get_settings
 from .credentials import CredentialManager
 from .data.feature_pipeline import FeaturePipeline
-from .data.feature_pipeline import FeaturePipeline
-from .definitions import AGENT_DEFINITIONS, HealthStatus, PREFERRED_SYMBOLS, SYMBOL_CONFIG, MinimalAgentState
-from .position_manager import PositionManager
-from .market_data import MarketDataManager
-from .grok_manager import GrokManager
-from .analysis_engine import AnalysisEngine
+from .definitions import (
+    AGENT_DEFINITIONS,
+    PREFERRED_SYMBOLS,
+    SYMBOL_CONFIG,
+    HealthStatus,
+    MinimalAgentState,
+)
 from .enhanced_telegram import EnhancedTelegramService, NotificationPriority
 from .enums import OrderType
 from .exchange import AsterClient
+from .grok_manager import GrokManager
+from .market_data import MarketDataManager
+from .position_manager import PositionManager
 from .risk import PortfolioState, RiskManager
 from .self_healing import SelfHealingWatchdog
-from .self_healing import SelfHealingWatchdog
 from .swarm import SwarmManager
-from symphony_lib import SymphonyClient, MarketRegime
 from .websocket_manager import broadcast_market_regime
 
 # Telegram integration
@@ -65,9 +70,6 @@ class SimpleMCP:
                 "context": context,
             }
         )
-
-
-
 
 
 @dataclass
@@ -103,9 +105,6 @@ class WhaleTradeManager:
             self.last_reset_day = today
 
 
-
-
-
 class MinimalTradingService:
     """Minimal trading service with essential functionality only."""
 
@@ -138,10 +137,10 @@ class MinimalTradingService:
         # Portfolio
         self._portfolio = PortfolioState(balance=0.0, equity=0.0)
         self._recent_trades = deque(maxlen=200)
-        
+
         # Initialize Agent States (Required for PositionManager)
         self._agent_states: Dict[str, Any] = {}
-        
+
         # Initialize Position Manager
         print("DEBUG: Initializing PositionManager...", flush=True)
         try:
@@ -149,7 +148,7 @@ class MinimalTradingService:
             print("DEBUG: PositionManager initialized", flush=True)
         except Exception as e:
             print(f"DEBUG: PositionManager init failed: {e}", flush=True)
-        
+
         # Legacy support (delegated to manager)
         self._pending_orders: Dict[str, Dict] = {}  # OrderID -> Order Info
         # Initialize Market Data Manager
@@ -159,7 +158,7 @@ class MinimalTradingService:
             print("DEBUG: MarketDataManager initialized", flush=True)
         except Exception as e:
             print(f"DEBUG: MarketDataManager init failed: {e}", flush=True)
-        
+
         # Legacy support
         # self._market_structure = {} # REMOVED: Use property instead
 
@@ -183,6 +182,7 @@ class MinimalTradingService:
         try:
             redis_url = os.getenv("REDIS_URL", "redis://redis:6379/0")
             import redis
+
             self._redis_client = redis.from_url(redis_url)
             self._redis_pubsub = self._redis_client.pubsub()
             print("✅ Connected to Redis for Aggregation")
@@ -233,10 +233,10 @@ class MinimalTradingService:
         # Let's keep it but be aware it might need re-init if it caches the client.
         # Actually, FeaturePipeline takes a client. If we pass self._exchange_client now, it passes None.
         # We should initialize FeaturePipeline in start() too.
-        self._feature_pipeline = None 
+        self._feature_pipeline = None
         self._swarm_manager = SwarmManager()
         self._watchdog = SelfHealingWatchdog()
-        self._analysis_engine = None # Initialized in start()
+        self._analysis_engine = None  # Initialized in start()
 
         # Load persistent data
         print("DEBUG: Loading persistent data...", flush=True)
@@ -261,7 +261,7 @@ class MinimalTradingService:
             print("DEBUG: Initializing Symphony Client...", flush=True)
             self.symphony = SymphonyClient(
                 project_id=self._settings.gcp_project_id or "sapphire-479610",
-                service_name="cloud-trader"
+                service_name="cloud-trader",
             )
             self.current_regime = None
             print("DEBUG: Symphony Client initialized successfully", flush=True)
@@ -270,6 +270,7 @@ class MinimalTradingService:
             self.symphony = None
 
         print("✅ Minimal TradingService initialized successfully")
+
     @property
     def _market_structure(self) -> Dict[str, Dict[str, Any]]:
         return self.market_data_manager.market_structure
@@ -285,7 +286,6 @@ class MinimalTradingService:
     @_open_positions.setter
     def _open_positions(self, value):
         self.position_manager.open_positions = value
-
 
     async def send_test_telegram_message(self):
         """Send a test message to Telegram to verify integration."""
@@ -349,7 +349,9 @@ class MinimalTradingService:
 
             # Subscribe to Symphony Strategy
             print("🎻 Subscribing to Symphony Strategy...", flush=True)
-            self._strategy_subscription = self.symphony.subscribe_strategy("aster-strategy-sub", self._handle_strategy_update)
+            self._strategy_subscription = self.symphony.subscribe_strategy(
+                "aster-strategy-sub", self._handle_strategy_update
+            )
 
             # Fetch full market structure for symbol-agnostic trading
             print("DEBUG: Fetching market structure...", flush=True)
@@ -370,7 +372,7 @@ class MinimalTradingService:
                 self._exchange_client,
                 self._feature_pipeline,
                 self._swarm_manager,
-                self._grok_manager
+                self._grok_manager,
             )
 
             # Start main trading loop
@@ -382,9 +384,7 @@ class MinimalTradingService:
                 print("DEBUG: Starting Grok Manager...")
                 asyncio.create_task(
                     self._grok_manager.run_management_loop(
-                        self._agent_states, 
-                        self._recent_trades, 
-                        self._stop_event
+                        self._agent_states, self._recent_trades, self._stop_event
                     )
                 )
 
@@ -516,14 +516,14 @@ class MinimalTradingService:
 
                     except Exception as e:
                         print(f"⚠️ Redis message processing error: {e}")
-                        await asyncio.sleep(0.1) # Sleep on error to prevent busy loop
+                        await asyncio.sleep(0.1)  # Sleep on error to prevent busy loop
                 else:
                     # No message, sleep briefly to avoid busy loop
                     await asyncio.sleep(0.1)
 
         except Exception as e:
             print(f"❌ Redis Listener Failed: {e}")
-            await asyncio.sleep(5) # Sleep longer if the listener itself fails
+            await asyncio.sleep(5)  # Sleep longer if the listener itself fails
 
     async def _fetch_market_structure(self):
         """Fetch all available symbols and their precision/filters from exchange."""
@@ -1021,12 +1021,11 @@ class MinimalTradingService:
         """Monitor open positions for TP/SL hits and return current ticker map."""
         return await self.position_manager.monitor_positions()
 
-
-
-    async def _check_profit_taking(self, symbol: str, position: Dict[str, Any], current_price: float) -> Tuple[bool, str]:
+    async def _check_profit_taking(
+        self, symbol: str, position: Dict[str, Any], current_price: float
+    ) -> Tuple[bool, str]:
         """Check if a position should be closed for profit or stop loss."""
         return await self.position_manager.check_profit_taking(symbol, position, current_price)
-
 
     async def _analyze_market_for_agent(
         self, agent: MinimalAgentState, symbol: str, ticker_map: Dict[str, Any] = None
@@ -1038,7 +1037,7 @@ class MinimalTradingService:
         if not self._analysis_engine:
             # Fallback if engine not ready (should not happen in loop)
             return {"signal": "NEUTRAL", "confidence": 0.0, "thesis": "Analysis Engine not ready"}
-            
+
         return await self._analysis_engine.analyze_market(agent, symbol, ticker_map)
 
     def _get_agent_exposure(self, agent_id: str) -> float:
@@ -1114,18 +1113,27 @@ class MinimalTradingService:
             quantity_float = pos["quantity"]
 
             # INTELLIGENT EXIT LOGIC
-            
+
             # 0. Hard Profit/Stop Check (Overrides Analysis)
             try:
                 if ticker_map and symbol in ticker_map:
                     curr_price = float(ticker_map[symbol].get("lastPrice", 0))
-                    should_close_hard, hard_reason = await self._check_profit_taking(symbol, pos, curr_price)
+                    should_close_hard, hard_reason = await self._check_profit_taking(
+                        symbol, pos, curr_price
+                    )
                     if should_close_hard:
                         print(f"💰 Profit/Stop Triggered for {symbol}: {hard_reason}")
                         # Execute immediately
                         trade_side = "SELL" if pos["side"] == "BUY" else "BUY"
-                        await self._execute_trade_order(agent, symbol, trade_side, quantity_float, is_closing=True, reason=hard_reason)
-                        return # Exit loop for this tick
+                        await self._execute_trade_order(
+                            agent,
+                            symbol,
+                            trade_side,
+                            quantity_float,
+                            is_closing=True,
+                            reason=hard_reason,
+                        )
+                        return  # Exit loop for this tick
             except Exception as e:
                 print(f"⚠️ Profit check failed: {e}")
 
@@ -1213,7 +1221,7 @@ class MinimalTradingService:
                     if pos["entry_price"] > 0:
                         base_qty = target_size / pos["entry_price"]
                     else:
-                        base_qty = current_qty # Fallback
+                        base_qty = current_qty  # Fallback
                 else:
                     base_qty = current_qty  # Fallback (don't double unknown size)
 
@@ -1281,7 +1289,11 @@ class MinimalTradingService:
 
                 # Determine position size (target ~$150-200 notional)
                 try:
-                    ticker = ticker_map.get(symbol) if ticker_map else await self._exchange_client.get_ticker(symbol)
+                    ticker = (
+                        ticker_map.get(symbol)
+                        if ticker_map
+                        else await self._exchange_client.get_ticker(symbol)
+                    )
                     current_price = float(ticker.get("lastPrice", 0))
 
                     if current_price <= 0:
@@ -1300,17 +1312,14 @@ class MinimalTradingService:
                         precision = SYMBOL_CONFIG[symbol].get("precision", 4)
                         quantity_float = round(quantity_float, precision)
 
-                    print(f"🚀 NEW TRADE: {agent.emoji} {agent.name} -> {signal} {symbol} @ ${current_price:.4f} | Qty: {quantity_float} | Conf: {confidence:.2f}")
+                    print(
+                        f"🚀 NEW TRADE: {agent.emoji} {agent.name} -> {signal} {symbol} @ ${current_price:.4f} | Qty: {quantity_float} | Conf: {confidence:.2f}"
+                    )
                     print(f"   📝 Thesis: {thesis}")
 
                     # Execute the new trade
                     await self._execute_trade_order(
-                        agent,
-                        symbol,
-                        signal,
-                        quantity_float,
-                        thesis,
-                        is_closing=False
+                        agent, symbol, signal, quantity_float, thesis, is_closing=False
                     )
 
                 except Exception as e:
@@ -1346,8 +1355,6 @@ class MinimalTradingService:
         except Exception as e:
             print(f"⚠️ Failed to update account info: {e}")
 
-
-
     async def _execute_trade_order(
         self, agent, symbol, side, quantity_float, thesis, is_closing=False
     ):
@@ -1365,13 +1372,17 @@ class MinimalTradingService:
                         side = pos["actual_side"]
                     else:
                         # Fallback: assume BUY if not specified
-                        print(f"⚠️ Warning: Position {symbol} has side 'BOTH' but no actual_side tracked. Defaulting to BUY.")
+                        print(
+                            f"⚠️ Warning: Position {symbol} has side 'BOTH' but no actual_side tracked. Defaulting to BUY."
+                        )
                         side = "BUY"
                 else:
                     # No position tracked, default to BUY
-                    print(f"⚠️ Warning: Attempting to trade {symbol} with side 'BOTH' but position not tracked. Defaulting to BUY.")
+                    print(
+                        f"⚠️ Warning: Attempting to trade {symbol} with side 'BOTH' but position not tracked. Defaulting to BUY."
+                    )
                     side = "BUY"
-            
+
             # When closing a position, we need to use the OPPOSITE side
             # For example, to close a BUY position, we need to SELL
             if is_closing:
@@ -1381,12 +1392,14 @@ class MinimalTradingService:
                     trade_side = "BUY"
                 else:
                     # Shouldn't happen after the BOTH conversion above, but handle it
-                    print(f"⚠️ Warning: Invalid side '{side}' for closing trade. Defaulting to SELL.")
+                    print(
+                        f"⚠️ Warning: Invalid side '{side}' for closing trade. Defaulting to SELL."
+                    )
                     trade_side = "SELL"
             else:
                 # For opening positions, use the side as-is
                 trade_side = side
-            
+
             # Format quantity
             quantity = str(quantity_float)  # Default
 
@@ -1404,7 +1417,9 @@ class MinimalTradingService:
                 else:
                     quantity = "{:.{p}f}".format(quantity_float, p=precision)
 
-            print(f"🚀 ATTEMPTING TRADE: {agent.emoji} {agent.name} - {trade_side} {quantity} {symbol}{'(CLOSING)' if is_closing else ''}")
+            print(
+                f"🚀 ATTEMPTING TRADE: {agent.emoji} {agent.name} - {trade_side} {quantity} {symbol}{'(CLOSING)' if is_closing else ''}"
+            )
 
             # RISK CHECK: 10% Cash Cushion (Only for Entries)
             if not is_closing:
@@ -1903,7 +1918,7 @@ class MinimalTradingService:
                     ticker = ticker_map[symbol]
                 else:
                     ticker = await self._exchange_client.get_ticker(symbol)
-                
+
                 current_price = float(ticker.get("lastPrice", 0))
             except Exception:
                 continue
@@ -1984,7 +1999,7 @@ class MinimalTradingService:
 
             # Create a temporary agent to analyze
             # We don't know which agent opened it, so we use a "Reviewer" agent
-            agent = TradingAgent(
+            agent = MinimalAgentState(
                 id="reviewer",
                 name="Portfolio Reviewer",
                 emoji="🕵️",
@@ -2054,7 +2069,7 @@ class MinimalTradingService:
                 # Reconcile internal state with exchange reality to catch external closures/liquidations
                 if time.time() - last_position_sync > 60:
                     await self._sync_exchange_positions()
-                
+
                 # 1. Update Market Data
                 await self._fetch_market_structure()
 
@@ -2131,7 +2146,7 @@ class MinimalTradingService:
                     agent = self._agent_states.get(pos.get("agent_id"))
                     if not agent:
                         # Create dummy agent for closure
-                        agent = TradingAgent(
+                        agent = MinimalAgentState(
                             id="risk_bot",
                             name="Risk Bot",
                             emoji="🚑",
@@ -2464,20 +2479,21 @@ class MinimalTradingService:
             if msg_type == "regime":
                 regime = MarketRegime.from_dict(data)
                 self.current_regime = regime
-                print(f"🎻 New Market Regime: {regime.regime.value} (Conf: {regime.confidence:.2f})")
-                
+                print(
+                    f"🎻 New Market Regime: {regime.regime.value} (Conf: {regime.confidence:.2f})"
+                )
+
                 # Broadcast to frontend (Thread-safe)
                 if hasattr(self, "_loop"):
                     asyncio.run_coroutine_threadsafe(
-                        broadcast_market_regime(regime.to_dict()), 
-                        self._loop
+                        broadcast_market_regime(regime.to_dict()), self._loop
                     )
                 else:
                     print("⚠️ Event loop not available for broadcast")
 
                 # TODO: Adjust internal agents based on regime
                 # e.g. if regime == BEAR_TRENDING, disable Bull agents
-                
+
         except Exception as e:
             print(f"⚠️ Failed to handle strategy update: {e}")
 

@@ -185,6 +185,7 @@ class EnhancedTelegramService:
         risk_analyzer: Optional[RiskAnalyzer] = None,
         performance_analyzer: Optional[PerformanceAnalyzer] = None,
     ):
+        bot_token = bot_token.strip() if bot_token else bot_token
         self.bot = Bot(token=bot_token)
         self.chat_id = chat_id
         self.application = ApplicationBuilder().token(bot_token).build()

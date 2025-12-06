@@ -10,6 +10,7 @@ import { LiveAgentChat } from '../components/LiveAgentChat';
 import { TradeActivityFeed } from '../components/TradeActivityFeed';
 import { SystemComparisonBoard } from '../components/SystemComparisonBoard';
 import { BotPerformanceChart } from '../components/BotPerformanceChart';
+import { MarketRegimeWidget } from '../components/MarketRegimeWidget';
 
 interface DualityDashboardProps {
   bots: any[];
@@ -20,6 +21,7 @@ interface DualityDashboardProps {
   totalPnl: number;
   pnlPercent: number;
   systems?: any;
+  marketRegime?: any;
 }
 
 export const DualityDashboard: React.FC<DualityDashboardProps> = ({
@@ -30,7 +32,8 @@ export const DualityDashboard: React.FC<DualityDashboardProps> = ({
   totalValue,
   totalPnl,
   pnlPercent,
-  systems
+  systems,
+  marketRegime
 }) => {
 
   // Filter Data by System
@@ -202,6 +205,9 @@ export const DualityDashboard: React.FC<DualityDashboardProps> = ({
 
         {/* CENTER COMMAND: DATA & COMMS */}
         <div className="xl:col-span-6 flex flex-col gap-6">
+          {/* Market Regime Widget */}
+          <MarketRegimeWidget regime={marketRegime} />
+
           {/* Comparison Board */}
           <SystemComparisonBoard
             asterMetrics={asterMetrics}

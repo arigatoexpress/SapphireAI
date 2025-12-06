@@ -30,6 +30,7 @@ class MessageType(Enum):
     SYSTEM_HEALTH = "system_health"
     MEMORY_UPDATE = "memory_update"
     ALERT = "alert"
+    MARKET_REGIME = "market_regime"
 
 
 class SubscriptionType(Enum):
@@ -43,6 +44,7 @@ class SubscriptionType(Enum):
     PERFORMANCE_STATS = "performance_stats"
     SYSTEM_ALERTS = "system_alerts"
     AGENT_MEMORY = "agent_memory"
+    MARKET_REGIME = "market_regime"
 
 
 @dataclass
@@ -482,3 +484,20 @@ async def broadcast_system_alert(alert_data: Dict[str, Any], priority: int = 4) 
         priority=priority,
     )
     await manager.broadcast_message(message)
+
+
+async def broadcast_market_regime(regime_data: Dict[str, Any]) -> None:
+    """Broadcast market regime update."""
+    try:
+        print(f"📡 Broadcasting Market Regime: {regime_data.get('regime', 'UNKNOWN')}")
+        manager = await get_websocket_manager()
+        message = WebSocketMessage(
+            message_type=MessageType.MARKET_REGIME,
+            subscription_type=SubscriptionType.MARKET_REGIME,
+            data=regime_data,
+            priority=2,
+        )
+        await manager.broadcast_message(message)
+        print("✅ Market Regime broadcasted successfully")
+    except Exception as e:
+        print(f"❌ Failed to broadcast market regime: {e}")

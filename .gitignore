@@ -258,6 +258,7 @@ test_data/*.json
 !package.json
 !tsconfig.json
 !backtest_results_*.json
+!firebase.json
 
 # Credentials and secrets
 credentials.json

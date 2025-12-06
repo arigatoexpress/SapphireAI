@@ -49,6 +49,7 @@ function App() {
               totalValue={totalValue}
               totalPnl={totalPnl}
               pnlPercent={pnlPercent}
+              marketRegime={data?.marketRegime}
             />
           }
         />

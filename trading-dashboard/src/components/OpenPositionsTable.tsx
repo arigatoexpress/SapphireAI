@@ -27,7 +27,7 @@ export const OpenPositionsTable: React.FC<Props> = ({ positions }) => {
           <span className="text-emerald-400">●</span> Live Positions
         </h3>
       </div>
-      
+
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead className="bg-slate-900/50 text-xs font-medium text-slate-400 uppercase tracking-wider">
@@ -83,4 +83,3 @@ export const OpenPositionsTable: React.FC<Props> = ({ positions }) => {
     </div>
   );
 };
-
