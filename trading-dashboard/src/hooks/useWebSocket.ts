@@ -51,8 +51,11 @@ interface MarketRegimeData {
 interface DashboardData {
   timestamp: number;
   total_pnl: number;
+  total_pnl_percent?: number;
   portfolio_balance: number;
   total_exposure: number;
+  aster_pnl_percent?: number;
+  hl_pnl_percent?: number;
   agents: AgentMetrics[];
   messages: ChatMessage[];
   recentTrades: Trade[];
@@ -111,7 +114,7 @@ export const useDashboardWebSocket = (url?: string): UseWebSocketReturn => {
       wsRef.current = ws;
 
       ws.onopen = () => {
-        console.log('✅ Dashboard WebSocket connected');
+        console.log('✅ Dashboard WebSocket connected to:', fullWsUrl);
         setConnected(true);
         setError(null);
         reconnectAttemptsRef.current = 0; // Reset attempts on success
@@ -120,22 +123,47 @@ export const useDashboardWebSocket = (url?: string): UseWebSocketReturn => {
       ws.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data);
+          console.log('📥 [WS] Received message:', {
+            type: message.type,
+            hasPortfolioValue: message.portfolio_value !== undefined,
+            hasAgents: Array.isArray(message.agents),
+            hasPositions: Array.isArray(message.open_positions),
+            keys: Object.keys(message).slice(0, 10)
+          });
 
           if (message.type === 'market_regime') {
+            console.log('📊 [WS] Market regime update:', message.data);
             setData(prev => prev ? { ...prev, marketRegime: message.data } : null);
+          } else if (message.type === 'agent_log') {
+            // Handle Agent Log (Brain Stream)
+            console.log('🧠 [WS] Brain Stream:', message.data);
+            setData(prev => {
+              if (!prev) return null;
+              const newMsg = message.data;
+              // Avoid duplicates if needed, or just append
+              return {
+                ...prev,
+                messages: [newMsg, ...(prev.messages || [])].slice(0, 100) // Keep last 100
+              };
+            });
           } else if (message.type === 'trade_update') {
-            // Handle trade update (append to recentTrades, update PnL)
-            // For now, we might just rely on snapshots for heavy data, but let's support it
-            console.log("Trade update received:", message.data);
+            console.log('📈 [WS] Trade update received:', message.data);
           } else if (message.portfolio_value !== undefined) {
-            // Assume it's a full snapshot if it has portfolio_value
+            // Full snapshot with portfolio_value
+            console.log('🎯 [WS] Setting dashboard data (portfolio_value present)');
             setData(message);
+          } else if (message.status && message.timestamp) {
+            // Fallback: Accept any message with status and timestamp as valid snapshot
+            console.log('🔄 [WS] Setting dashboard data (fallback: status+timestamp)');
+            setData({ ...message, portfolio_value: message.portfolio_balance || 100000 });
+          } else if (message.error) {
+            console.error('❌ [WS] Server error:', message.error);
           } else {
-            // Fallback or other message types
-            console.log("Received message:", message);
+            // Log unknown message types for debugging
+            console.log('❓ [WS] Unknown message format:', JSON.stringify(message).slice(0, 200));
           }
         } catch (e) {
-          console.error('Failed to parse WebSocket message:', e);
+          console.error('❌ [WS] Failed to parse WebSocket message:', e, 'Raw:', event.data.slice(0, 200));
         }
       };
 

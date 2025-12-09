@@ -18,7 +18,9 @@ import aiohttp
 
 from symphony_lib import MarketRegime, SymphonyClient
 
+from .agent_consensus import AgentConsensusEngine, AgentSignal, SignalType
 from .analysis_engine import AnalysisEngine
+from .analytics.performance import PerformanceTracker
 from .config import Settings, get_settings
 from .credentials import CredentialManager
 from .data.feature_pipeline import FeaturePipeline
@@ -32,7 +34,6 @@ from .definitions import (
 from .enhanced_telegram import EnhancedTelegramService, NotificationPriority
 from .enums import OrderType
 from .exchange import AsterClient
-from .grok_manager import GrokManager
 from .market_data import MarketDataManager
 from .position_manager import PositionManager
 from .risk import PortfolioState, RiskManager
@@ -48,6 +49,8 @@ try:
 except ImportError:
     TELEGRAM_AVAILABLE = False
     print("⚠️ Enhanced Telegram service not available")
+
+logger = logging.getLogger(__name__)
 
 
 class SimpleMCP:
@@ -72,204 +75,110 @@ class SimpleMCP:
         )
 
 
-@dataclass
-class DailyVolumeTracker:
-    """Tracks daily trading volume for competition targets."""
-
-    current_volume: float = 0.0
-    target_volume: float = 100000.0  # $100k daily target
-    last_reset_day: int = -1
-
-    def update(self, trade_value: float):
-        today = datetime.now().day
-        if today != self.last_reset_day:
-            self.current_volume = 0.0
-            self.last_reset_day = today
-        self.current_volume += trade_value
-
-
-@dataclass
-class WhaleTradeManager:
-    """Manages the requirement for one large trade per day."""
-
-    btc_target: float = 50000.0
-    tier1_target: float = 30000.0  # ASTER, ETH, BNB, HYPE
-    others_target: float = 10000.0
-    daily_whale_trade_done: bool = False
-    last_reset_day: int = -1
-
-    def check_reset(self):
-        today = datetime.now().day
-        if today != self.last_reset_day:
-            self.daily_whale_trade_done = False
-            self.last_reset_day = today
-
-
 class MinimalTradingService:
     """Minimal trading service with essential functionality only."""
 
     def __init__(self, settings: Optional[Settings] = None):
-        # Core settings
+        """Initialize the trading service components."""
         self._settings = settings or get_settings()
         self._credential_manager = CredentialManager()
-        print("🚀 VERSION: 2.0.4 (Add _sync_positions_from_exchange method)")
-        print("DEBUG: Starting __init__...", flush=True)
-        self.symphony = None  # Initialize early to avoid AttributeError if init fails
 
-        # Exchange clients
+        logger.info("🚀 VERSION: 2.1.0 (Refactored Init)")
+        logger.debug("Starting __init__...")
+
+        # Runtime State
+        self._stop_event = asyncio.Event()
+        self._task: Optional[asyncio.Task[None]] = None
+        self._loop = None
+        self._health = HealthStatus(running=False, paper_trading=False, last_error=None)
+
+        # Clients (Initialized in start)
         self._exchange = None
         self._paper_exchange = None
         self._spot_exchange = None
-        self._vertex_client = None  # Optional Vertex AI client
-        print("DEBUG: Exchange clients initialized to None", flush=True)
+        self._vertex_client = None
+        self.symphony = None
 
-        # Essential runtime attributes
-        try:
-            self._stop_event = asyncio.Event()
-            print("DEBUG: asyncio.Event created", flush=True)
-        except Exception as e:
-            print(f"DEBUG: asyncio.Event creation failed: {e}", flush=True)
-            self._stop_event = None
-
-        self._task: Optional[asyncio.Task[None]] = None
-        self._health = HealthStatus(running=False, paper_trading=False, last_error=None)
-
-        # Portfolio
+        # Data & Portfolio
         self._portfolio = PortfolioState(balance=0.0, equity=0.0)
         self._recent_trades = deque(maxlen=200)
+        self._pending_orders: Dict[str, Dict] = {}
+        self._open_positions: Dict[str, Dict] = {}  # Replaces PositionManager internal state access
 
-        # Initialize Agent States (Required for PositionManager)
-        self._agent_states: Dict[str, Any] = {}
-
-        # Initialize Position Manager
-        print("DEBUG: Initializing PositionManager...", flush=True)
-        try:
-            self.position_manager = PositionManager(self._exchange_client, self._agent_states)
-            print("DEBUG: PositionManager initialized", flush=True)
-        except Exception as e:
-            print(f"DEBUG: PositionManager init failed: {e}", flush=True)
-
-        # Legacy support (delegated to manager)
-        self._pending_orders: Dict[str, Dict] = {}  # OrderID -> Order Info
-        # Initialize Market Data Manager
-        print("DEBUG: Initializing MarketDataManager...", flush=True)
-        try:
-            self.market_data_manager = MarketDataManager(self._exchange_client)
-            print("DEBUG: MarketDataManager initialized", flush=True)
-        except Exception as e:
-            print(f"DEBUG: MarketDataManager init failed: {e}", flush=True)
-
-        # Legacy support
-        # self._market_structure = {} # REMOVED: Use property instead
-
-        # Agents
+        # AI & Agents
         self._agent_states: Dict[str, MinimalAgentState] = {}
-        self._agent_states: Dict[str, MinimalAgentState] = {}
-        # self._initialize_agents() # Removed to avoid duplication with _initialize_basic_agents
+        self._mcp = SimpleMCP()
+        self._swarm_manager = SwarmManager()
+        self._mcp = SimpleMCP()
+        self._swarm_manager = SwarmManager()
+        self._feature_pipeline = None
+        self._analysis_engine = None
+        self._consensus_engine = AgentConsensusEngine()
 
-        # Phase 3 State
-        self._phase3_daily_volume = 0.0
-        self._phase3_max_pos_size = 0.0
-        self._phase3_whale_trade_done = False
+        # Managers (Initialized with None client first)
+        self.market_data_manager = None
+        self.position_manager = None
+        self._risk_manager = None
+        self._watchdog = SelfHealingWatchdog()
+        self._performance_tracker = PerformanceTracker()
+
+        # Trackers
+        # Legacy trackers removed Phase 25
+
+        # Hyperliquid (Removed Phase 25)
+        self._hyperliquid_metrics = {}  # Keeping empty dict to avoid attr errors until full purge
+
+        # Telegram
+        self._telegram = None
+
+        # Legacy State (To be deprecated - kept minimal for compatibility)
         self._last_day_check = datetime.now().day
 
-        # Avalon State
-        self._avalon_daily_target = 400.0  # $400/day to reach $4k in 10 days
-        self._avalon_daily_volume = 0.0
+        # Run minimal sync init
+        self._init_managers_offline()
+        self._load_persistent_data()
 
-        # Redis Connection
-        print("DEBUG: Initializing Redis...", flush=True)
+        logger.info("✅ Minimal TradingService initialized successfully")
+
+    def _init_managers_offline(self):
+        """Initialize managers that don't require active clients yet."""
         try:
-            redis_url = os.getenv("REDIS_URL", "redis://redis:6379/0")
-            import redis
+            # We initialize them with None to avoid attribute errors,
+            # they will be updated in start() with real clients.
+            self.market_data_manager = MarketDataManager(None)
+            self.position_manager = PositionManager(None, self._agent_states)
 
-            self._redis_client = redis.from_url(redis_url)
-            self._redis_pubsub = self._redis_client.pubsub()
-            print("✅ Connected to Redis for Aggregation")
+            # Symphony (Optional)
+            if not self._settings.enable_paper_trading:
+                try:
+                    self.symphony = SymphonyClient(
+                        project_id=self._settings.gcp_project_id or "sapphire-479610",
+                        service_name="cloud-trader",
+                    )
+                except Exception as e:
+                    logger.warning(f"Symphony client init failed (non-critical): {e}")
+
+            # Telegram
+            if TELEGRAM_AVAILABLE and self._settings.enable_telegram:
+                try:
+                    self._telegram = EnhancedTelegramService(
+                        bot_token=self._settings.telegram_bot_token,
+                        chat_id=self._settings.telegram_chat_id,
+                    )
+                    logger.info("✅ Telegram notifications enabled")
+                except Exception as e:
+                    logger.error(f"⚠️ Telegram initialization failed: {e}")
+
+            # Redis/Hyperliquid logic deleted in Phase 25
+
         except Exception as e:
-            print(f"⚠️ Failed to connect to Redis: {e}")
-            self._redis_client = None
-            self._redis_pubsub = None
-        print("DEBUG: Redis init complete", flush=True)
+            logger.error(f"Manager initialization failed: {e}")
 
-        # Hyperliquid State
-        self._hyperliquid_metrics = {}
-        self._hyperliquid_positions = {}
-
-        # MCP Simulation
-        self._mcp = SimpleMCP()
-
-        # Telegram notifications (Pre-init for GrokManager)
-        print("DEBUG: Initializing Telegram...", flush=True)
-        self._telegram = None
-        if TELEGRAM_AVAILABLE and self._settings.enable_telegram:
-            try:
-                self._telegram = EnhancedTelegramService(
-                    bot_token=self._settings.telegram_bot_token,
-                    chat_id=self._settings.telegram_chat_id,
-                )
-                print("✅ Telegram notifications enabled")
-            except Exception as e:
-                print(f"⚠️ Telegram initialization failed: {e}")
-                self._telegram = None
-        print("DEBUG: Telegram init complete", flush=True)
-
-        # Grok Integration
-        print("DEBUG: Initializing Grok...", flush=True)
-        self._grok_api_key = os.getenv("GROK4_API_KEY") or os.getenv("GROK_API_KEY")
-        self._grok_manager = GrokManager(self._grok_api_key, self._mcp, self._telegram)
-        self._grok_enabled = self._grok_manager.enabled
-        if self._grok_enabled:
-            print(f"✅ Grok 4.1 integration enabled")
-        else:
-            print(f"⚠️ Grok API key not found, running in standard mode")
-        print("DEBUG: Grok init complete", flush=True)
-
-        # Data & Swarm
-        # FeaturePipeline requires exchange_client which is not ready yet.
-        # We will initialize it in start() or use a lazy property.
-        # But wait, the original code initialized it here passing self._exchange_client property.
-        # The property returns None if _exchange is None.
-        # Let's keep it but be aware it might need re-init if it caches the client.
-        # Actually, FeaturePipeline takes a client. If we pass self._exchange_client now, it passes None.
-        # We should initialize FeaturePipeline in start() too.
-        self._feature_pipeline = None
-        self._swarm_manager = SwarmManager()
-        self._watchdog = SelfHealingWatchdog()
-        self._analysis_engine = None  # Initialized in start()
-
-        # Load persistent data
-        print("DEBUG: Loading persistent data...", flush=True)
+    def _load_persistent_data(self):
+        """Load trades and positions from disk."""
+        logger.debug("Loading persistent data...")
         self._load_trades()
         self._load_positions()
-        print("DEBUG: Persistent data loaded", flush=True)
-
-        # Essential attributes for startup
-        self._rate_limit_manager = None
-        self._fallback_strategy_selector = None
-        # The RiskManager needs an exchange client, which is only available after start()
-        # So, initialize it as None and set it in start() or when _exchange_client is ready.
-        self._risk_manager = None
-
-        # Trading trackers
-        self.whale_manager = WhaleTradeManager()
-        self.volume_tracker = DailyVolumeTracker()
-
-        # Symphony Integration
-        print("DEBUG: Reached Symphony Integration block", flush=True)
-        try:
-            print("DEBUG: Initializing Symphony Client...", flush=True)
-            self.symphony = SymphonyClient(
-                project_id=self._settings.gcp_project_id or "sapphire-479610",
-                service_name="cloud-trader",
-            )
-            self.current_regime = None
-            print("DEBUG: Symphony Client initialized successfully", flush=True)
-        except Exception as e:
-            print(f"❌ Failed to initialize Symphony Client: {e}", flush=True)
-            self.symphony = None
-
-        print("✅ Minimal TradingService initialized successfully")
 
     @property
     def _market_structure(self) -> Dict[str, Dict[str, Any]]:
@@ -315,215 +224,121 @@ class MinimalTradingService:
     async def start(self):
         """Start the trading service."""
         try:
-            print("🚀 Starting Aster Bull Agents (Minimal Service)...", flush=True)
+            logger.info("🚀 Starting Aster Bull Agents (Minimal Service)...")
 
-            # Log public IP for whitelisting (Skipped for speed)
-            # try:
-            #     async with aiohttp.ClientSession() as session:
-            #         async with session.get("https://api.ipify.org", timeout=5.0) as response:
-            #             ip = await response.text()
-            #             print(f"\n🌍 PUBLIC TRADING IP: {ip}", flush=True)
-            #             print("👉 ENSURE THIS IP IS WHITELISTED IN ASTER DEX\n", flush=True)
-            # except Exception as e:
-            #     print(f"⚠️ Could not fetch public IP: {e}", flush=True)
+            # 1. Auth Diagnostics
+            await self._run_auth_diagnostics()
 
-            # Initialize credentials and clients (Blocking call moved to executor)
-            loop = asyncio.get_running_loop()
-            self._loop = loop
-            credentials = await loop.run_in_executor(None, self._credential_manager.get_credentials)
+            # 2. Online Initialization (Clients, Managers, State)
+            await self._init_online_components()
 
-            self._exchange = AsterClient(credentials=credentials)
-
-            from .exchange import AsterSpotClient
-
-            self._spot_exchange = AsterSpotClient(credentials=credentials)
-
-            # Update managers with initialized client
-            self.market_data_manager.exchange_client = self._exchange_client
-            self.position_manager.exchange_client = self._exchange_client
-            print("DEBUG: Updated managers with initialized exchange client", flush=True)
-
-            # Initialize Risk Manager with the initialized exchange client
-            print("DEBUG: Initializing Risk Manager...", flush=True)
-            self._risk_manager = RiskManager(self._settings)
-
-            # Subscribe to Symphony Strategy
-            print("🎻 Subscribing to Symphony Strategy...", flush=True)
-            self._strategy_subscription = self.symphony.subscribe_strategy(
-                "aster-strategy-sub", self._handle_strategy_update
-            )
-
-            # Fetch full market structure for symbol-agnostic trading
-            print("DEBUG: Fetching market structure...", flush=True)
-            await self._fetch_market_structure()
-
-            # Initialize basic agents
-            print("DEBUG: Initializing basic agents...", flush=True)
-            await self._initialize_basic_agents()
-
-            # Set health status
-            self._health.running = True
-            self._health.paper_trading = self._settings.enable_paper_trading
-
-            # Initialize FeaturePipeline and AnalysisEngine
-            print("DEBUG: Initializing FeaturePipeline and AnalysisEngine...")
-            self._feature_pipeline = FeaturePipeline(self._exchange_client)
-            self._analysis_engine = AnalysisEngine(
-                self._exchange_client,
-                self._feature_pipeline,
-                self._swarm_manager,
-                self._grok_manager,
-            )
-
-            # Start main trading loop
-            print("DEBUG: Starting main trading loop...")
+            # 3. Start Background Tasks
+            logger.debug("Starting main trading loop...")
             self._task = asyncio.create_task(self._run_trading_loop())
 
-            # Start Grok Manager Loop if enabled
-            if self._grok_enabled:
-                print("DEBUG: Starting Grok Manager...")
-                asyncio.create_task(
-                    self._grok_manager.run_management_loop(
-                        self._agent_states, self._recent_trades, self._stop_event
-                    )
-                )
+            # 4. Start Listeners
+            # Redis listener (Hyperliquid) removed Phase 25
 
-            # Initialize Vertex AI client if enabled
-            if self._vertex_client:
-                print("DEBUG: Initializing Vertex AI...")
-                await self._vertex_client.initialize()
-
-            # Start Redis Listener
-            if self._redis_client:
-                print("DEBUG: Starting Redis Listener...")
-                asyncio.create_task(self._run_redis_listener())
-
-            # Sync Positions (Inheritance)
-            print("DEBUG: Syncing positions...")
+            # 5. Sync & Watchdog
+            logger.debug("Syncing positions...")
             await self._sync_positions_from_exchange()
-
-            # Review Inherited Positions (Close bad trades)
-            print("DEBUG: Reviewing inherited positions...")
             await self._review_inherited_positions()
 
-            # Start Watchdog
-            print("DEBUG: Starting Watchdog...")
+            logger.debug("Starting Watchdog...")
             self._watchdog.start()
 
-            # Send Test Telegram Message (Non-blocking)
-            print("DEBUG: Sending test Telegram message...")
+            # 6. Test Telegram
             asyncio.create_task(self.send_test_telegram_message())
 
-            print("✅ Minimal trading service started successfully")
+            logger.info("✅ Minimal trading service started successfully")
             return True
 
         except Exception as e:
             self._health.last_error = str(e)
-            print(f"❌ Failed to start trading service: {e}")
+            logger.error(f"❌ Failed to start trading service: {e}")
             return False
 
-    async def _run_redis_listener(self):
-        """Listen for Hyperliquid events."""
-        if not self._redis_pubsub:
-            return
-
+    async def _run_auth_diagnostics(self):
+        """Run startup authentication diagnostics."""
+        logger.info("🔐 STARTING AUTH DIAGNOSTICS...")
         try:
-            await asyncio.sleep(1)
-            self._redis_pubsub.subscribe(
-                "trading_metrics", "trade_execution", "agent_log", "profit_sweep", "position_update"
-            )
-            print("👂 Listening for Hype Bull Agents (Hyperliquid) events...")
+            # 1. Check Public Data (No Auth)
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    "https://fapi.asterdex.com/fapi/v1/time", timeout=5.0
+                ) as resp:
+                    if resp.status == 200:
+                        logger.info("   ✅ Public API Accessible (200 OK)")
+                    else:
+                        logger.warning(f"   ❌ Public API Blocked: {resp.status}")
 
-            while not self._stop_event.is_set():
-                # Use get_message to avoid blocking loop (needs loop integration or polling)
-                # Since we are in async loop, we should use run_in_executor or similar for blocking calls
-                # but standard redis-py pubsub is blocking or requires polling.
-                # We'll use a simple polling loop here for simplicity.
-                message = self._redis_pubsub.get_message(ignore_subscribe_messages=True)
-
-                if message:
-                    try:
-                        channel = message["channel"].decode("utf-8")
-                        data = json.loads(message["data"].decode("utf-8"))
-
-                        if channel == "trading_metrics":
-                            self._hyperliquid_metrics = data
-
-                        elif channel == "trade_execution":
-                            # Ingest Hyperliquid Trade
-                            # Add to recent trades list with a flag
-                            trade = data.copy()
-                            trade["agent_name"] = "Hype Bull Agent"  # Generic name if not provided
-                            trade["agent_id"] = "hyperliquid-agent"
-                            trade["system"] = "hyperliquid"
-                            self._recent_trades.appendleft(trade)
-
-                            # Send Telegram for HL Trade
-                            # We can reuse _send_trade_notification or create a new one
-                            # Just log it for now to avoid spamming the same channel twice if HL sends it?
-                            # HL service doesn't have Telegram connected directly in my plan implementation (it publishes).
-                            # So we SHOULD send it here.
-
-                            # Create a dummy agent object for formatting
-                            dummy_agent = MinimalAgentState(
-                                id="hype-agent",
-                                name="Hype Bull Agent",
-                                model="gemini-2.0-flash-exp",
-                                emoji="🟩",
-                                system="hyperliquid",
-                                specialization="Velocity & Perps",
-                            )
-
-                            await self._send_trade_notification(
-                                dummy_agent,
-                                trade["symbol"],
-                                trade["side"],
-                                trade["quantity"],
-                                trade["price"],
-                                trade["notional"],
-                                False,  # is_win unknown yet
-                                status="FILLED",
-                                thesis="Hyperliquid Execution",
-                            )
-
-                        elif channel == "agent_log":
-                            # Add to MCP
-                            self._mcp.add_message(
-                                "observation", "Hype Bull Agent", data["message"], "Hyperliquid"
-                            )
-
-                        elif channel == "profit_sweep":
-                            amount = data.get("amount", 0)
-                            asset = data.get("asset", "HYPE")
-                            msg = f"💰 HYPE BULLS SWEEP: ${amount:.2f} -> {asset}"
-                            print(msg)
-                            if self._telegram:
-                                await self._telegram.send_message(f"🟩 *PROFIT SWEEP* 🟩\n\n{msg}")
-
-                        elif channel == "position_update":
-                            # Track HL positions
-                            try:
-                                symbol = data.get("symbol")
-                                if symbol:
-                                    # If size is 0, remove
-                                    if float(data.get("size", 0)) == 0:
-                                        if symbol in self._hyperliquid_positions:
-                                            del self._hyperliquid_positions[symbol]
-                                    else:
-                                        self._hyperliquid_positions[symbol] = data
-                            except Exception as e:
-                                print(f"⚠️ Error updating HL position: {e}")
-
-                    except Exception as e:
-                        print(f"⚠️ Redis message processing error: {e}")
-                        await asyncio.sleep(0.1)  # Sleep on error to prevent busy loop
-                else:
-                    # No message, sleep briefly to avoid busy loop
-                    await asyncio.sleep(0.1)
+            # 2. Check Key Prefix
+            creds = self._credential_manager.get_credentials()
+            if creds.api_key:
+                logger.info(f"   🔑 Using Key Prefix: {creds.api_key[:6]}...")
+            else:
+                logger.error("   ❌ MISSING CREDENTIALS!")
 
         except Exception as e:
-            print(f"❌ Redis Listener Failed: {e}")
-            await asyncio.sleep(5)  # Sleep longer if the listener itself fails
+            logger.error(f"   ⚠️ Diagnostics Failed: {e}")
+        logger.info("🔐 AUTH DIAGNOSTICS COMPLETE")
+
+    async def _init_online_components(self):
+        """Initialize components specifically requiring network/auth."""
+        loop = asyncio.get_running_loop()
+        self._loop = loop
+
+        # Identity Check
+        # try:
+        #    async with aiohttp.ClientSession() as session:
+        #         async with session.get("https://api.ipify.org", timeout=5.0) as resp:
+        #             logger.info(f"🌍 PUBLIC IP: {await resp.text()}")
+        # except: pass
+
+        # Init Clients
+        credentials = await loop.run_in_executor(None, self._credential_manager.get_credentials)
+        self._exchange = AsterClient(credentials=credentials)
+        from .exchange import AsterSpotClient
+
+        self._spot_exchange = AsterSpotClient(credentials=credentials)
+
+        # Update Managers with Live Client
+        self.market_data_manager.exchange_client = self._exchange_client
+        self.position_manager.exchange_client = self._exchange_client
+
+        # Init Risk Manager
+        self._risk_manager = RiskManager(self._settings)
+
+        # Subscribe Strategy
+        if self.symphony:
+            logger.info("🎻 Subscribing to Symphony Strategy...")
+            self._strategy_subscription = self.symphony.subscribe_strategy(
+                "aster-strategy-sub", self._handle_strategy_update
+            )
+
+        # Core Data
+        logger.debug("Fetching market structure...")
+        await self._fetch_market_structure()
+
+        # AI Components
+        logger.debug("Initializing AI components...")
+        self._feature_pipeline = FeaturePipeline(self._exchange_client)
+        self._analysis_engine = AnalysisEngine(
+            self._exchange_client,
+            self._feature_pipeline,
+            self._swarm_manager,
+        )
+        await self._initialize_basic_agents()
+
+        # Optional Vertex
+        if self._vertex_client:
+            await self._vertex_client.initialize()
+
+        # Health Update
+        self._health.running = True
+        self._health.paper_trading = self._settings.enable_paper_trading
+
+    # _run_redis_listener removed Phase 25 (Pure Aster Pivot)
 
     async def _fetch_market_structure(self):
         """Fetch all available symbols and their precision/filters from exchange."""
@@ -651,26 +466,6 @@ class MinimalTradingService:
                 market_regime_preference=agent_def.get("market_regime_preference", "neutral"),
                 system="aster",
             )
-
-        # --- NEW: Grok Special Ops Agent ---
-        self._agent_states["grok-special-ops"] = MinimalAgentState(
-            id="grok-special-ops",
-            name="Grok Alpha",
-            model="grok-beta",
-            emoji="🧠",
-            symbols=PREFERRED_SYMBOLS,  # Restricted to user's list
-            description="Specialized Grok-powered agent for preferred asset list.",
-            personality="Analytical, decisive, and laser-focused on high-conviction setups.",
-            baseline_win_rate=75.0,
-            margin_allocation=1000.0,
-            specialization="Strategic Alpha Hunter",
-            active=True,
-            win_rate=75.0,
-            dynamic_position_sizing=True,
-            max_leverage_limit=12.0,
-            risk_tolerance="high",
-            system="aster",
-        )
 
         # Post-initialization: Link loaded positions to agent objects
         if self._open_positions:
@@ -1040,6 +835,39 @@ class MinimalTradingService:
 
         return await self._analysis_engine.analyze_market(agent, symbol, ticker_map)
 
+    async def update_position_tpsl(self, symbol: str, tp: float = None, sl: float = None) -> bool:
+        """Update TP/SL for a position and notify execution systems."""
+        try:
+            # 1. Update Aster Position
+            if symbol in self._open_positions:
+                pos = self._open_positions[symbol]
+                if tp is not None:
+                    pos["tp"] = float(tp)
+                if sl is not None:
+                    pos["sl"] = float(sl)
+                self._open_positions[symbol] = pos
+                print(f"✅ Updated Aster TP/SL for {symbol}: TP={tp}, SL={sl}")
+
+            # 2. Update Hyperliquid Position (Ghost State)
+            if symbol in self._hyperliquid_positions:
+                hl_pos = self._hyperliquid_positions[symbol]
+                # We can't modify the source of truth directly (it comes from Redis),
+                # but we can publish an intent to update it.
+                pass
+
+            # 3. Publish Event for Execution Services (Hyperliquid Trader, etc.)
+            if self._redis_pubsub:
+                await self._publish_event(
+                    "tpsl_update", {"symbol": symbol, "tp": tp, "sl": sl, "timestamp": time.time()}
+                )
+                print(f"📡 Published TP/SL update for {symbol}")
+
+            return True
+
+        except Exception as e:
+            print(f"❌ Failed to update TP/SL: {e}")
+            return False
+
     def _get_agent_exposure(self, agent_id: str) -> float:
         """Calculate total notional value of open positions for an agent."""
         total_exposure = 0.0
@@ -1253,7 +1081,7 @@ class MinimalTradingService:
 
                 # Update TP/SL for the new average price will happen in the order execution handler if we handle it right.
                 # BUT, _execute_trade_order usually creates a NEW position object or overwrites if not handled.
-                # We need to ensure _execute_trade_order handles "adding" correctly or we do it here.
+                # We need to fix _check_pending_orders to MERGE if position exists and side matches.
                 # Actually, _check_pending_orders handles the fill.
                 # It currently OVERWRITES: self._open_positions[symbol] = { ... }
                 # We need to fix _check_pending_orders to MERGE if position exists and side matches.
@@ -1278,52 +1106,164 @@ class MinimalTradingService:
 
         # --- NEW ENTRY LOGIC (No existing position) ---
         else:
-            # Analyze market for a potential NEW trade
-            analysis = await self._analyze_market_for_agent(agent, symbol, ticker_map)
+            # If no open position for the selected symbol, we defer to the new trade execution
+            # which will handle consensus-based entries across all relevant symbols.
+            pass  # This block is now empty as new entries are handled by _execute_new_trades
 
-            # Only enter if signal is strong and actionable
-            if analysis["signal"] in ["BUY", "SELL"] and analysis["confidence"] >= 0.65:
-                signal = analysis["signal"]
-                confidence = analysis["confidence"]
-                thesis = analysis.get("thesis", "AI-driven entry signal")
+    async def _execute_new_trades(self):
+        """
+        Execute new trades using SWARM CONSENSUS.
 
-                # Determine position size (target ~$150-200 notional)
-                try:
-                    ticker = (
-                        ticker_map.get(symbol)
-                        if ticker_map
-                        else await self._exchange_client.get_ticker(symbol)
+        Phase 1: GATHER - All agents analyze markets and submit signals.
+        Phase 2: VOTE - Consensus Engine aggregates signals per symbol.
+        Phase 3: EXECUTE - Trade on High Confidence Consensus.
+        """
+
+        # --- PHASE 1: GATHER SIGNALS ---
+        # Iterate through all agents and all preferred symbols
+
+        # We limit to PREFERRED_SYMBOLS for now to avoid request spam
+        # In future, agents could propose symbols dynamically.
+
+        active_agents = [a for a in self._agent_states.values() if a.active]
+        if not active_agents:
+            return
+
+        # Optimization: Don't let every agent analyze every symbol every tick.
+        # Randomly select a subset of symbols to analyze to simulate "attention"
+        import random
+
+        symbols_to_scan = PREFERRED_SYMBOLS.copy()
+
+        # Map to store which agents looked at which symbols (for logging)
+        scan_activity = defaultdict(int)
+
+        for symbol in symbols_to_scan:
+            # Check if we already have a position
+            if symbol in self._open_positions:
+                continue
+
+            # Each agent has a chance to analyze this symbol
+            # Specialized agents might always check their niche?
+            for agent in active_agents:
+                scan_activity[symbol] += 1
+
+                # Analyze
+                analysis = await self._analyze_market_for_agent(agent, symbol)
+
+                # If actionable, Submit to Consensus
+                if analysis["signal"] in ["BUY", "SELL"] and analysis["confidence"] >= 0.60:
+
+                    # Register if needed
+                    if agent.id not in self._consensus_engine.agent_registry:
+                        self._consensus_engine.register_agent(
+                            agent.id,
+                            agent.type,
+                            "trend" if "trend" in agent.name.lower() else "mean_reversion",
+                        )
+
+                    # Create Signal
+                    sig_type = (
+                        SignalType.ENTRY_LONG
+                        if analysis["signal"] == "BUY"
+                        else SignalType.ENTRY_SHORT
                     )
-                    current_price = float(ticker.get("lastPrice", 0))
 
-                    if current_price <= 0:
-                        print(f"⚠️ Invalid price for {symbol}, skipping entry")
-                        return
-
-                    # Base notional of $150, scale by confidence
-                    target_notional = 150.0 * (0.8 + 0.4 * confidence)  # ~$120-$210
-                    quantity_float = target_notional / current_price
-
-                    # Apply precision from market structure or config
-                    if symbol in self._market_structure:
-                        qty_precision = self._market_structure[symbol].get("quantityPrecision", 4)
-                        quantity_float = round(quantity_float, qty_precision)
-                    elif symbol in SYMBOL_CONFIG:
-                        precision = SYMBOL_CONFIG[symbol].get("precision", 4)
-                        quantity_float = round(quantity_float, precision)
-
-                    print(
-                        f"🚀 NEW TRADE: {agent.emoji} {agent.name} -> {signal} {symbol} @ ${current_price:.4f} | Qty: {quantity_float} | Conf: {confidence:.2f}"
-                    )
-                    print(f"   📝 Thesis: {thesis}")
-
-                    # Execute the new trade
-                    await self._execute_trade_order(
-                        agent, symbol, signal, quantity_float, thesis, is_closing=False
+                    agent_signal = AgentSignal(
+                        agent_id=agent.id,
+                        signal_type=sig_type,
+                        confidence=analysis["confidence"],
+                        strength=analysis["confidence"],
+                        symbol=symbol,
+                        timestamp_us=int(time.time() * 1000000),
+                        reasoning=analysis.get("thesis", "Agent Signal"),
                     )
 
-                except Exception as e:
-                    print(f"⚠️ Failed to execute new trade for {symbol}: {e}")
+                    self._consensus_engine.submit_signal(agent_signal)
+
+        # --- PHASE 2 & 3: VOTE & EXECUTE ---
+        # The consensus engine now holds pending signals.
+        # We iterate through the symbols that received signals (keys of pending_signals)
+
+        pending_symbols = list(self._consensus_engine.pending_signals.keys())
+
+        for symbol in pending_symbols:
+            # Conduct Vote (Consumes signals)
+            consensus = await self._consensus_engine.conduct_consensus_vote(symbol)
+
+            if not consensus or not consensus.winning_signal:
+                continue
+
+            # FILTER: High Conviction Swarm Only
+            # We want at least modest agreement and confidence
+            if consensus.consensus_confidence < 0.65 or consensus.agreement_level < 0.4:
+                # Weak consensus, skip
+                # print(f"Weak Consensus for {symbol}: Conf {consensus.consensus_confidence:.2f}")
+                continue
+
+            # --- EXECUTION ---
+            winning_signal = consensus.winning_signal
+            side = (
+                "BUY"
+                if winning_signal in [SignalType.ENTRY_LONG, SignalType.EXIT_SHORT]
+                else "SELL"
+            )
+
+            # Determine Sizing
+            base_notional = 300.0
+            multiplier = 1.0
+            thesis = f"Swarm Consensus: {consensus.reasoning}"
+
+            if consensus.consensus_confidence >= 0.9:
+                multiplier = 5.0
+                thesis += " [SWARM MAX]"
+                self._mcp.add_message(
+                    "plan",
+                    "Consensus Engine",
+                    f"MAX CONVICTION on {symbol}. 5x Size.",
+                    "Swarm Intelligence",
+                )
+            elif consensus.consensus_confidence >= 0.8:
+                multiplier = 2.5
+                thesis += " [SWARM HIGH]"
+
+            # Use 'System' or the highest weighted agent as the executor?
+            # Let's use the highest weighted agent involved in the vote to keep it "personal"
+            best_agent_id = max(
+                consensus.agent_votes,
+                key=lambda aid: self._consensus_engine.agent_weights.get(aid, 1.0),
+            )
+            best_agent = self._agent_states.get(best_agent_id) or active_agents[0]
+
+            target_notional = base_notional * multiplier
+
+            # Get Price
+            try:
+                ticker = await self._exchange_client.get_ticker(symbol)
+                current_price = float(ticker.get("lastPrice", 0))
+                if current_price <= 0:
+                    continue
+
+                quantity_float = target_notional / current_price
+
+                # Apply Precision
+                if symbol in self._market_structure:
+                    qty_precision = self._market_structure[symbol].get("quantityPrecision", 4)
+                    quantity_float = round(quantity_float, qty_precision)
+                elif symbol in SYMBOL_CONFIG:
+                    precision = SYMBOL_CONFIG[symbol].get("precision", 4)
+                    quantity_float = round(quantity_float, precision)
+
+                print(
+                    f"🗳️ SWARM CONSENSUS: {symbol} {side} | Conf: {consensus.consensus_confidence:.2f} | Agents: {consensus.participation_rate:.0%} | Winner: {best_agent.name}"
+                )
+
+                await self._execute_trade_order(
+                    best_agent, symbol, side, quantity_float, thesis, is_closing=False
+                )
+
+            except Exception as e:
+                print(f"⚠️ Swarm Execution Failed for {symbol}: {e}")
 
     # _initialize_agents removed - using _initialize_basic_agents from AGENT_DEFINITIONS
 
@@ -1400,25 +1340,48 @@ class MinimalTradingService:
                 # For opening positions, use the side as-is
                 trade_side = side
 
-            # Format quantity
-            quantity = str(quantity_float)  # Default
+            # GAME THEORY: Add Random Jitter to Execution Time
+            # Avoids being front-run by HFTs monitoring regular intervals
+            import random
+
+            # 0.5s to 3.0s delay
+            jitter = random.uniform(0.5, 3.0)
+            print(f"🎲 Game Theory: Jitter delay {jitter:.2f}s...")
+            self._mcp.add_message(
+                "observation",
+                "System",
+                f"Applying randomized jitter delay of {jitter:.2f}s to avoid detection.",
+                "Game Theory",
+            )
+            await asyncio.sleep(jitter)
+
+            # GAME THEORY: Size Randomization (Fuzzy Sizing)
+            # Avoid round numbers (e.g., 1000) which are easy to spot.
+            # Add +/- 3% random noise to the quantity.
+            quantity_fuzz = random.uniform(0.97, 1.03)
+            final_quantity_float = float(quantity_float) * quantity_fuzz
+
+            # Format quantity with precision
+            formatted_quantity = str(final_quantity_float)
 
             if symbol in SYMBOL_CONFIG:
                 config = SYMBOL_CONFIG[symbol]
                 if config["precision"] == 0:
-                    quantity = "{:.0f}".format(quantity_float)
+                    formatted_quantity = "{:.0f}".format(final_quantity_float)
                 else:
-                    quantity = "{:.{p}f}".format(quantity_float, p=config["precision"])
+                    formatted_quantity = "{:.{p}f}".format(
+                        final_quantity_float, p=config["precision"]
+                    )
             elif symbol in self._market_structure:
                 # Use dynamic market structure
                 precision = self._market_structure[symbol]["precision"]
                 if precision == 0:
-                    quantity = "{:.0f}".format(quantity_float)
+                    formatted_quantity = "{:.0f}".format(final_quantity_float)
                 else:
-                    quantity = "{:.{p}f}".format(quantity_float, p=precision)
+                    formatted_quantity = "{:.{p}f}".format(final_quantity_float, p=precision)
 
             print(
-                f"🚀 ATTEMPTING TRADE: {agent.emoji} {agent.name} - {trade_side} {quantity} {symbol}{'(CLOSING)' if is_closing else ''}"
+                f"🚀 ATTEMPTING TRADE: {agent.emoji} {agent.name} - {trade_side} {formatted_quantity} {symbol}{'(CLOSING)' if is_closing else ''}"
             )
 
             # RISK CHECK: 10% Cash Cushion (Only for Entries)
@@ -1453,13 +1416,15 @@ class MinimalTradingService:
             # Execute Order on Aster DEX
             order_result = None
             try:
+                # Main Entry/Exit
                 order_result = await self._exchange_client.place_order(
                     symbol=symbol,
                     side=trade_side,
                     order_type=OrderType.MARKET,
-                    quantity=quantity,
+                    quantity=formatted_quantity,
                     new_client_order_id=f"adv_{int(time.time())}_{agent.id[:4]}",
                 )
+
             except Exception as e:
                 # Handle Leverage Error (-2027)
                 if "-2027" in str(e) or "leverage" in str(e).lower():
@@ -1487,46 +1452,131 @@ class MinimalTradingService:
                     raise e  # Re-raise other errors
 
             # Verify and Log Result
-            if order_result and order_result.get("orderId"):
-                status = order_result.get("status")
-                executed_qty = float(order_result.get("executedQty", 0))
-                avg_price = float(order_result.get("avgPrice", 0))
+            if order_result and (order_result.get("orderId") or order_result.get("id")):
+                # Aster API might use 'id' or 'orderId'
+                order_id = order_result.get("orderId") or order_result.get("id")
+                status = order_result.get(
+                    "status", "FILLED"
+                )  # Assume filled if direct DEX response
+                executed_qty = float(
+                    order_result.get("executedQty", 0) or order_result.get("quantity", 0)
+                )
+                avg_price = float(order_result.get("avgPrice", 0) or order_result.get("price", 0))
 
                 print(
-                    f"📋 Order Placed: ID {order_result.get('orderId')} | Status: {status} | Exec: {executed_qty} | Price: {avg_price}"
+                    f"📋 Order Placed: ID {order_id} | Status: {status} | Exec: {executed_qty} | Price: {avg_price}"
                 )
 
-                # Calculate PnL if closing and filled immediately
-                pnl = 0.0
-                tp_price = None
-                sl_price = None
-
-                if status == "FILLED" and executed_qty > 0:
-                    # Calculate PnL for closing trades
+                if executed_qty > 0 and avg_price > 0:
+                    # 1. CLOSING TRADE: Record Performance
                     if is_closing:
                         if symbol in self._open_positions:
                             pos = self._open_positions[symbol]
+                            entry_price = pos.get("entry_price", 0)
+
+                            pnl = 0.0
                             if pos["side"] == "BUY":
-                                pnl = (avg_price - pos["entry_price"]) * executed_qty
-                            else:
-                                pnl = (pos["entry_price"] - avg_price) * executed_qty
+                                pnl = (avg_price - entry_price) * executed_qty
+                            elif pos["side"] == "SELL":
+                                pnl = (entry_price - avg_price) * executed_qty
+
+                            print(
+                                f"📊 Trade Closed: PnL ${pnl:.2f} (Entry: {entry_price}, Exit: {avg_price})"
+                            )
+
+                            # Log to Analytics
+                            try:
+                                # Calculate capital used for accurate % returns
+                                capital_used = entry_price * executed_qty
+                                if capital_used <= 0:
+                                    capital_used = 1.0  # Avoid div by zero
+                                self._performance_tracker.record_trade(
+                                    agent.id, pnl, capital_used=capital_used
+                                )
+
+                                # --- FEEDBACK LOOP ---
+                                # We need to reconstruct the consensus result key or just act on the agent signal
+                                # Ideally we'd pass the original consensus object ID, but for now we update the agent directly.
+                                # Future enhancement: Pass consensus_id in trade metadata.
+                                # self._consensus_engine.update_performance_feedback(...)
+                            except Exception as e:
+                                print(f"⚠️ Failed to record performance: {e}")
+
                             del self._open_positions[symbol]
                             self._save_positions()  # Persist removal
-                    else:
-                        # Determine TP/SL levels (e.g., TP +1.5%, SL -0.5% for scalping)
-                        entry_price = avg_price
-                        tp_price = entry_price * 1.015 if side == "BUY" else entry_price * 0.985
-                        sl_price = entry_price * 0.995 if side == "BUY" else entry_price * 1.005
 
+                            # Clean up any open TP/SL orders for this symbol
+                            # We can span a task to do this so we don't block
+                            asyncio.create_task(self._exchange_client.cancel_all_orders(symbol))
+
+                    # 2. OPENING TRADE: Place Native TP/SL & Track
+                    else:
+                        # Determine TP/SL levels (Asymmetric Aggressive)
+                        # R:R = 1.6 (Risk 3% to make 5%)
+                        tp_pct = 0.05
+                        sl_pct = 0.03
+
+                        # Jitter
+                        tp_jit = random.uniform(1.0, 1.05)
+                        sl_jit = random.uniform(1.0, 1.05)
+
+                        tp_price = (
+                            avg_price * (1 + (tp_pct * tp_jit))
+                            if side == "BUY"
+                            else avg_price * (1 - (tp_pct * tp_jit))
+                        )
+                        sl_price = (
+                            avg_price * (1 - (sl_pct * sl_jit))
+                            if side == "BUY"
+                            else avg_price * (1 + (sl_pct * sl_jit))
+                        )
+
+                        # Native Order Placement
+                        try:
+                            price_precision = 2
+                            if symbol in self._market_structure:
+                                price_precision = self._market_structure[symbol].get(
+                                    "pricePrecision", 2
+                                )
+
+                            tp_str = "{:.{p}f}".format(tp_price, p=price_precision)
+                            sl_str = "{:.{p}f}".format(sl_price, p=price_precision)
+                            sl_side = "SELL" if side == "BUY" else "BUY"
+
+                            logger.info(f"🛡️ Placing Native TP/SL: TP {tp_str} | SL {sl_str}")
+
+                            # We launch these as background tasks to not delay the loop
+                            # (but strictly they should be awaited for safety, we'll await)
+                            await self._exchange_client.create_order(
+                                symbol=symbol,
+                                side=sl_side,
+                                type="STOP_MARKET",
+                                quantity=formatted_quantity,
+                                stopPrice=sl_str,
+                                reduceOnly=True,
+                            )
+                            await self._exchange_client.create_order(
+                                symbol=symbol,
+                                side=sl_side,
+                                type="TAKE_PROFIT_MARKET",
+                                quantity=formatted_quantity,
+                                stopPrice=tp_str,
+                                reduceOnly=True,
+                            )
+                        except Exception as e:
+                            logger.warning(f"⚠️ Failed to place Native TP/SL orders: {e}")
+
+                        # Track Position Internally
                         self._open_positions[symbol] = {
                             "side": side,
                             "quantity": executed_qty,
-                            "entry_price": entry_price,
-                            "current_price": entry_price,  # Initialize current price
+                            "entry_price": avg_price,
+                            "current_price": avg_price,
                             "tp_price": tp_price,
                             "sl_price": sl_price,
                             "open_time": time.time(),
                             "agent": agent.name,
+                            "agent_id": agent.id,
                             "thesis": thesis,
                         }
                         self._save_positions()
@@ -1967,20 +2017,17 @@ class MinimalTradingService:
 
     async def _execute_new_trades(self):
         """
-        Orchestrate new trade execution, including competition logic (Double Harvest).
+        Orchestrate new trade execution with Game Theory and Asymmetric Sizing.
+        Focus: $1k/day profit target via smart, aggressive, unpredictable bets.
         """
-        # 1. Reset Daily Trackers if needed
-        self.whale_manager.check_reset()
-        # self.volume_tracker check is done inside update()
-
-        # 2. Check for Whale Trade Opportunity (Priority)
-        # If we haven't done our daily whale trade, try to find a high-confidence setup
-        if not self.whale_manager.daily_whale_trade_done:
-            # Logic: If we find a strong signal on BTC or Tier 1, boost size to meet target
-            pass
-
-        # 3. Standard Agent Trading
+        # 1. Standard Agent Trading (Now the main driver)
+        # We rely on agents to generate high-quality signals
         await self._execute_agent_trading()
+
+        # 2. Opportunity Scanning (Asymmetric Bets)
+        # Future: If we detect a massive inefficiency (arb or liquidation cascade),
+        # we can trigger a "Sniper Agent" here with 3x size.
+        pass
 
     async def _sync_positions_from_exchange(self):
         """Sync positions from exchange to inherit existing positions on startup."""
@@ -2002,8 +2049,8 @@ class MinimalTradingService:
             agent = MinimalAgentState(
                 id="reviewer",
                 name="Portfolio Reviewer",
+                model="gemini-2.0-flash-exp",
                 emoji="🕵️",
-                strategy="technical",
                 symbols=[symbol],
             )
 
@@ -2149,8 +2196,8 @@ class MinimalTradingService:
                         agent = MinimalAgentState(
                             id="risk_bot",
                             name="Risk Bot",
+                            model="gemini-2.0-flash-exp",
                             emoji="🚑",
-                            strategy="risk",
                             symbols=[symbol],
                         )
 
@@ -2326,7 +2373,9 @@ class MinimalTradingService:
                     "side": "BUY" if float(p.get("size", 0)) > 0 else "SELL",
                     "quantity": abs(float(p.get("size", 0))),
                     "entry_price": float(p.get("entry_price", 0)),
-                    "current_price": 0,  # Need real-time price from HL or WS
+                    "current_price": float(
+                        p.get("current_price", 0)
+                    ),  # Need real-time price from HL or WS
                     "pnl": float(p.get("pnl", 0)),
                     "agent": "Hype Bull Agent",
                     "system": "hyperliquid",
@@ -2375,6 +2424,22 @@ class MinimalTradingService:
             },
         }
 
+        # Calculate unrealized PnL from all open positions
+        unrealized_pnl = sum(p.get("pnl", 0.0) for p in all_positions)
+
+        # Total PnL = Realized (from trades) + Unrealized (from open positions)
+        total_pnl_combined = aster_pnl + hl_pnl + unrealized_pnl
+
+        # Initial Basis (Approximate or tracked)
+        # Assuming $1k per agent + $1k HL = ~$10k basis?
+        # Better to track initial deposits. For now, we use a fixed basis of $2000 (1k Aster + 1k HL) + any realized pnl
+        # Or just fixed 2000 for simplicity of % calculation
+        initial_basis = 2000.0
+
+        total_pnl_percent = (total_pnl_combined / initial_basis) * 100 if initial_basis > 0 else 0.0
+        aster_pnl_percent = (aster_pnl / 1000.0) * 100  # Assuming 1k alloc
+        hl_pnl_percent = (hl_pnl / 1000.0) * 100  # Assuming 1k alloc
+
         return {
             "status": "active",
             "running": self._health.running,
@@ -2382,7 +2447,17 @@ class MinimalTradingService:
             "open_positions": all_positions,
             "recentTrades": list(self._recent_trades)[:20],
             "messages": frontend_messages,
-            "total_pnl": aster_pnl + hl_pnl,
+            "total_pnl": total_pnl_combined,
+            "total_pnl_percent": total_pnl_percent,
+            "realized_pnl": aster_pnl + hl_pnl,
+            "unrealized_pnl": unrealized_pnl,
+            "portfolio_value": initial_basis + total_pnl_combined,  # Equity
+            "portfolio_balance": initial_basis + aster_pnl + hl_pnl,  # Cash Balance
+            "aster_pnl_percent": aster_pnl_percent,
+            "hl_pnl_percent": hl_pnl_percent,
+            "total_exposure": sum(
+                p.get("quantity", 0) * p.get("current_price", 0) for p in all_positions
+            ),
             "systems": systems_data,
             "timestamp": time.time(),
         }

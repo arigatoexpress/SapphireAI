@@ -41,7 +41,11 @@ def main():
             import uvicorn
 
             uvicorn.run(
-                "cloud_trader.api:app", host="0.0.0.0", port=8080, reload=True, log_level="debug"
+                "cloud_trader.api:app",
+                host="0.0.0.0",
+                port=int(os.environ.get("PORT", 8080)),
+                reload=True,
+                log_level="debug",
             )
         else:
             # Import the app first (this will trigger module-level initialization)
@@ -58,7 +62,7 @@ def main():
             uvicorn.run(
                 app,
                 host="0.0.0.0",
-                port=8080,
+                port=int(os.environ.get("PORT", 8080)),
                 workers=1,
                 loop="uvloop",
                 http="httptools",

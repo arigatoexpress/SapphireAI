@@ -13,20 +13,14 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import httpx
-from fastapi import (
-    Depends,
-    FastAPI,
-    HTTPException,
-    Query,
-    Request,
-    WebSocket,
-    WebSocketDisconnect,
-    status,
-)
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, WebSocket, status
 from fastapi.middleware.cors import CORSMiddleware  # CORS handled manually
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from prometheus_fastapi_instrumentator import Instrumentator
+from starlette.websockets import WebSocketDisconnect
+
+from .analytics.performance import AgentMetrics
 
 # Prometheus metrics
 from .metrics import (
@@ -608,6 +602,39 @@ async def get_position_status(symbol: str) -> Dict[str, Any]:
         }
 
 
+@app.put("/positions/{symbol}/tpsl")
+async def update_position_tpsl(symbol: str, request: Dict[str, Any]) -> Dict[str, Any]:
+    """Update Take Profit and Stop Loss for a position."""
+    try:
+        service = get_service_instance()
+        if not service:
+            raise HTTPException(status_code=503, detail="Trading service not initialized")
+
+        tp = request.get("tp")
+        sl = request.get("sl")
+
+        if tp is None and sl is None:
+            raise HTTPException(status_code=400, detail="Must provide tp or sl")
+
+        # Call service to update
+        if hasattr(service, "update_position_tpsl"):
+            result = await service.update_position_tpsl(symbol, tp, sl)
+            return {
+                "status": "success",
+                "symbol": symbol,
+                "updated": result,
+                "timestamp_us": int(time.time() * 1_000_000),
+            }
+        else:
+            # Fallback/stub if method missing (though we will add it next)
+            logger.warning("Method update_position_tpsl not found on trading service")
+            return {"status": "error", "message": "Not implemented"}
+
+    except Exception as e:
+        logger.error(f"Failed to update TP/SL for {symbol}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/position/{symbol}/close")
 async def close_position(symbol: str, request: Dict[str, Any]) -> Dict[str, Any]:
     """Force close a position with reason."""
@@ -653,6 +680,32 @@ async def get_exit_performance_stats() -> Dict[str, Any]:
             "error": str(e),
             "message": "Exit performance stats not available",
         }
+
+
+@app.get("/performance/stats")
+async def get_performance_stats() -> Dict[str, Any]:
+    """Get granular agent performance statistics."""
+    try:
+        service = get_service_instance()
+        if not service:
+            return {"status": "error", "message": "Service not initialized"}
+
+        tracker = getattr(service, "_performance_tracker", None)
+        if not tracker:
+            return {"status": "inactive", "message": "Performance tracking not enabled"}
+
+        # Serialize metrics
+        metrics_data = {agent_id: m.__dict__ for agent_id, m in tracker.metrics.items()}
+
+        return {
+            "status": "success",
+            "metrics": metrics_data,
+            "top_agent": tracker.get_top_performing_agent(),
+            "timestamp_us": int(time.time() * 1_000_000),
+        }
+    except Exception as e:
+        logger.error(f"Failed to get performance stats: {e}")
+        return {"status": "error", "error": str(e)}
 
 
 @app.post("/consensus/vote")
@@ -733,6 +786,47 @@ async def register_consensus_agent(request: Dict[str, Any]) -> Dict[str, Any]:
         }
 
     except Exception as e:
+        logger.error(f"Failed to register agent for consensus: {e}")
+        return {"status": "error", "error": str(e)}
+
+
+@app.get("/consensus/state")
+async def get_consensus_state() -> Dict[str, Any]:
+    """Get current state of the consensus engine (weights, stats)."""
+    try:
+        from .agent_consensus import get_agent_consensus_engine
+
+        # Get engine via wrapper if available, or direct from service
+        engine = None
+        service = get_service_instance()
+        if service and hasattr(service, "_consensus_engine"):
+            engine = service._consensus_engine
+
+        if not engine:
+            # Fallback
+            engine = await get_agent_consensus_engine()
+
+        if not engine:
+            return {"status": "inactive", "message": "Consensus engine not initialized"}
+
+        stats = engine.get_consensus_stats()
+
+        # Get detailed weights
+        weights = {
+            agent_id: engine.agent_weights.get(agent_id, 1.0)
+            for agent_id in engine.agent_registry.keys()
+        }
+
+        return {
+            "status": "active",
+            "stats": stats,
+            "weights": weights,
+            "timestamp_us": int(time.time() * 1_000_000),
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to get consensus state: {e}")
+        return {"status": "error", "error": str(e)}
         return {"status": "error", "error": str(e), "message": "Agent registration failed"}
 
 
@@ -1086,7 +1180,6 @@ async def batch_order_request(request: Dict[str, Any]) -> Dict[str, Any]:
 
 
 @app.websocket("/ws")
-@app.websocket("/ws/dashboard")
 async def websocket_endpoint(websocket: WebSocket) -> None:
     """WebSocket endpoint for real-time updates."""
     client_id = None
@@ -2449,39 +2542,125 @@ async def mcp_websocket(websocket: WebSocket) -> None:
 @app.websocket("/ws/dashboard")
 async def dashboard_websocket(websocket: WebSocket) -> None:
     """Real-time dashboard data stream for live metrics."""
-    await websocket.accept()
-    logger.info("Dashboard WebSocket connection established")
+    client_host = websocket.client.host if websocket.client else "unknown"
+    logger.info(f"🔌 [WS] Dashboard WebSocket connection attempt from {client_host}")
+
+    try:
+        await websocket.accept()
+        logger.info(f"✅ [WS] Dashboard WebSocket ACCEPTED for {client_host}")
+    except Exception as e:
+        logger.error(f"❌ [WS] Failed to accept WebSocket: {e}")
+        return
 
     try:
         # Send initial snapshot
+        logger.info(f"📤 [WS] Fetching initial dashboard data for {client_host}...")
         initial_data = await get_live_dashboard_data()
+
+        # Validate data has required fields
+        if "portfolio_value" not in initial_data:
+            logger.warning("⚠️ [WS] portfolio_value missing from initial data, adding default")
+            initial_data["portfolio_value"] = 100000.0
+
+        logger.info(
+            f"📤 [WS] Sending initial snapshot to {client_host}: {len(str(initial_data))} chars"
+        )
         await websocket.send_json(initial_data)
+        logger.info(f"✅ [WS] Initial snapshot SENT to {client_host}")
 
         # Stream updates every 2 seconds
+        update_count = 0
         while True:
             await asyncio.sleep(2)
-            live_data = await get_live_dashboard_data()
+            update_count += 1
 
-            # Add trade execution events if available in a buffer
-            # trade_events = trading_service.get_recent_trade_events(last_poll_time)
-            # live_data["trade_events"] = trade_events
+            try:
+                live_data = await get_live_dashboard_data()
 
-            await websocket.send_json(live_data)
+                # Ensure portfolio_value exists
+                if "portfolio_value" not in live_data:
+                    live_data["portfolio_value"] = 100000.0
 
+                await websocket.send_json(live_data)
+
+                # Log every 10th update to avoid spam
+                if update_count % 10 == 0:
+                    logger.info(f"📤 [WS] Sent update #{update_count} to {client_host}")
+
+            except Exception as send_err:
+                logger.error(f"❌ [WS] Failed to send update #{update_count}: {send_err}")
+                break
+
+    except WebSocketDisconnect:
+        logger.info(f"🔴 [WS] Client {client_host} disconnected normally")
     except Exception as exc:
-        # logger.info(f"Dashboard WebSocket disconnected: {exc}") # Reduce verbosity
-        pass
+        logger.exception(f"❌ [WS] Dashboard WebSocket error for {client_host}: {exc}")
     finally:
-        logger.info("Dashboard WebSocket connection closed")
+        logger.info(f"🔒 [WS] Dashboard WebSocket connection CLOSED for {client_host}")
+
+
+@app.websocket("/ws/test")
+async def test_websocket(websocket: WebSocket) -> None:
+    """Simple WebSocket echo endpoint for testing connectivity."""
+    client_host = websocket.client.host if websocket.client else "unknown"
+    logger.info(f"🧪 [WS-TEST] Test WebSocket connection from {client_host}")
+
+    await websocket.accept()
+    logger.info(f"✅ [WS-TEST] Test WebSocket ACCEPTED for {client_host}")
+
+    try:
+        # Send a test message immediately
+        await websocket.send_json(
+            {
+                "type": "test",
+                "message": "WebSocket connection successful!",
+                "timestamp": time.time(),
+                "client": client_host,
+            }
+        )
+
+        # Echo any messages received
+        while True:
+            data = await websocket.receive_text()
+            logger.info(f"🧪 [WS-TEST] Received from {client_host}: {data[:100]}...")
+            await websocket.send_json({"type": "echo", "received": data, "timestamp": time.time()})
+    except WebSocketDisconnect:
+        logger.info(f"🧪 [WS-TEST] Client {client_host} disconnected")
+    except Exception as e:
+        logger.exception(f"🧪 [WS-TEST] Error: {e}")
 
 
 async def get_live_dashboard_data() -> Dict[str, Any]:
     """Gather live dashboard metrics from trading service."""
     try:
+        if trading_service is None:
+            logger.warning("⚠️ [WS] Trading service not initialized, returning placeholder data")
+            return {
+                "status": "initializing",
+                "portfolio_value": 100000.0,
+                "portfolio_balance": 100000.0,
+                "total_pnl": 0.0,
+                "total_exposure": 0.0,
+                "agents": [],
+                "messages": [],
+                "recentTrades": [],
+                "open_positions": [],
+                "timestamp": time.time(),
+            }
+
         # Delegate to the service's snapshot method for consistency
-        return await trading_service.dashboard_snapshot()
+        data = await trading_service.dashboard_snapshot()
+
+        # Ensure required fields exist
+        if "portfolio_value" not in data:
+            data["portfolio_value"] = data.get("portfolio_balance", 100000.0)
+        if "timestamp" not in data:
+            data["timestamp"] = time.time()
+
+        return data
+
     except Exception as e:
-        logger.error(f"Failed to gather dashboard data: {e}")
-        return {"error": str(e), "timestamp": time.time()}
+        logger.exception(f"❌ [WS] Failed to gather dashboard data: {e}")
+        return {"error": str(e), "portfolio_value": 100000.0, "timestamp": time.time()}
 
     return app

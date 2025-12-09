@@ -70,7 +70,13 @@ class Settings(BaseSettings):
 
     # Trading configuration
     symbols: List[str] = Field(
-        default_factory=lambda: ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT"]  # Default popular symbols
+        default_factory=lambda: [
+            "BTCUSDT",
+            "ETHUSDT",
+            "BNBUSDT",
+            "SOLUSDT",
+            "XRPUSDT",
+        ]  # Default popular symbols
     )
     decision_interval_seconds: int = Field(
         default=10, ge=5, le=300
@@ -170,14 +176,6 @@ class Settings(BaseSettings):
     )
     min_position_size: float = Field(
         default=0.001, gt=0, description="Minimum viable position size"
-    )
-
-    # Grok 4 Heavy orchestration
-    grok4_api_key: str | None = Field(default=None, validation_alias="GROK4_API_KEY")
-    grok4_endpoint: str | None = Field(
-        default="https://api.x.ai/v1/chat/completions",
-        validation_alias="GROK4_ENDPOINT",
-        description="Grok 4 Heavy API endpoint (defaults to xAI API)",
     )
 
     # Gemini AI configuration

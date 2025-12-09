@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App.tsx'
 import './index.css'
+import { TradingProvider } from './contexts/TradingContext.tsx'
 
 // Register service worker for PWA and caching
 if ('serviceWorker' in navigator) {
@@ -45,8 +46,10 @@ window.addEventListener('offline', () => {
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <BrowserRouter>
-    <App />
-    </BrowserRouter>
+    <TradingProvider>
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
+    </TradingProvider>
   </React.StrictMode>,
 )

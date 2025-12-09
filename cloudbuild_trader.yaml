@@ -1,5 +1,5 @@
 steps:
 - name: 'gcr.io/cloud-builders/docker'
-  args: ['build', '-t', 'gcr.io/sapphire-479610/cloud-trader', '-f', 'Dockerfile.backend', '.']
+  args: ['build', '-t', 'northamerica-northeast1-docker.pkg.dev/sapphire-479610/sapphire-repo/cloud-trader:latest', '-f', 'Dockerfile.backend', '.']
 images:
-- 'gcr.io/sapphire-479610/cloud-trader'
+- 'northamerica-northeast1-docker.pkg.dev/sapphire-479610/sapphire-repo/cloud-trader:latest'

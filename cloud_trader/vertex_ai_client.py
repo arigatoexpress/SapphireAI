@@ -79,13 +79,14 @@ class VertexAIClient:
 
         # Model mapping for Direct API Mode
         self._model_map = {
-            "trend-momentum-agent": "gemini-flash-latest",
-            "strategy-optimization-agent": "gemini-flash-latest",
-            "financial-sentiment-agent": "gemini-flash-latest",
-            "market-prediction-agent": "gemini-flash-latest",
-            "volume-microstructure-agent": "gemini-flash-latest",
-            "vpin-hft": "gemini-flash-latest",
-            "market-analysis": "gemini-flash-latest",
+            "trend-momentum-agent": "gemini-2.0-flash-exp",
+            "strategy-optimization-agent": "gemini-2.0-flash-exp",
+            "financial-sentiment-agent": "gemini-2.0-flash-exp",
+            "market-prediction-agent": "gemini-2.0-flash-exp",
+            "volume-microstructure-agent": "gemini-2.0-flash-exp",
+            "vpin-hft": "gemini-2.0-flash-exp",
+            "deep-logic-special-ops": "gemini-2.0-flash-exp",
+            "market-analysis": "gemini-2.0-flash-exp",
         }
 
     async def initialize(self) -> None:

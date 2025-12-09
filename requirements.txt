@@ -254,7 +254,7 @@ pydantic==2.12.4
     #   pydantic-settings
 pydantic-core==2.41.5
     # via pydantic
-pydantic-settings==2.11.0
+pydantic-settings==2.1.0
     # via cloud-trader (pyproject.toml)
 python-dateutil==2.9.0.post0
     # via

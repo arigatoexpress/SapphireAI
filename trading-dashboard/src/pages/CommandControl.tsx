@@ -54,8 +54,8 @@ export const CommandControl = () => {
         // For now, we might need to use the API endpoint or mock if running local without backend fully connected
         const response = await fetch('/portfolio-status'); // Proxy handles this
         if (response.ok) {
-            const data = await response.json();
-            setMetrics(data);
+          const data = await response.json();
+          setMetrics(data);
         }
       } catch (error) {
         console.error("Failed to fetch metrics", error);
@@ -70,7 +70,7 @@ export const CommandControl = () => {
   }, []);
 
   const util = metrics?.infrastructure_utilization || {
-      gpu_usage: 0, memory_usage: 0, cpu_usage: 0, network_throughput: 0
+    gpu_usage: 0, memory_usage: 0, cpu_usage: 0, network_throughput: 0
   };
 
   return (
@@ -138,17 +138,17 @@ export const CommandControl = () => {
 
           {/* Central Data Bus */}
           <div className="col-span-1 flex flex-col items-center justify-center gap-4">
-             <div className="p-4 glass-card rounded-full border border-purple-500/30 bg-purple-500/10 animate-pulse">
-               <Database className="w-8 h-8 text-purple-400" />
-             </div>
-             <span className="text-xs font-mono text-purple-300">REDIS DATA BUS</span>
+            <div className="p-4 glass-card rounded-full border border-purple-500/30 bg-purple-500/10 animate-pulse">
+              <Database className="w-8 h-8 text-purple-400" />
+            </div>
+            <span className="text-xs font-mono text-purple-300">REDIS DATA BUS</span>
           </div>
 
           {/* Hyperliquid Engine */}
           <div className="col-span-1 flex flex-col items-center">
             <SystemNode
               icon={GitBranch}
-              title="HL Trader (Velocity)"
+              title="HL Trader (Hype)"
               status="active"
               color="emerald"
               details={["Python SDK", "Grok HL", "Profit Sweeper"]}
@@ -158,9 +158,9 @@ export const CommandControl = () => {
 
         {/* DATA FLOW LINES */}
         <div className="relative h-16 mb-4">
-           <div className="absolute left-[16%] top-0 w-[34%] h-full border-b-2 border-l-2 border-indigo-500/30 rounded-bl-3xl" />
-           <div className="absolute right-[16%] top-0 w-[34%] h-full border-b-2 border-r-2 border-emerald-500/30 rounded-br-3xl" />
-           <div className="absolute left-1/2 bottom-0 h-8 w-0.5 bg-purple-500/30 -translate-x-1/2" />
+          <div className="absolute left-[16%] top-0 w-[34%] h-full border-b-2 border-l-2 border-indigo-500/30 rounded-bl-3xl" />
+          <div className="absolute right-[16%] top-0 w-[34%] h-full border-b-2 border-r-2 border-emerald-500/30 rounded-br-3xl" />
+          <div className="absolute left-1/2 bottom-0 h-8 w-0.5 bg-purple-500/30 -translate-x-1/2" />
         </div>
 
         {/* BOTTOM LAYER: STORAGE & FRONTEND */}

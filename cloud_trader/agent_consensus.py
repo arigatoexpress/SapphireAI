@@ -155,6 +155,9 @@ class AgentConsensusEngine:
         # Signal type compatibility and conflict resolution
         self.signal_conflicts = self._initialize_signal_conflicts()
 
+        # Pending signals for the next voting round
+        self.pending_signals: Dict[str, List[AgentSignal]] = defaultdict(list)
+
     def _initialize_signal_conflicts(self) -> Dict[Tuple[SignalType, SignalType], float]:
         """Initialize signal conflict matrix."""
         conflicts = {}
@@ -206,6 +209,9 @@ class AgentConsensusEngine:
         # Store signal with timestamp
         signal.timestamp_us = signal.timestamp_us or get_timestamp_us()
 
+        # Add to pending aggregation
+        self.pending_signals[signal.symbol].append(signal)
+
         # Signal will be processed in consensus voting
         logger.debug(
             f"Received signal from {signal.agent_id}: {signal.signal_type.value} "
@@ -216,14 +222,12 @@ class AgentConsensusEngine:
         self, symbol: str, regime: Optional[RegimeMetrics] = None, max_wait_time: int = 1000000
     ) -> Optional[ConsensusResult]:
         """
-        Conduct a consensus vote among all registered agents.
-        Waits up to max_wait_time microseconds for agent responses.
+        Conduct a consensus vote among all registered agents using PENDING signals.
         """
         start_time = get_timestamp_us()
-        deadline = start_time + max_wait_time
 
-        # Collect agent signals (in production, this would poll from MCP coordinator)
-        agent_signals = await self._collect_agent_signals(symbol, deadline)
+        # 1. Retrieve and consume signals for this symbol
+        agent_signals = self.pending_signals.pop(symbol, [])
 
         if not agent_signals:
             return None
@@ -241,55 +245,7 @@ class AgentConsensusEngine:
 
         return consensus_result
 
-    async def _collect_agent_signals(self, symbol: str, deadline: int) -> List[AgentSignal]:
-        """
-        Collect signals from all registered agents.
-        In production, this would query the MCP coordinator.
-        """
-        signals = []
-
-        # Simulate agent signal collection (replace with actual MCP coordinator calls)
-        for agent_id, agent_info in self.agent_registry.items():
-            # Generate mock signals based on agent type (for demonstration)
-            signal = self._generate_mock_signal(agent_id, agent_info, symbol)
-            if signal:
-                signals.append(signal)
-
-        return signals
-
-    def _generate_mock_signal(
-        self, agent_id: str, agent_info: Dict, symbol: str
-    ) -> Optional[AgentSignal]:
-        """Generate a mock signal for demonstration (replace with actual agent calls)."""
-        import random
-
-        # Simple mock logic - in production this would call actual agents
-        signal_types = list(SignalType)
-        signal_type = random.choice(signal_types)
-
-        # Bias signals based on agent specialization
-        if agent_info["specialization"] == "momentum_trading":
-            # Momentum agents favor entry signals
-            if random.random() < 0.6:
-                signal_type = random.choice([SignalType.ENTRY_LONG, SignalType.ENTRY_SHORT])
-        elif agent_info["specialization"] == "sentiment_analysis":
-            # Sentiment agents are more neutral
-            if random.random() < 0.4:
-                signal_type = SignalType.HOLD
-
-        confidence = random.uniform(0.3, 0.9)
-        strength = confidence * random.uniform(0.8, 1.2)
-
-        return AgentSignal(
-            agent_id=agent_id,
-            signal_type=signal_type,
-            confidence=confidence,
-            strength=strength,
-            symbol=symbol,
-            timestamp_us=get_timestamp_us(),
-            reasoning=f"Mock signal from {agent_info['type']}",
-            metadata={"mock": True, "agent_type": agent_info["type"]},
-        )
+    # MOCK METHODS REMOVED
 
     def _apply_regime_filtering(
         self, signals: List[AgentSignal], regime: Optional[RegimeMetrics]

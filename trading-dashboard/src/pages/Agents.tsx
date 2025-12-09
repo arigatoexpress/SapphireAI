@@ -62,15 +62,15 @@ export const Agents: React.FC<AgentsProps> = ({ bots, messages }) => {
       description: 'Uses advanced models to forecast market movements and identify high-probability setups.'
     },
     {
-      id: 'grok-special-ops',
-      name: 'Grok Alpha',
-      emoji: '👨‍💼',
-      model: 'Grok Beta',
-      specialty: 'Strategic Alpha Hunter',
+      id: 'deep-logic-special-ops',
+      name: 'Deep Logic Special Ops',
+      emoji: '🧠',
+      model: 'Gemini 2.0 Flash',
+      specialty: 'Deep Reasoning',
       riskLevel: 'Very High',
-      timeHorizon: 'Variable',
+      timeHorizon: 'Short',
       system: 'aster',
-      description: 'The Chief Investment Officer. Orchestrates the swarm, learns from history, and executes high-conviction strategic bets.'
+      description: 'The Chief Investment Officer. Orchestrates the swarm using native Gemini 2.0 reasoning to execute high-conviction strategic bets.'
     },
     {
       id: 'hype-agent',
@@ -101,39 +101,39 @@ export const Agents: React.FC<AgentsProps> = ({ bots, messages }) => {
       {/* Holographic Background */}
       <div className="holographic-grid" />
       <div className="fixed inset-0 pointer-events-none">
-         <div className="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-900/10 rounded-full blur-[150px] animate-pulse-slow" />
+        <div className="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-900/10 rounded-full blur-[150px] animate-pulse-slow" />
       </div>
 
       {/* Header */}
       <div className="glass-card p-8 rounded-3xl relative overflow-hidden">
-         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 via-blue-500 to-emerald-500"></div>
+        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 via-blue-500 to-emerald-500"></div>
 
-         <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-           <div>
-             <div className="flex items-center gap-3 mb-2">
-               <div className="p-2 bg-purple-500/10 rounded-xl border border-purple-500/20">
-                 <Cpu className="w-6 h-6 text-purple-400" />
-               </div>
-               <h1 className="text-4xl font-black text-white tracking-tight">
-                 NEURAL AGENT ROSTER
-               </h1>
-             </div>
-             <p className="text-slate-400 font-mono text-sm max-w-2xl tracking-wide">
-               OPERATIONAL STATUS: <span className="text-emerald-400">ONLINE</span> • SWARM INTELLIGENCE: <span className="text-blue-400">ACTIVE</span>
-             </p>
-           </div>
+        <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 bg-purple-500/10 rounded-xl border border-purple-500/20">
+                <Cpu className="w-6 h-6 text-purple-400" />
+              </div>
+              <h1 className="text-4xl font-black text-white tracking-tight">
+                NEURAL AGENT ROSTER
+              </h1>
+            </div>
+            <p className="text-slate-400 font-mono text-sm max-w-2xl tracking-wide">
+              OPERATIONAL STATUS: <span className="text-emerald-400">ONLINE</span> • SWARM INTELLIGENCE: <span className="text-blue-400">ACTIVE</span>
+            </p>
+          </div>
 
-           <div className="flex gap-4">
-             <div className="px-5 py-3 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm">
-               <div className="text-[10px] text-slate-400 uppercase tracking-widest mb-1">Total Agents</div>
-               <div className="text-2xl font-code font-bold text-white">6</div>
-             </div>
-             <div className="px-5 py-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 backdrop-blur-sm">
-               <div className="text-[10px] text-emerald-400/70 uppercase tracking-widest mb-1">Active</div>
-               <div className="text-2xl font-code font-bold text-emerald-400">6</div>
-             </div>
-           </div>
-         </div>
+          <div className="flex gap-4">
+            <div className="px-5 py-3 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm">
+              <div className="text-[10px] text-slate-400 uppercase tracking-widest mb-1">Total Agents</div>
+              <div className="text-2xl font-code font-bold text-white">6</div>
+            </div>
+            <div className="px-5 py-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 backdrop-blur-sm">
+              <div className="text-[10px] text-emerald-400/70 uppercase tracking-widest mb-1">Active</div>
+              <div className="text-2xl font-code font-bold text-emerald-400">6</div>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Agents Grid */}
@@ -149,24 +149,22 @@ export const Agents: React.FC<AgentsProps> = ({ bots, messages }) => {
           return (
             <div
               key={agent.id}
-              className={`group relative glass-card p-6 rounded-3xl transition-all duration-500 hover:-translate-y-2 cursor-pointer ${
-                selectedAgent === agent.id
-                  ? 'border-purple-500/50 shadow-[0_0_30px_rgba(168,85,247,0.2)]'
-                  : isHype ? 'hover:border-emerald-500/30' : 'hover:border-blue-500/30'
-              }`}
+              className={`group relative glass-card p-6 rounded-3xl transition-all duration-500 hover:-translate-y-2 cursor-pointer ${selectedAgent === agent.id
+                ? 'border-purple-500/50 shadow-[0_0_30px_rgba(168,85,247,0.2)]'
+                : isHype ? 'hover:border-emerald-500/30' : 'hover:border-blue-500/30'
+                }`}
               onClick={() => setSelectedAgent(selectedAgent === agent.id ? null : agent.id)}
             >
               {/* Card Header */}
               <div className="relative z-10">
                 <div className="flex justify-between items-start mb-6">
                   <div className="flex items-center gap-4">
-                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-3xl shadow-lg border ${
-                      isHype
-                        ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
-                        : agent.id === 'grok-special-ops'
-                          ? 'bg-purple-500/10 border-purple-500/20 text-purple-400'
-                          : 'bg-blue-500/10 border-blue-500/20 text-blue-400'
-                    }`}>
+                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-3xl shadow-lg border ${isHype
+                      ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                      : agent.id === 'deep-logic-special-ops'
+                        ? 'bg-purple-500/10 border-purple-500/20 text-purple-400'
+                        : 'bg-blue-500/10 border-blue-500/20 text-blue-400'
+                      }`}>
                       {agent.id === 'hype-agent' ? <Zap size={24} /> : agent.emoji}
                     </div>
                     <div>
@@ -174,11 +172,10 @@ export const Agents: React.FC<AgentsProps> = ({ bots, messages }) => {
                         {agent.name}
                       </h3>
                       <div className="flex items-center gap-2 mt-1">
-                         <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${
-                           isHype ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300' : 'bg-blue-500/10 border-blue-500/20 text-blue-300'
-                         }`}>
-                           {agent.model}
-                         </span>
+                        <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${isHype ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300' : 'bg-blue-500/10 border-blue-500/20 text-blue-300'
+                          }`}>
+                          {agent.model}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -202,10 +199,10 @@ export const Agents: React.FC<AgentsProps> = ({ bots, messages }) => {
                     </div>
                   </div>
                   <div className="p-3 rounded-xl bg-white/5 border border-white/5">
-                     <div className="text-[10px] text-slate-400 mb-1 uppercase tracking-wider">Net PnL</div>
-                     <div className={`text-xl font-code font-bold ${isProfitable ? 'text-emerald-400' : 'text-rose-400'}`}>
-                       {isProfitable ? '+' : ''}${typeof pnl === 'number' ? pnl.toFixed(2) : '0.00'}
-                     </div>
+                    <div className="text-[10px] text-slate-400 mb-1 uppercase tracking-wider">Net PnL</div>
+                    <div className={`text-xl font-code font-bold ${isProfitable ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {isProfitable ? '+' : ''}${typeof pnl === 'number' ? pnl.toFixed(2) : '0.00'}
+                    </div>
                   </div>
                 </div>
 
@@ -248,75 +245,75 @@ export const Agents: React.FC<AgentsProps> = ({ bots, messages }) => {
 
       {/* Bottom Section: Neural Stream & System Health */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-         {/* Neural Stream */}
-         <div className="lg:col-span-2 glass-card rounded-3xl border-t-4 border-t-purple-500/30 bg-black/40 overflow-hidden flex flex-col h-[500px]">
-            <div className="p-6 border-b border-white/5 flex items-center justify-between bg-white/5">
-              <div>
-                <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                  <Brain className="w-5 h-5 text-purple-400" />
-                  NEURAL NETWORK STREAM
-                </h2>
-                <p className="text-slate-400 text-xs font-mono mt-1">REAL-TIME CONSENSUS PROTOCOL</p>
-              </div>
-              <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-green-500/10 border border-green-500/20">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                <span className="text-[10px] font-bold text-green-400 tracking-wider">UPLINK ESTABLISHED</span>
-              </div>
+        {/* Neural Stream */}
+        <div className="lg:col-span-2 glass-card rounded-3xl border-t-4 border-t-purple-500/30 bg-black/40 overflow-hidden flex flex-col h-[500px]">
+          <div className="p-6 border-b border-white/5 flex items-center justify-between bg-white/5">
+            <div>
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                <Brain className="w-5 h-5 text-purple-400" />
+                NEURAL NETWORK STREAM
+              </h2>
+              <p className="text-slate-400 text-xs font-mono mt-1">REAL-TIME CONSENSUS PROTOCOL</p>
             </div>
-            <div className="flex-1 overflow-hidden relative">
-               <LiveAgentChat messages={messages} />
+            <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-green-500/10 border border-green-500/20">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+              <span className="text-[10px] font-bold text-green-400 tracking-wider">UPLINK ESTABLISHED</span>
             </div>
-         </div>
+          </div>
+          <div className="flex-1 overflow-hidden relative">
+            <LiveAgentChat messages={messages} />
+          </div>
+        </div>
 
-         {/* System Diagnostics */}
-         <div className="space-y-6">
-            <div className="glass-card p-6 rounded-3xl relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-bl-[100px] -mr-8 -mt-8"></div>
-              <h3 className="text-sm font-bold text-white mb-6 flex items-center gap-2 uppercase tracking-wider">
-                <Activity className="w-4 h-4 text-blue-400" />
-                System Diagnostics
-              </h3>
-              <div className="space-y-5">
-                <div className="flex justify-between items-center">
-                   <span className="text-slate-400 text-xs font-mono">API LATENCY</span>
-                   <span className="text-emerald-400 font-code text-sm">12ms</span>
-                </div>
-                <div className="flex justify-between items-center">
-                   <span className="text-slate-400 text-xs font-mono">UPTIME</span>
-                   <span className="text-emerald-400 font-code text-sm">99.99%</span>
-                </div>
-                <div className="flex justify-between items-center">
-                   <span className="text-slate-400 text-xs font-mono">MEMORY LOAD</span>
-                   <span className="text-blue-400 font-code text-sm">42%</span>
-                </div>
-                <div className="w-full bg-white/5 rounded-full h-1 mt-2">
-                   <div className="bg-blue-500 h-1 rounded-full w-[42%] animate-pulse"></div>
-                </div>
+        {/* System Diagnostics */}
+        <div className="space-y-6">
+          <div className="glass-card p-6 rounded-3xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-bl-[100px] -mr-8 -mt-8"></div>
+            <h3 className="text-sm font-bold text-white mb-6 flex items-center gap-2 uppercase tracking-wider">
+              <Activity className="w-4 h-4 text-blue-400" />
+              System Diagnostics
+            </h3>
+            <div className="space-y-5">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400 text-xs font-mono">API LATENCY</span>
+                <span className="text-emerald-400 font-code text-sm">12ms</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400 text-xs font-mono">UPTIME</span>
+                <span className="text-emerald-400 font-code text-sm">99.99%</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400 text-xs font-mono">MEMORY LOAD</span>
+                <span className="text-blue-400 font-code text-sm">42%</span>
+              </div>
+              <div className="w-full bg-white/5 rounded-full h-1 mt-2">
+                <div className="bg-blue-500 h-1 rounded-full w-[42%] animate-pulse"></div>
               </div>
             </div>
+          </div>
 
-            <div className="glass-card p-6 rounded-3xl relative overflow-hidden">
-               <div className="absolute bottom-0 left-0 w-32 h-32 bg-purple-500/10 rounded-tr-[100px] -ml-8 -mb-8"></div>
-               <h3 className="text-sm font-bold text-white mb-6 flex items-center gap-2 uppercase tracking-wider">
-                 <Shield className="w-4 h-4 text-purple-400" />
-                 Risk Guardrails
-               </h3>
-               <div className="space-y-4">
-                 <div className="flex items-center gap-3 text-xs text-slate-300 font-mono bg-white/5 p-2 rounded-lg border border-white/5">
-                   <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_5px_rgba(16,185,129,0.5)]"></div>
-                   MAX DRAWDOWN LIMIT: 15%
-                 </div>
-                 <div className="flex items-center gap-3 text-xs text-slate-300 font-mono bg-white/5 p-2 rounded-lg border border-white/5">
-                   <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_5px_rgba(16,185,129,0.5)]"></div>
-                   POSITION SIZING: DYNAMIC
-                 </div>
-                 <div className="flex items-center gap-3 text-xs text-slate-300 font-mono bg-white/5 p-2 rounded-lg border border-white/5">
-                   <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_5px_rgba(16,185,129,0.5)]"></div>
-                   STOP LOSS: AUTOMATED
-                 </div>
-               </div>
+          <div className="glass-card p-6 rounded-3xl relative overflow-hidden">
+            <div className="absolute bottom-0 left-0 w-32 h-32 bg-purple-500/10 rounded-tr-[100px] -ml-8 -mb-8"></div>
+            <h3 className="text-sm font-bold text-white mb-6 flex items-center gap-2 uppercase tracking-wider">
+              <Shield className="w-4 h-4 text-purple-400" />
+              Risk Guardrails
+            </h3>
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 text-xs text-slate-300 font-mono bg-white/5 p-2 rounded-lg border border-white/5">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_5px_rgba(16,185,129,0.5)]"></div>
+                MAX DRAWDOWN LIMIT: 15%
+              </div>
+              <div className="flex items-center gap-3 text-xs text-slate-300 font-mono bg-white/5 p-2 rounded-lg border border-white/5">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_5px_rgba(16,185,129,0.5)]"></div>
+                POSITION SIZING: DYNAMIC
+              </div>
+              <div className="flex items-center gap-3 text-xs text-slate-300 font-mono bg-white/5 p-2 rounded-lg border border-white/5">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_5px_rgba(16,185,129,0.5)]"></div>
+                STOP LOSS: AUTOMATED
+              </div>
             </div>
-         </div>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -46,13 +46,48 @@ const Navbar: React.FC = () => {
     setAnchorEl(null);
   };
 
-  // Simplified to 4 core pages as per plan
+  // Professional navigation structure
   const navItems = [
-    { path: '/dashboard', label: 'Dashboard', icon: <DashboardIcon />, description: 'Real-time trading operations' },
-    { path: '/portfolio', label: 'Portfolio', icon: <PortfolioIcon />, description: 'Capital allocation & positions' },
-    { path: '/', label: 'Agent Network', icon: <AnalyticsIcon />, description: 'AI agent network visualization' },
-    { path: '/workflow', label: 'Infrastructure', icon: <SettingsIcon />, description: 'System architecture' },
+    { path: '/', label: 'Mission Control', icon: <DashboardIcon />, description: 'Command Center • Live' },
+    { path: '/dashboard', label: 'Legacy Dashboard', icon: <AnalyticsIcon />, description: 'Dual-System Analytics' },
+    { path: '/portfolio', label: 'Portfolio Management', icon: <PortfolioIcon />, description: 'Capital Allocation & Positions' },
+    { path: '/workflow', label: 'Command Control', icon: <SettingsIcon />, description: 'Infrastructure View' },
   ];
+
+  // ... (skipping unchanged lines)
+
+  <Box sx={{ display: { xs: 'none', sm: 'flex' }, flexDirection: 'column', gap: 0.5, alignItems: 'flex-start' }}>
+    <Chip
+      label="⚡ ENTERPRISE PROTOCOL"
+      size="small"
+      sx={{
+        bgcolor: 'rgba(0, 212, 170, 0.15)',
+        color: '#00d4aa',
+        border: '1px solid rgba(0, 212, 170, 0.3)',
+        fontWeight: 600,
+        fontSize: '0.65rem',
+        height: '20px',
+        '& .MuiChip-label': {
+          px: 1,
+        },
+      }}
+    />
+    <Chip
+      label="🤖 SWARM INTELLIGENCE"
+      size="small"
+      sx={{
+        bgcolor: 'rgba(138, 43, 226, 0.15)',
+        color: '#8a2be2',
+        border: '1px solid rgba(138, 43, 226, 0.3)',
+        fontWeight: 600,
+        fontSize: '0.65rem',
+        height: '20px',
+        '& .MuiChip-label': {
+          px: 1,
+        },
+      }}
+    />
+  </Box>
 
   const handleDrawerToggle = () => {
     setDrawerOpen(!drawerOpen);

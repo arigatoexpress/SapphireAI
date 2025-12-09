@@ -63,7 +63,8 @@ const PortfolioChart: React.FC = () => {
             timeRange === '7d' ? `Day ${points - i + 1}` :
               `Day ${points - i + 1}`,
         value: Math.max(0, currentValue),
-        pnl: currentValue - botCapital,
+        pnl: ((currentValue - botCapital) / botCapital) * 100, // Return as percentage
+        valueUSD: currentValue, // Keep USD value for tooltip
         change: change,
       });
     }
@@ -408,12 +409,12 @@ const PortfolioChart: React.FC = () => {
                 maxWidth: '600px'
               }}
             >
-              <strong>🎮 Trading Battle Royale:</strong> Watch your AI agents compete! Each colored dot represents a trade execution.
-              Hover over dots to see agent performance, trade sizes, and P&L. Toggle the 🎯 button to show/hide agent trades!
+              <strong>⚡ Multi-Agent Execution Matrix:</strong> Visualization of autonomous agent performance across market regimes.
+              Data points represent algorithmic decision nodes and execution efficiency.
             </Typography>
             <Box display="flex" alignItems="center" gap={2}>
               <Typography variant="h3" sx={{ fontWeight: 700, color: 'primary.main' }}>
-                {formatValue(botCapital)}
+                ******
               </Typography>
               <Box display="flex" alignItems="center">
                 {performance.changePercent >= 0 ? (

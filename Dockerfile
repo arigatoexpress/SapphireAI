@@ -1,14 +1,9 @@
 # Multi-stage build for optimized image size
 
-# Stage 0: Build Frontend
-FROM node:18-slim as frontend-builder
-WORKDIR /app
-COPY trading-dashboard ./trading-dashboard
-WORKDIR /app/trading-dashboard
-RUN npm install
-ARG VITE_API_URL
-ENV VITE_API_URL=$VITE_API_URL
-RUN npm run build
+# Stage 0: Build Frontend (SKIPPED - Uses Local Dist)
+# FROM node:18-slim as frontend-builder
+# ... bypassed ...
+
 
 # Stage 1: Build dependencies
 FROM python:3.11-slim as builder
@@ -61,8 +56,8 @@ COPY --from=builder /install /usr/local/lib/python3.11/site-packages
 # Binaries (like alembic) might be in /install/bin
 COPY --from=builder /install/bin /usr/local/bin
 
-# Copy frontend build artifacts
-COPY --from=frontend-builder /app/trading-dashboard/dist /app/static
+# Copy local frontend build artifacts
+COPY trading-dashboard/dist /app/static
 
 # Copy application code with forced cache invalidation
 ARG CACHE_BUST

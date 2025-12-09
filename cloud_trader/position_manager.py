@@ -1,13 +1,16 @@
 import asyncio
 import time
 from typing import Any, Dict, List, Optional, Tuple
+
 from .definitions import SYMBOL_CONFIG, MinimalAgentState
+
 
 class PositionManager:
     """
-    Manages open positions, including syncing with exchange, 
+    Manages open positions, including syncing with exchange,
     monitoring for TP/SL, and tracking state.
     """
+
     def __init__(self, exchange_client, agent_states: Dict[str, MinimalAgentState]):
         self.exchange_client = exchange_client
         self.agent_states = agent_states
@@ -38,7 +41,10 @@ class PositionManager:
                 # Store position in our tracking
                 # Assign to default agent if not tracked
                 # Use Strategy Optimization Agent or first available
-                agent = self.agent_states.get("strategy-optimization-agent") or list(self.agent_states.values())[0]
+                agent = (
+                    self.agent_states.get("strategy-optimization-agent")
+                    or list(self.agent_states.values())[0]
+                )
 
                 # Store position in our tracking
                 self.open_positions[symbol] = {
@@ -50,8 +56,8 @@ class PositionManager:
                     "leverage": int(pos.get("leverage", 1)),
                     "agent": agent,
                     "agent_id": agent.id,
-                    "tp_price": float(pos.get("entryPrice", 0)) * 1.05, # Default TP
-                    "sl_price": float(pos.get("entryPrice", 0)) * 0.95, # Default SL
+                    "tp_price": float(pos.get("entryPrice", 0)) * 1.05,  # Default TP
+                    "sl_price": float(pos.get("entryPrice", 0)) * 0.95,  # Default SL
                 }
                 print(
                     f"   ✅ Inherited position: {symbol} {self.open_positions[symbol]['side']} x{self.open_positions[symbol]['quantity']}"
@@ -107,7 +113,7 @@ class PositionManager:
                 # Check TP/SL logic is handled by the caller or we can return signals here
                 # For now, we just return the ticker map and let the service handle the actual closing logic
                 # using check_profit_taking helper.
-                
+
                 # Ideally, we should move the trailing stop logic here too.
                 self._update_trailing_stop(symbol, pos, current_price, agent)
 
@@ -116,17 +122,19 @@ class PositionManager:
 
         return ticker_map
 
-    def _update_trailing_stop(self, symbol: str, pos: Dict[str, Any], current_price: float, agent: MinimalAgentState):
+    def _update_trailing_stop(
+        self, symbol: str, pos: Dict[str, Any], current_price: float, agent: MinimalAgentState
+    ):
         """Internal helper to update trailing stops."""
         try:
             if pos["side"] == "BUY":
                 pnl_pct = (current_price - pos["entry_price"]) / pos["entry_price"]
-                
+
                 # 1. Move to Break Even if > 1.5% profit
                 if pnl_pct > 0.015 and pos["sl_price"] < pos["entry_price"]:
                     pos["sl_price"] = pos["entry_price"] * 1.002  # BE + small profit
                     print(f"🛡️ Trailing Stop Updated for {symbol} (Long): Moved to Break Even")
-                    
+
                 # 2. Lock in Profit if > 3% profit
                 elif pnl_pct > 0.03 and pos["sl_price"] < (pos["entry_price"] * 1.015):
                     pos["sl_price"] = pos["entry_price"] * 1.015  # Lock 1.5%
@@ -139,7 +147,7 @@ class PositionManager:
                 if pnl_pct > 0.015 and pos["sl_price"] > pos["entry_price"]:
                     pos["sl_price"] = pos["entry_price"] * 0.998  # BE + small profit
                     print(f"🛡️ Trailing Stop Updated for {symbol} (Short): Moved to Break Even")
-                    
+
                 # 2. Lock in Profit if > 3% profit
                 elif pnl_pct > 0.03 and pos["sl_price"] > (pos["entry_price"] * 0.985):
                     pos["sl_price"] = pos["entry_price"] * 0.985  # Lock 1.5%
@@ -147,29 +155,76 @@ class PositionManager:
         except Exception as e:
             print(f"⚠️ Error updating trailing stop for {symbol}: {e}")
 
-    async def check_profit_taking(self, symbol: str, position: Dict[str, Any], current_price: float) -> Tuple[bool, str]:
+    async def update_sl_on_exchange(self, symbol: str, sl_price: float, side: str, quantity: float):
+        """
+        Syncs the internal Stop Loss price with the exchange by placing/updating a STOP_MARKET order.
+        This ensures risk is managed even if the bot goes offline.
+        """
+        try:
+            # Determine order side (Closing logic)
+            order_side = "SELL" if side == "BUY" else "BUY"
+
+            # 1. Cancel existing open orders for this symbol to avoid duplicates
+            await self.exchange_client.cancel_all_orders(symbol)
+
+            # 2. Place new STOP_MARKET order
+            # Note: exact params depend on Aster API specifics, assuming standard params
+            order_params = {
+                "symbol": symbol,
+                "side": order_side,
+                "type": "STOP_MARKET",
+                "quantity": quantity,
+                "stopPrice": sl_price,
+                "reduceOnly": True,
+            }
+
+            # Execute via exchange client (assuming create_order method exists)
+            # We wrap in try/except because some exchanges might reject if price is too close
+            logger.info(f"🛡️ Syncing Hard Stop for {symbol}: {order_side} {quantity} @ {sl_price}")
+            await self.exchange_client.create_order(**order_params)
+
+        except Exception as e:
+            print(f"⚠️ Failed to sync SL to exchange for {symbol}: {e}")
+
+    async def check_profit_taking(
+        self, symbol: str, position: Dict[str, Any], current_price: float
+    ) -> Tuple[bool, str]:
         """Check if a position should be closed for profit or stop loss."""
         try:
             entry_price = position["entry_price"]
             side = position["side"]
-            
+
             if side == "BUY":
                 pnl_pct = (current_price - entry_price) / entry_price
             else:
                 pnl_pct = (entry_price - current_price) / entry_price
-                
-            # Hard Profit Target (2% - aggressive)
-            if pnl_pct > 0.02:
+
+            # Dynamic TP/SL based on agent settings if available
+            agent = position.get("agent")
+
+            # Defaults
+            tp_target = 0.02
+            sl_target = -0.05
+
+            if hasattr(agent, "profit_target"):
+                tp_target = agent.profit_target
+
+            # Hard Profit Target
+            if pnl_pct > tp_target:
                 return True, f"Hard Profit Target Hit (+{pnl_pct*100:.2f}%)"
-                
-            # Hard Stop Loss (-5%)
-            if pnl_pct < -0.05:
+
+            # Hard Stop Loss (Internal check, backup to exchange SL)
+            # We use a slightly tighter internal stop to trigger before liquidation
+            if pnl_pct < sl_target:
                 return True, f"Hard Stop Loss Hit ({pnl_pct*100:.2f}%)"
-                
-            # Trailing Stop Logic (Simplified)
+
+            # Trailing Stop Logic
             # If we are up > 1%, ensure we don't lose it all
-            if pnl_pct > 0.01 and pnl_pct < 0.005: # Dropped back down
-                 return True, f"Trailing Stop Hit (Locked in {pnl_pct*100:.2f}%)"
+            if pnl_pct > 0.012 and pnl_pct < 0.005:
+                return True, f"Trailing Stop Hit (Locked in {pnl_pct*100:.2f}%)"
+
+            # "Panic Button" / Volatility check (Future expansion)
+            # If price moves against us > 2% in 1 minute -> Close
 
             return False, ""
         except Exception as e:

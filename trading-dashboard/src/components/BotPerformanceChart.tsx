@@ -40,7 +40,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
                 <span className="text-slate-300">{p.name}</span>
               </div>
               <span className={`font-mono font-bold ${p.value >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                ${Number(p.value).toFixed(2)}
+                {Number(p.value).toFixed(2)} pts
               </span>
             </div>
           ))}
@@ -112,7 +112,7 @@ export const BotPerformanceChart: React.FC<BotPerformanceChartProps> = ({ bots }
             fontSize={10}
             tickLine={false}
             axisLine={false}
-            tickFormatter={(value) => `$${value}`}
+            tickFormatter={(value) => `${value}`}
           />
           <Tooltip content={<CustomTooltip />} />
           <Legend

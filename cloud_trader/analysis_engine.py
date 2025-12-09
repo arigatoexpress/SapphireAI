@@ -1,6 +1,8 @@
 import random
 from typing import Any, Dict, Optional
-from .definitions import MinimalAgentState, SYMBOL_CONFIG
+
+from .definitions import SYMBOL_CONFIG, MinimalAgentState
+
 
 class AnalysisEngine:
     def __init__(self, exchange_client, feature_pipeline, swarm_manager, grok_manager=None):
@@ -9,7 +11,9 @@ class AnalysisEngine:
         self.swarm_manager = swarm_manager
         self.grok_manager = grok_manager
 
-    async def analyze_market(self, agent: MinimalAgentState, symbol: str, ticker_map: Dict[str, Any] = None) -> Dict[str, Any]:
+    async def analyze_market(
+        self, agent: MinimalAgentState, symbol: str, ticker_map: Dict[str, Any] = None
+    ) -> Dict[str, Any]:
         """
         Perform basic technical analysis suited to the agent's specialization.
         Returns a dict with 'signal' ('BUY', 'SELL', 'NEUTRAL'), 'confidence', and 'thesis'.
@@ -84,11 +88,15 @@ class AnalysisEngine:
                 if range_pos > 0.8:
                     signal = "SELL"
                     confidence = base_conf
-                    thesis_parts.append(f"Price near daily high (${high_24h:.2f}). Anticipating reversion.")
+                    thesis_parts.append(
+                        f"Price near daily high (${high_24h:.2f}). Anticipating reversion."
+                    )
                 elif range_pos < 0.2:
                     signal = "BUY"
                     confidence = base_conf
-                    thesis_parts.append(f"Price near daily low (${low_24h:.2f}). Anticipating bounce.")
+                    thesis_parts.append(
+                        f"Price near daily low (${low_24h:.2f}). Anticipating bounce."
+                    )
                 else:
                     signal = "NEUTRAL"
                     confidence = 0.0
@@ -99,7 +107,9 @@ class AnalysisEngine:
                 if volatility_score > 0.5:
                     signal = "BUY" if is_uptrend else "SELL"
                     confidence = base_conf
-                    thesis_parts.append(f"Volatility elevated ({volatility_score:.0%}). trading breakout.")
+                    thesis_parts.append(
+                        f"Volatility elevated ({volatility_score:.0%}). trading breakout."
+                    )
                 else:
                     signal = "NEUTRAL"
                     confidence = 0.0
@@ -129,9 +139,16 @@ class AnalysisEngine:
                 "thesis": " ".join(thesis_parts),
             }
 
-            # Consult Grok
-            force_grok = agent.id == "grok-special-ops"
-            if (self.grok_manager and self.grok_manager.enabled and signal != "NEUTRAL") or force_grok:
+            # Consult Grok (Hyperliquid Jurisdiction Only)
+            # The agent.system field is key here.
+            is_hyperliquid = getattr(agent, "system", "aster") == "hyperliquid"
+
+            if (
+                self.grok_manager
+                and self.grok_manager.enabled
+                and signal != "NEUTRAL"
+                and is_hyperliquid
+            ):
                 market_data = {
                     "price": price,
                     "change_24h": price_change_pct,
@@ -145,14 +162,6 @@ class AnalysisEngine:
                     "ta_analysis": ta_analysis,
                     "swarm_context": swarm_context,
                 }
-
-                if force_grok:
-                    avg_price_24h = (high_24h + low_24h) / 2
-                    is_above_avg = price > avg_price_24h
-                    if signal == "BUY" and not is_above_avg:
-                        market_data["note"] = "WARNING: Price below 24h average. Confirm trend reversal."
-                    elif signal == "SELL" and is_above_avg:
-                        market_data["note"] = "WARNING: Price above 24h average. Confirm top."
 
                 return await self.grok_manager.consult(symbol, market_data, initial_result)
 

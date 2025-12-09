@@ -1,6 +1,6 @@
 steps:
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'gcr.io/$PROJECT_ID/trading-dashboard:latest', '--build-arg', 'VITE_API_URL=https://cloud-trader-267358751314.northamerica-northeast1.run.app', 'trading-dashboard']
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/trading-dashboard:latest', '--build-arg', 'VITE_API_URL=https://sapphire-trader-s77j6bxyra-nn.a.run.app', 'trading-dashboard']
   - name: 'gcr.io/cloud-builders/docker'
     args: ['push', 'gcr.io/$PROJECT_ID/trading-dashboard:latest']
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'

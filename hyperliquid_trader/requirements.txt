@@ -1,9 +1,0 @@
-hyperliquid-python-sdk
-eth-account
-python-dotenv
-aiohttp
-requests
-redis
-python-telegram-bot
-google-generativeai
-google-cloud-pubsub>=2.18.0

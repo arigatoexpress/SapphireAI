@@ -22,6 +22,7 @@ interface DualityDashboardProps {
   pnlPercent: number;
   systems?: any;
   marketRegime?: any;
+  data?: any; // Full dashboard data object
 }
 
 export const DualityDashboard: React.FC<DualityDashboardProps> = ({
@@ -33,7 +34,8 @@ export const DualityDashboard: React.FC<DualityDashboardProps> = ({
   totalPnl,
   pnlPercent,
   systems,
-  marketRegime
+  marketRegime,
+  data
 }) => {
 
   // Filter Data by System
@@ -42,6 +44,17 @@ export const DualityDashboard: React.FC<DualityDashboardProps> = ({
 
   const asterPositions = useMemo(() => openPositions.filter(p => !p.system || p.system === 'aster'), [openPositions]);
   const hypePositions = useMemo(() => openPositions.filter(p => p.system === 'hyperliquid'), [openPositions]);
+
+  // Calculate position PnL totals per exchange
+  const asterPositionPnL = useMemo(() =>
+    asterPositions.reduce((acc, p) => acc + (p.pnl || 0), 0),
+    [asterPositions]
+  );
+  const hypePositionPnL = useMemo(() =>
+    hypePositions.reduce((acc, p) => acc + (p.pnl || 0), 0),
+    [hypePositions]
+  );
+  const totalPositionPnL = asterPositionPnL + hypePositionPnL;
 
   // Use backend provided metrics if available, otherwise fallback to calculation
   const asterMetrics = systems?.aster || {
@@ -75,34 +88,83 @@ export const DualityDashboard: React.FC<DualityDashboardProps> = ({
 
       {/* Header Section */}
       <header className="relative z-10 mb-12 text-center">
-        <div className="inline-flex items-center gap-3 px-4 py-1.5 rounded-full border border-white/10 bg-white/5 backdrop-blur-md mb-6">
+        <div className="inline-flex items-center gap-3 px-4 py-1.5 rounded-full border border-white/10 bg-white/5 backdrop-blur-md mb-8">
           <div className="status-dot bg-emerald-500" />
           <span className="text-[10px] font-mono tracking-widest text-emerald-200/80 uppercase">System Architecture: Multichain Agentic Perp Swarm</span>
         </div>
 
-        <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-8 mb-4">
+        <div className="flex flex-col md:flex-row items-center justify-center gap-8 md:gap-16 mb-4">
           {/* ASTER BRANDING */}
           <div className="relative group">
-            <h1 className="text-5xl md:text-7xl font-black tracking-tighter text-blue-500 hover:scale-105 transition-transform duration-300 cursor-default">
+            <div className="absolute inset-0 bg-blue-500/20 blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+            <h1 className="relative text-7xl md:text-9xl font-black tracking-tighter text-blue-500 hover:text-blue-400 transition-colors duration-300 cursor-default drop-shadow-[0_0_25px_rgba(59,130,246,0.6)]">
               ASTER
             </h1>
-            <div className="text-center text-[10px] font-mono text-blue-400 tracking-[0.5em] opacity-60 mt-1">CLOUD TRADER</div>
           </div>
 
-          {/* VS BADGE */}
-          <div className="relative w-16 h-16 flex items-center justify-center">
-            <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-green-500/20 rounded-full blur-lg animate-pulse" />
-            <div className="relative w-12 h-12 bg-[#0a0a12] border border-white/10 rounded-full flex items-center justify-center shadow-2xl z-10">
-              <span className="font-bold text-white/40 text-xl italic pr-0.5">VS</span>
+          {/* ACTIVE STATUS INDICATOR */}
+          <div className="relative w-32 h-20 flex flex-col items-center justify-center">
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+              <span className="text-[10px] uppercase tracking-[0.2em] text-white/40">Active</span>
             </div>
+            <div className="h-px w-20 bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
           </div>
 
           {/* HYPERLIQUID BRANDING */}
           <div className="relative group">
-            <h1 className="text-5xl md:text-7xl font-black tracking-tighter text-emerald-500 hover:scale-105 transition-transform duration-300 cursor-default">
+            <div className="absolute inset-0 bg-emerald-500/20 blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+            <h1 className="relative text-7xl md:text-9xl font-black tracking-tighter text-emerald-500 hover:text-emerald-400 transition-colors duration-300 cursor-default drop-shadow-[0_0_25px_rgba(16,185,129,0.6)]">
               HYPE
             </h1>
-            <div className="text-center text-[10px] font-mono text-emerald-400 tracking-[0.5em] opacity-60 mt-1">ON-CHAIN PERPS</div>
+          </div>
+        </div>
+
+        {/* Portfolio Summary Bar */}
+        <div className="flex flex-wrap justify-center gap-4 md:gap-8 mt-6 mb-4">
+          {/* Total Portfolio Value (Obfuscated) */}
+          <div className="glass-card px-6 py-3 rounded-xl border border-white/10 text-center min-w-[140px]">
+            <div className="text-[10px] font-mono text-white/40 uppercase tracking-wider mb-1">Portfolio Equity</div>
+            <div className="text-2xl font-black text-white tracking-widest">******</div>
+          </div>
+
+          {/* Total PnL (Percent Only) */}
+          <div className="glass-card px-6 py-3 rounded-xl border border-white/10 text-center min-w-[140px]">
+            <div className="text-[10px] font-mono text-white/40 uppercase tracking-wider mb-1">Performance</div>
+            <div className={`text-2xl font-black ${totalPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+              {totalPnl >= 0 ? '+' : ''}{data?.total_pnl_percent?.toFixed(2) || '0.00'}%
+            </div>
+          </div>
+
+          {/* Unrealized (Obfuscated/Percent) */}
+          <div className="glass-card px-6 py-3 rounded-xl border border-white/10 text-center bg-white/5 min-w-[140px]">
+            <div className="text-[10px] font-mono text-white/40 uppercase tracking-wider mb-1">Unrealized</div>
+            <div className={`text-xl font-bold ${totalPositionPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+              {/* Calculating approx % for unrealized based on assumed basis if not available directly, or just hiding absolute */}
+              {/* For now, let's show it as a relative efficiency metric or hide it. Let's show as % of basis if possible, or just active count */}
+              {totalPositionPnL >= 0 ? '+' : ''}Active
+            </div>
+            <div className="text-[10px] text-white/30 font-mono mt-1">
+              {openPositions.length} Positions
+            </div>
+          </div>
+
+          {/* Aster Breakdown */}
+          <div className="glass-card px-4 py-3 rounded-xl border border-blue-500/20 text-center relative overflow-hidden min-w-[120px]">
+            <div className="absolute top-0 left-0 w-1 h-full bg-blue-500/50"></div>
+            <div className="text-[10px] font-mono text-blue-400 uppercase tracking-wider mb-1">Aster</div>
+            <div className={`text-lg font-bold ${asterPositionPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+              {data?.aster_pnl_percent?.toFixed(2) || '0.00'}%
+            </div>
+          </div>
+
+          {/* Hype Breakdown */}
+          <div className="glass-card px-4 py-3 rounded-xl border border-emerald-500/20 text-center relative overflow-hidden min-w-[120px]">
+            <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500/50"></div>
+            <div className="text-[10px] font-mono text-emerald-400 uppercase tracking-wider mb-1">Hype</div>
+            <div className={`text-lg font-bold ${hypePositionPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+              {data?.hl_pnl_percent?.toFixed(2) || '0.00'}%
+            </div>
           </div>
         </div>
       </header>
@@ -186,17 +248,33 @@ export const DualityDashboard: React.FC<DualityDashboardProps> = ({
                 </div>
               )}
               {asterPositions.map((pos: any, i: number) => (
-                <div key={i} className="grid grid-cols-3 items-center p-2.5 rounded-lg bg-white/5 border-l-2 border-blue-500 hover:bg-white/10 transition-colors">
-                  <span className="font-code font-bold text-xs text-white">{pos.symbol}</span>
-                  <span className={`text-[10px] font-bold text-center ${pos.side === 'BUY' ? 'text-emerald-400' : 'text-rose-400'}`}>{pos.side}</span>
-                  <div className="text-right">
-                    <div className="text-xs font-mono text-slate-300">{pos.quantity}</div>
-                    {pos.pnl !== undefined && (
-                      <div className={`text-[9px] font-mono ${pos.pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {pos.pnl >= 0 ? '+' : ''}{Number(pos.pnl).toFixed(2)}
-                      </div>
-                    )}
+                <div key={i} className="p-2.5 rounded-lg bg-white/5 border-l-2 border-blue-500 hover:bg-white/10 transition-colors">
+                  <div className="grid grid-cols-3 items-center">
+                    <span className="font-code font-bold text-xs text-white">{pos.symbol}</span>
+                    <span className={`text-[10px] font-bold text-center ${pos.side === 'BUY' ? 'text-emerald-400' : 'text-rose-400'}`}>{pos.side}</span>
+                    <div className="text-right">
+                      <div className="text-xs font-mono text-slate-300">{pos.quantity}</div>
+                      {pos.pnl !== undefined && (
+                        <div className={`text-[9px] font-mono ${pos.pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          {pos.pnl >= 0 ? '+' : ''}{Number(pos.pnl).toFixed(2)}
+                        </div>
+                      )}
+                    </div>
                   </div>
+                  {/* Entry/Current Price Row */}
+                  {(pos.entry_price || pos.current_price) && (
+                    <div className="flex justify-between mt-1.5 pt-1.5 border-t border-white/5 text-[9px] font-mono text-white/40">
+                      <span>Entry: ${Number(pos.entry_price).toFixed(2)}</span>
+                      <span>Now: ${Number(pos.current_price || 0).toFixed(2)}</span>
+                    </div>
+                  )}
+                  {/* TP/SL Row */}
+                  {(pos.tp || pos.sl) && (
+                    <div className="flex justify-between mt-1 text-[9px] font-mono">
+                      <span className="text-emerald-400/70">TP: ${Number(pos.tp || 0).toFixed(2)}</span>
+                      <span className="text-rose-400/70">SL: ${Number(pos.sl || 0).toFixed(2)}</span>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -249,7 +327,7 @@ export const DualityDashboard: React.FC<DualityDashboardProps> = ({
                   <Zap className="w-5 h-5 text-emerald-400" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-white tracking-tight">VELOCITY</h2>
+                  <h2 className="text-lg font-bold text-white tracking-tight">HYPE</h2>
                   <div className="text-[10px] font-code text-emerald-400/60">HYPE_L1</div>
                 </div>
               </div>
@@ -295,17 +373,33 @@ export const DualityDashboard: React.FC<DualityDashboardProps> = ({
                 </div>
               )}
               {hypePositions.map((pos: any, i: number) => (
-                <div key={i} className="grid grid-cols-3 items-center p-2.5 rounded-lg bg-white/5 border-l-2 border-emerald-500 hover:bg-white/10 transition-colors">
-                  <span className="font-code font-bold text-xs text-white">{pos.symbol}</span>
-                  <span className={`text-[10px] font-bold text-center ${pos.side === 'BUY' ? 'text-emerald-400' : 'text-rose-400'}`}>{pos.side}</span>
-                  <div className="text-right">
-                    <div className="text-xs font-mono text-slate-300">{pos.quantity}</div>
-                    {pos.pnl !== undefined && (
-                      <div className={`text-[9px] font-mono ${pos.pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {pos.pnl >= 0 ? '+' : ''}{Number(pos.pnl).toFixed(2)}
-                      </div>
-                    )}
+                <div key={i} className="p-2.5 rounded-lg bg-white/5 border-l-2 border-emerald-500 hover:bg-white/10 transition-colors">
+                  <div className="grid grid-cols-3 items-center">
+                    <span className="font-code font-bold text-xs text-white">{pos.symbol}</span>
+                    <span className={`text-[10px] font-bold text-center ${pos.side === 'BUY' ? 'text-emerald-400' : 'text-rose-400'}`}>{pos.side}</span>
+                    <div className="text-right">
+                      <div className="text-xs font-mono text-slate-300">{pos.quantity}</div>
+                      {pos.pnl !== undefined && (
+                        <div className={`text-[9px] font-mono ${pos.pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          {pos.pnl >= 0 ? '+' : ''}{Number(pos.pnl).toFixed(2)}
+                        </div>
+                      )}
+                    </div>
                   </div>
+                  {/* Entry/Current Price Row */}
+                  {(pos.entry_price || pos.current_price) && (
+                    <div className="flex justify-between mt-1.5 pt-1.5 border-t border-white/5 text-[9px] font-mono text-white/40">
+                      <span>Entry: ${Number(pos.entry_price).toFixed(2)}</span>
+                      <span>Now: ${Number(pos.current_price || 0).toFixed(2)}</span>
+                    </div>
+                  )}
+                  {/* TP/SL Row */}
+                  {(pos.tp || pos.sl) && (
+                    <div className="flex justify-between mt-1 text-[9px] font-mono">
+                      <span className="text-emerald-400/70">TP: ${Number(pos.tp || 0).toFixed(2)}</span>
+                      <span className="text-rose-400/70">SL: ${Number(pos.sl || 0).toFixed(2)}</span>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
