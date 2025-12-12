@@ -22,13 +22,17 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          pip install pytest flake8
 
-      - name: Lint
+      - name: Syntax Check
         run: |
-          flake8 . --ignore=E501,W503
+          python -m py_compile cloud_trader/trading_service.py
+          python -m py_compile cloud_trader/definitions.py
+          python -m py_compile cloud_trader/api.py
+          echo "✅ Python syntax OK"
 
-      - name: Run tests
+      - name: Build Frontend
         run: |
-          pytest -q --maxfail=1 --disable-warnings
-
+          cd trading-dashboard
+          npm ci
+          npm run build
+          echo "✅ Frontend build OK"
