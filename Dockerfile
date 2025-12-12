@@ -67,9 +67,9 @@ COPY --chown=trader:trader start.py ./
 COPY --chown=trader:trader pyproject.toml ./
 COPY --chown=trader:trader requirements.txt ./
 COPY --chown=trader:trader alembic.ini ./
-COPY --chown=trader:trader symphony_lib ./symphony_lib
 
-# Set environment and permissions
+# Create data directory for agent performance tracking
+RUN mkdir -p /app/data
 # Ensure system site-packages are in PYTHONPATH for all Python invocations
 # Also ensure /usr/local/bin is in PATH
 ENV PYTHONPATH=/usr/local/lib/python3.11/site-packages:$PYTHONPATH \
