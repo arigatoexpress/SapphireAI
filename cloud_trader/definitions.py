@@ -1,4 +1,7 @@
-"""Shared definitions to avoid circular imports."""
+"""Shared definitions to avoid circular imports.
+
+VERSION: 2.0.0 - 2025-12-13 - 3 Agent Architecture
+"""
 
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
