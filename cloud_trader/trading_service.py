@@ -684,14 +684,14 @@ class MinimalTradingService:
                             # Resetting TP/SL based on new average price
                             entry_price = new_avg_price
                             tp_price = (
-                                entry_price * 1.015
+                                entry_price * 1.025
                                 if order_info["side"] == "BUY"
-                                else entry_price * 0.985
+                                else entry_price * 0.975
                             )
                             sl_price = (
-                                entry_price * 0.995
+                                entry_price * 0.988
                                 if order_info["side"] == "BUY"
-                                else entry_price * 1.005
+                                else entry_price * 1.012
                             )
 
                             self._open_positions[symbol]["tp_price"] = tp_price
@@ -706,14 +706,14 @@ class MinimalTradingService:
                             # New Position
                             entry_price = avg_price
                             tp_price = (
-                                entry_price * 1.015
+                                entry_price * 1.025
                                 if order_info["side"] == "BUY"
-                                else entry_price * 0.985
+                                else entry_price * 0.975
                             )
                             sl_price = (
-                                entry_price * 0.995
+                                entry_price * 0.988
                                 if order_info["side"] == "BUY"
-                                else entry_price * 1.005
+                                else entry_price * 1.012
                             )
 
                             self._open_positions[symbol] = {
@@ -761,10 +761,9 @@ class MinimalTradingService:
                     # Update agent stats
                     agent.total_trades += 1
                     if is_closing:
+                        # Track actual wins/losses for accurate win rate
                         if pnl > 0:
-                            agent.win_rate = ((agent.win_rate * agent.total_trades) + 100.0) / (
-                                agent.total_trades + 1
-                            )
+                            agent.wins += 1
 
                             # PROFIT SWEEP (ASTER BULLS)
                             sweep_amount = pnl * 0.5
@@ -783,8 +782,15 @@ class MinimalTradingService:
                                 asyncio.create_task(
                                     self._telegram.send_message(f"🟦 *PROFIT SWEEP* 🟦\n\n{msg}")
                                 )
+                        else:
+                            agent.losses += 1
 
-                        # Simple moving average update for win rate
+                        # Update win rate based on actual wins/losses
+                        total_closed = agent.wins + agent.losses
+                        if total_closed > 0:
+                            agent.win_rate = agent.wins / total_closed
+                        else:
+                            agent.win_rate = agent.baseline_win_rate
 
                     # Send FILLED notification
                     await self._send_trade_notification(
@@ -2437,15 +2443,13 @@ class MinimalTradingService:
         # Total PnL = Realized (from trades) + Unrealized (from open positions)
         total_pnl_combined = aster_pnl + hl_pnl + unrealized_pnl
 
-        # Initial Basis (Approximate or tracked)
-        # Assuming $1k per agent + $1k HL = ~$10k basis?
-        # Better to track initial deposits. For now, we use a fixed basis of $2000 (1k Aster + 1k HL) + any realized pnl
-        # Or just fixed 2000 for simplicity of % calculation
-        initial_basis = 2000.0
+        # Use actual portfolio balance from exchange sync
+        # self._portfolio.balance is synced from exchange in _initialize_basic_agents
+        initial_basis = self._portfolio.balance if self._portfolio.balance > 0 else 10000.0
 
         total_pnl_percent = (total_pnl_combined / initial_basis) * 100 if initial_basis > 0 else 0.0
-        aster_pnl_percent = (aster_pnl / 1000.0) * 100  # Assuming 1k alloc
-        hl_pnl_percent = (hl_pnl / 1000.0) * 100  # Assuming 1k alloc
+        aster_pnl_percent = (aster_pnl / max(initial_basis * 0.5, 1.0)) * 100  # Assume 50% alloc
+        hl_pnl_percent = (hl_pnl / max(initial_basis * 0.5, 1.0)) * 100  # Assume 50% alloc
 
         return {
             "status": "active",

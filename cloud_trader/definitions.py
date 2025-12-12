@@ -158,6 +158,8 @@ class MinimalAgentState:
     performance_score: float = 0.0
     last_active: Optional[float] = None
     total_trades: int = 0
+    wins: int = 0  # Track actual winning trades
+    losses: int = 0  # Track actual losing trades
     win_rate: float = 0.0
     dynamic_position_sizing: bool = True
     adaptive_leverage: bool = True
