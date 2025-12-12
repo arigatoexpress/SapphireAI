@@ -14,99 +14,81 @@ class HealthStatus:
 AGENT_DEFINITIONS: List[Dict[str, Any]] = [
     {
         "id": "trend-momentum-agent",
-        "name": "Trend Momentum (Gemini)",
+        "name": "Momentum Trader",
         "model": "gemini-2.0-flash-exp",
         "system": "aster",
         "emoji": "📈",
         "symbols": [],
-        "description": "High-speed momentum analysis using Gemini 2.0 Flash (Next-Gen) for Aster ecosystem.",
-        "personality": "Aggressive momentum trader.",
+        "description": "High-speed momentum analysis for rapid directional trades.",
+        "personality": "Aggressive momentum trader chasing breakouts.",
         "baseline_win_rate": 0.65,
         "risk_multiplier": 1.4,
-        "profit_target": 0.008,
-        "margin_allocation": 500.0,
+        "profit_target": 0.025,  # 2.5% TP
+        "stop_loss": 0.012,  # 1.2% SL
+        "margin_allocation": 1000.0,
         "specialization": "momentum_trading",
-        "dynamic_position_sizing": True,
-        "adaptive_leverage": True,
-        "intelligence_tp_sl": True,
+        # Self-tuning: agent can modify these based on performance
+        "self_tuning_enabled": True,
+        "adaptive_params": {
+            "confidence_threshold": 0.75,
+            "leverage": 20.0,
+            "position_size_pct": 0.15,
+        },
         "max_leverage_limit": 50.0,
-        "min_position_size_pct": 0.08,
-        "max_position_size_pct": 0.25,
         "risk_tolerance": "high",
         "time_horizon": "very_short",
-        "market_regime_preference": "trending",
-    },
-    {
-        "id": "financial-sentiment-agent",
-        "name": "Sentiment (Gemini)",
-        "model": "gemini-2.0-flash-exp",
-        "system": "aster",
-        "emoji": "💭",
-        "symbols": [],
-        "description": "Real-time sentiment analysis using Gemini 2.0 Flash (Next-Gen).",
-        "personality": "News-driven sentiment trader.",
-        "baseline_win_rate": 0.58,
-        "risk_multiplier": 1.8,
-        "profit_target": 0.012,
-        "margin_allocation": 500.0,
-        "specialization": "sentiment_analysis",
-        "dynamic_position_sizing": True,
-        "adaptive_leverage": True,
-        "intelligence_tp_sl": True,
-        "max_leverage_limit": 50.0,
-        "min_position_size_pct": 0.08,
-        "max_position_size_pct": 0.28,
-        "risk_tolerance": "high",
-        "time_horizon": "short_medium",
-        "market_regime_preference": "news_driven",
     },
     {
         "id": "market-maker-agent",
-        "name": "Market Maker (Gemini)",
+        "name": "Market Maker",
         "model": "gemini-2.0-flash-exp",
         "system": "aster",
         "emoji": "⚡",
         "symbols": [],
-        "description": "High-frequency market making with tight spreads on Aster DEX.",
-        "personality": "Precision market maker seeking bid-ask profit.",
+        "description": "High-frequency market making capturing bid-ask spreads.",
+        "personality": "Precision market maker seeking consistent small profits.",
         "baseline_win_rate": 0.62,
         "risk_multiplier": 2.0,
-        "profit_target": 0.003,
-        "margin_allocation": 800.0,
+        "profit_target": 0.008,  # 0.8% TP
+        "stop_loss": 0.004,  # 0.4% SL
+        "margin_allocation": 1200.0,
         "specialization": "market_making",
-        "dynamic_position_sizing": True,
-        "adaptive_leverage": True,
-        "intelligence_tp_sl": True,
+        # Self-tuning: agent can modify these based on performance
+        "self_tuning_enabled": True,
+        "adaptive_params": {
+            "confidence_threshold": 0.70,
+            "leverage": 25.0,
+            "position_size_pct": 0.10,
+        },
         "max_leverage_limit": 50.0,
-        "min_position_size_pct": 0.05,
-        "max_position_size_pct": 0.15,
-        "risk_tolerance": "high",
+        "risk_tolerance": "medium",
         "time_horizon": "very_short",
-        "market_regime_preference": "ranging",
     },
     {
         "id": "swing-trader-agent",
-        "name": "Swing Trader (Gemini)",
+        "name": "Swing Trader",
         "model": "gemini-2.0-flash-exp",
         "system": "aster",
         "emoji": "🧠",
         "symbols": [],
-        "description": "Strategic swing trader for multi-day positions on Aster DEX.",
-        "personality": "Patient swing trader capturing larger moves.",
+        "description": "Strategic swing trader for multi-day trending positions.",
+        "personality": "Patient swing trader capturing larger trend moves.",
         "baseline_win_rate": 0.68,
         "risk_multiplier": 1.3,
-        "profit_target": 0.03,
-        "margin_allocation": 1500.0,
+        "profit_target": 0.05,  # 5% TP
+        "stop_loss": 0.02,  # 2% SL
+        "margin_allocation": 1800.0,
         "specialization": "swing_trading",
-        "dynamic_position_sizing": True,
-        "adaptive_leverage": True,
-        "intelligence_tp_sl": True,
+        # Self-tuning: agent can modify these based on performance
+        "self_tuning_enabled": True,
+        "adaptive_params": {
+            "confidence_threshold": 0.80,
+            "leverage": 10.0,
+            "position_size_pct": 0.20,
+        },
         "max_leverage_limit": 50.0,
-        "min_position_size_pct": 0.1,
-        "max_position_size_pct": 0.3,
         "risk_tolerance": "low",
         "time_horizon": "medium",
-        "market_regime_preference": "trending",
     },
 ]
 
@@ -119,46 +101,65 @@ SYMBOL_CONFIG = {
 
 @dataclass
 class MinimalAgentState:
-    """State tracking for a minimal trading agent."""
+    """State tracking for a trading agent with self-tuning capabilities."""
 
+    # Core identity
     id: str
     name: str
     model: str
     emoji: str
-    symbols: Optional[List[str]] = None  # Optional - agents can trade any symbols
+    symbols: Optional[List[str]] = None  # None = trade all symbols
     description: str = ""
     personality: str = ""
-    baseline_win_rate: float = 0.0
-    margin_allocation: float = 1000.0
     specialization: str = ""
+    system: str = "aster"
+    
+    # Performance tracking
     active: bool = True
+    total_trades: int = 0
+    wins: int = 0
+    losses: int = 0
+    win_rate: float = 0.0
+    baseline_win_rate: float = 0.6
+    margin_allocation: float = 1000.0
+    daily_pnl: float = 0.0
     performance_score: float = 0.0
     last_active: Optional[float] = None
-    total_trades: int = 0
-    wins: int = 0  # Track actual winning trades
-    losses: int = 0  # Track actual losing trades
-    win_rate: float = 0.0
-    dynamic_position_sizing: bool = True
-    adaptive_leverage: bool = True
-    intelligence_tp_sl: bool = True
-    max_leverage_limit: float = 10.0
-    min_position_size_pct: float = 0.08
-    max_position_size_pct: float = 0.25
-    risk_tolerance: str = "moderate"
+    
+    # Self-tuning parameters (agent can modify these)
+    self_tuning_enabled: bool = True
+    adaptive_params: Optional[Dict[str, Any]] = None
+    
+    # Risk limits
+    max_leverage_limit: float = 50.0
+    profit_target: float = 0.025  # 2.5% default
+    stop_loss: float = 0.012  # 1.2% default
+    risk_tolerance: str = "medium"
     time_horizon: str = "short"
-    market_regime_preference: str = "all_regimes"
-    daily_pnl: float = 0.0
-    last_intervention: Optional[Dict[str, Any]] = None
-    intervention_history: List[Dict[str, Any]] = None
-    # Additional fields used in minimal_trading_service.py
-    system: str = "aster"  # "aster" or "hyperliquid"
-    max_daily_loss_pct: float = 0.05  # 5% daily loss limit
+    max_daily_loss_pct: float = 0.05
     daily_loss_breached: bool = False
-    daily_volume: float = 0.0
-    max_position_size_today: float = 0.0
-    whale_trade_executed: bool = False
-    avalon_spot_volume: float = 0.0
 
     def __post_init__(self):
-        if self.intervention_history is None:
-            self.intervention_history = []
+        if self.adaptive_params is None:
+            self.adaptive_params = {
+                "confidence_threshold": 0.75,
+                "leverage": 20.0,
+                "position_size_pct": 0.15,
+            }
+    
+    def adjust_params(self, pnl: float):
+        """Self-improvement: adjust params based on trade outcome."""
+        if not self.self_tuning_enabled:
+            return
+        
+        # Simple adaptive logic: tighten threshold on losses, loosen on wins
+        if pnl > 0:
+            # Winning trade: slightly lower threshold to take more trades
+            self.adaptive_params["confidence_threshold"] = max(
+                0.60, self.adaptive_params["confidence_threshold"] - 0.01
+            )
+        else:
+            # Losing trade: raise threshold to be more selective
+            self.adaptive_params["confidence_threshold"] = min(
+                0.90, self.adaptive_params["confidence_threshold"] + 0.02
+            )
