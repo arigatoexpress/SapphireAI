@@ -1,43 +1,33 @@
-# 🤖 Cloud Trader
+# Cloud Trader 🤖
 
-The main trading engine for Agent Symphony, managing multiple AI trading agents on the Aster Exchange.
+The main trading engine for SapphireAI.
 
 ## Overview
 
 Cloud Trader is a Python FastAPI service that:
-- Manages 7+ specialized trading agents
-- Executes trades on Aster Exchange
+- Manages **3 specialized AI trading agents**
+- Executes perpetual futures trades on Aster DEX
 - Provides WebSocket connections for the dashboard
-- Sends Telegram notifications
-- Runs continuous market analysis
+- Sends Telegram notifications (optional)
+- Self-tunes agent parameters based on performance
 
-## Architecture
+## Agents
 
-```mermaid
-flowchart TB
-    API[FastAPI Server :8080] --> TL[Trading Loop]
-    API --> WS[WebSocket Manager]
-
-    TL --> Agents[AI Agents]
-    TL --> PM[Position Manager]
-    TL --> MDM[Market Data Manager]
-
-    Agents --> EX[Aster Exchange]
-    PM --> REDIS[(Redis)]
-    WS --> DASH[Dashboard]
-```
+| Agent | TP / SL | Specialization |
+|-------|---------|----------------|
+| Momentum Trader | 2.5% / 1.2% | Breakout hunting |
+| Market Maker | 0.8% / 0.4% | Bid-ask spreads |
+| Swing Trader | 5% / 2% | Multi-day trends |
 
 ## Key Files
 
 | File | Description |
 |------|-------------|
-| `api.py` | FastAPI application & WebSocket endpoints |
-| `trading_service.py` | Core trading loop & agent coordination |
-| `position_manager.py` | Position tracking & sync |
-| `market_data.py` | Exchange data fetching |
-| `enhanced_telegram.py` | AI-powered notifications |
-| `client.py` | Aster exchange API client |
-| `config.py` | Settings & symbol configuration |
+| `trading_service.py` | Main trading loop (2600 lines) |
+| `definitions.py` | Agent definitions & MinimalAgentState |
+| `api.py` | FastAPI application & WebSocket |
+| `client.py` | Aster DEX API client |
+| `mcp.py` | MCP messaging for agent coordination |
 
 ## Running Locally
 
@@ -49,14 +39,11 @@ python -m cloud_trader.api
 ## Environment Variables
 
 ```bash
-GCP_PROJECT_ID=sapphire-479610
 ASTER_API_KEY=your_key
 ASTER_SECRET_KEY=your_secret
-REDIS_URL=redis://localhost:6379/0
-DATABASE_URL=postgresql://user:pass@localhost:5432/trading_db
 GEMINI_API_KEY=your_gemini_key
-TELEGRAM_BOT_TOKEN=your_bot_token
-TELEGRAM_CHAT_ID=your_chat_id
+TELEGRAM_BOT_TOKEN=optional
+TELEGRAM_CHAT_ID=optional
 ```
 
 ## API Endpoints
@@ -64,16 +51,12 @@ TELEGRAM_CHAT_ID=your_chat_id
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/health` | GET | Health check |
-| `/api/portfolio` | GET | Portfolio summary |
-| `/api/positions` | GET | Open positions |
-| `/api/trades` | GET | Recent trades |
-| `/ws/dashboard` | WS | Real-time updates |
+| `/api/snapshot` | GET | Full dashboard data |
+| `/api/agents` | GET | Agent list with stats |
+| `/ws/dashboard` | WS | Real-time WebSocket updates |
 
 ## Deployment
 
 ```bash
-gcloud builds submit --config cloudbuild_trader.yaml .
-gcloud run deploy cloud-trader --image gcr.io/sapphire-479610/cloud-trader \
-  --platform managed --region northamerica-northeast1 \
-  --vpc-connector sapphire-conn --vpc-egress all-traffic
+gcloud builds submit --config cloudbuild.yaml .
 ```
