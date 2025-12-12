@@ -3,13 +3,7 @@ import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
     LayoutDashboard,
-    MessageSquare,
-    Target,
-    Terminal,
-    Network,
-    BarChart3,
     Briefcase,
-    Settings,
     Layers,
     Cpu
 } from 'lucide-react';
@@ -19,14 +13,10 @@ export const CommandDock: React.FC = () => {
     const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
     const dockItems = [
-        { to: '/mission-control', icon: <Target className="w-6 h-6" />, label: 'Mission Control' },
-        { to: '/performance', icon: <BarChart3 className="w-6 h-6" />, label: 'Performance' },
-        { to: '/agents', icon: <MessageSquare className="w-6 h-6" />, label: 'Neural Lab' },
-        { to: '/command', icon: <Terminal className="w-6 h-6" />, label: 'System' },
-        { divider: true },
+        { to: '/', icon: <LayoutDashboard className="w-6 h-6" />, label: 'Dashboard' },
+        { to: '/agents', icon: <Cpu className="w-6 h-6" />, label: 'Agents' },
         { to: '/portfolio', icon: <Briefcase className="w-6 h-6" />, label: 'Portfolio' },
-        { to: '/architecture', icon: <Network className="w-6 h-6" />, label: 'Architecture' },
-        { to: '/about', icon: <Cpu className="w-6 h-6" />, label: 'Manifesto' },
+        { to: '/about', icon: <Layers className="w-6 h-6" />, label: 'About' },
     ];
 
     return (
@@ -42,14 +32,7 @@ export const CommandDock: React.FC = () => {
                 onMouseLeave={() => setHoveredIndex(null)}
             >
                 {dockItems.map((item, index) => {
-                    if (item.divider) {
-                        return (
-                            <div key={`divider-${index}`} className="w-[1px] h-10 bg-white/10 mx-2 self-center" />
-                        );
-                    }
-
                     const isActive = location.pathname === item.to;
-                    const isHovered = hoveredIndex === index;
 
                     // Mac-style magnification logic
                     let scale = 1;

@@ -1,5 +1,6 @@
 import React from 'react';
 import { CommandDock } from './CommandDock';
+import { ConnectionStatus } from '../components/ConnectionStatus';
 
 interface MasterLayoutProps {
     children: React.ReactNode;
@@ -14,6 +15,9 @@ export const MasterLayout: React.FC<MasterLayoutProps> = ({ children }) => {
                 <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-900/20 via-[#050508] to-[#050508]" />
                 <div className="holographic-grid opacity-40" />
             </div>
+
+            {/* Connection Status */}
+            <ConnectionStatus />
 
             {/* 🖥️ MAIN CONTENT LAYER */}
             {/* No padding for sidebar anymore. Full width canvas. */}
