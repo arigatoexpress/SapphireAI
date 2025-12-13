@@ -127,7 +127,7 @@ class MinimalAgentState:
     # Core identity
     id: str
     name: str
-    type: str = "general"  # Agent type for consensus engine (general, trend, momentum, etc.)
+    type: str  # Agent type for consensus engine (momentum, market_maker, swing, etc.)
     model: str
     emoji: str
     symbols: Optional[List[str]] = None  # None = trade all symbols
