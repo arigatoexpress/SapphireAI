@@ -147,7 +147,13 @@ class MinimalAgentState:
     # Self-tuning parameters (agent can modify these)
     self_tuning_enabled: bool = True
     dynamic_position_sizing: bool = True  # Whether to use dynamic position sizing
+    adaptive_leverage: bool = True  # Whether to adjust leverage dynamically
+    intelligence_tp_sl: bool = True  # Use intelligent TP/SL levels
     adaptive_params: Optional[Dict[str, Any]] = None
+    
+    # Position sizing limits
+    min_position_size_pct: float = 0.08
+    max_position_size_pct: float = 0.25
     
     # Risk limits
     max_leverage_limit: float = 50.0
@@ -155,6 +161,7 @@ class MinimalAgentState:
     stop_loss: float = 0.012  # 1.2% default
     risk_tolerance: str = "medium"
     time_horizon: str = "short"
+    market_regime_preference: str = "neutral"  # Agent's preferred market conditions
     max_daily_loss_pct: float = 0.05
     daily_loss_breached: bool = False
 
