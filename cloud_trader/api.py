@@ -1660,7 +1660,7 @@ async def get_agent_metrics(
 
         # If no metrics found, return default structure for known agents
         # Check if result is empty or if agent_id was requested but not found
-        from .service import AGENT_DEFINITIONS
+        from .definitions import AGENT_DEFINITIONS
 
         if not result or (agent_id and agent_id not in result):
             # Ensure result is a dict
@@ -1710,7 +1710,7 @@ async def get_agent_metrics(
         # Return default structure on error
         import time
 
-        from .service import AGENT_DEFINITIONS
+        from .definitions import AGENT_DEFINITIONS
 
         result = {}
         for agent_def in AGENT_DEFINITIONS:

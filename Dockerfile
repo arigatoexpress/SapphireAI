@@ -69,12 +69,13 @@ COPY --chown=trader:trader requirements.txt ./
 COPY --chown=trader:trader alembic.ini ./
 
 # Create data directory for agent performance tracking
-RUN mkdir -p /app/data
+RUN mkdir -p /app/data /tmp/logs
 # Ensure system site-packages are in PYTHONPATH for all Python invocations
 # Also ensure /usr/local/bin is in PATH
 ENV PYTHONPATH=/usr/local/lib/python3.11/site-packages:$PYTHONPATH \
     PATH=/usr/local/bin:$PATH \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    CACHE_BACKEND=memory
 
 # Switch to non-root user
 USER trader
