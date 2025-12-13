@@ -46,12 +46,17 @@ class SelfHealingWatchdog:
             time.sleep(self.check_interval)
 
     def _check_redis(self):
+        # Redis not deployed in Cloud Run - skip check to avoid error spam
+        # Only attempt connection if REDIS_URL is explicitly configured
+        redis_url = os.getenv("REDIS_URL")
+        if not redis_url:
+            return  # No Redis configured, skip silently
         try:
-            r = redis.from_url(self.redis_url)
+            r = redis.from_url(redis_url)
             if not r.ping():
                 raise ConnectionError("Redis ping failed")
         except Exception as e:
-            logger.error(f"❌ REDIS DOWN: {e}")
+            logger.warning(f"⚠️ Redis health check failed: {e}")
             pass
 
     def _check_api(self):

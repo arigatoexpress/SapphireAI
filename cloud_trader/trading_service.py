@@ -378,7 +378,7 @@ class MinimalTradingService:
     def _load_positions(self):
         """Load open positions from JSON file."""
         try:
-            file_path = os.path.join("/tmp", "logs", "positions.json")
+            file_path = os.path.join("/app", "data", "positions.json")
             if os.path.exists(file_path):
                 with open(file_path, "r") as f:
                     positions_data = json.load(f)
@@ -398,7 +398,7 @@ class MinimalTradingService:
     def _save_positions(self):
         """Save open positions to JSON file."""
         try:
-            file_path = os.path.join("/tmp", "logs", "positions.json")
+            file_path = os.path.join("/app", "data", "positions.json")
 
             # Create a serializable version of positions (remove agent objects)
             serializable_positions = {}
@@ -867,11 +867,12 @@ class MinimalTradingService:
                 pass
 
             # 3. Publish Event for Execution Services (Hyperliquid Trader, etc.)
-            if self._redis_pubsub:
-                await self._publish_event(
-                    "tpsl_update", {"symbol": symbol, "tp": tp, "sl": sl, "timestamp": time.time()}
-                )
-                print(f"📡 Published TP/SL update for {symbol}")
+            # Redis removed in Phase 25 - this is now a no-op
+            # if self._redis_pubsub:
+            #     await self._publish_event(
+            #         "tpsl_update", {"symbol": symbol, "tp": tp, "sl": sl, "timestamp": time.time()}
+            #     )
+            #     print(f"📡 Published TP/SL update for {symbol}")
 
             return True
 
@@ -1170,8 +1171,8 @@ class MinimalTradingService:
                 # Analyze
                 analysis = await self._analyze_market_for_agent(agent, symbol)
 
-                # If actionable, Submit to Consensus
-                if analysis["signal"] in ["BUY", "SELL"] and analysis["confidence"] >= 0.75:
+                # If actionable, Submit to Consensus (lowered from 0.75 to 0.65 for more activity)
+                if analysis["signal"] in ["BUY", "SELL"] and analysis["confidence"] >= 0.65:
 
                     # Register if needed
                     if agent.id not in self._consensus_engine.agent_registry:
