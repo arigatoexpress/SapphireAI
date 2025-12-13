@@ -16,8 +16,6 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import aiohttp
 
-from symphony_lib import MarketRegime, SymphonyClient
-
 from .agent_consensus import AgentConsensusEngine, AgentSignal, SignalType
 from .analysis_engine import AnalysisEngine
 from .analytics.performance import PerformanceTracker
