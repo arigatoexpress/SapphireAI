@@ -129,6 +129,7 @@ class MinimalTradingService:
         
         # Aster tracking
         self._aster_fees = 0.0  # Track cumulative fees paid
+        self._swept_profits = 0.0  # Track swept profits for dashboard
 
         # Telegram
         self._telegram = None
