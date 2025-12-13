@@ -1121,7 +1121,7 @@ class MinimalTradingService:
             # which will handle consensus-based entries across all relevant symbols.
             pass  # This block is now empty as new entries are handled by _execute_new_trades
 
-    async def _execute_new_trades(self):
+    async def _scan_and_execute_new_trades(self):
         """
         Execute new trades using SWARM CONSENSUS.
 
@@ -2036,19 +2036,20 @@ class MinimalTradingService:
                     agent, symbol, side, quantity, thesis, is_closing=True
                 )
 
-    async def _execute_new_trades(self):
+    async def _execute_trading_cycle(self):
         """
-        Orchestrate new trade execution with Game Theory and Asymmetric Sizing.
-        Focus: $1k/day profit target via smart, aggressive, unpredictable bets.
+        Orchestrate the full trading cycle:
+        1. Manage existing positions via _execute_agent_trading
+        2. Scan for new opportunities via consensus-based approach
+        
+        This method is called by the main trading loop.
         """
-        # 1. Standard Agent Trading (Now the main driver)
-        # We rely on agents to generate high-quality signals
+        # 1. Manage existing positions (TP/SL, closes, adds)
         await self._execute_agent_trading()
 
-        # 2. Opportunity Scanning (Asymmetric Bets)
-        # Future: If we detect a massive inefficiency (arb or liquidation cascade),
-        # we can trigger a "Sniper Agent" here with 3x size.
-        pass
+        # 2. Execute new trades using consensus engine
+        # This calls the full consensus-based logic defined earlier
+        await self._scan_and_execute_new_trades()
 
     async def _sync_positions_from_exchange(self):
         """Sync positions from exchange to inherit existing positions on startup."""
@@ -2152,8 +2153,8 @@ class MinimalTradingService:
                 # 4. Manage Open Positions (TP/SL)
                 # await self._manage_positions(ticker_map={})
 
-                # 5. Execute New Trades
-                await self._execute_new_trades()
+                # 5. Execute Trading Cycle (Position Management + New Entries)
+                await self._execute_trading_cycle()
 
                 consecutive_errors = 0
                 await asyncio.sleep(5)  # 5s loop
