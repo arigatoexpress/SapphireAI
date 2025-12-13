@@ -9,7 +9,7 @@ import logging
 import os
 import random
 import time
-from collections import deque
+from collections import deque, defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple, Union
