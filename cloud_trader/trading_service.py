@@ -1150,8 +1150,8 @@ class MinimalTradingService:
 
         # Get all available symbols from market structure (dynamic)
         all_symbols = list(self._market_structure.keys()) if self._market_structure else []
-        # Limit to 20 random symbols per cycle to avoid API spam
-        symbols_to_scan = random.sample(all_symbols, min(20, len(all_symbols))) if all_symbols else []
+        # Limit to 5 random symbols per cycle to allow vote phase to complete
+        symbols_to_scan = random.sample(all_symbols, min(5, len(all_symbols))) if all_symbols else []
 
         # Map to store which agents looked at which symbols (for logging)
         scan_activity = defaultdict(int)
