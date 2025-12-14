@@ -1246,11 +1246,14 @@ class MinimalTradingService:
                 print(f"❌ No consensus for {symbol}")
                 continue
 
-            # FILTER: High Conviction Swarm Only
-            # We want at least modest agreement and confidence
-            if consensus.consensus_confidence < 0.65 or consensus.agreement_level < 0.4:
-                # Weak consensus, skip
-                print(f"⚠️ Weak Consensus for {symbol}: Conf={consensus.consensus_confidence:.2f}, Agreement={consensus.agreement_level:.2f}")
+            # FILTER: High Conviction Swarm Only (CONCENTRATED STRATEGY)
+            # Higher thresholds = fewer, better trades
+            MIN_CONFIDENCE = 0.75  # Increased from 0.65 for concentrated strategy
+            MIN_AGREEMENT = 0.50   # Increased from 0.40 for higher conviction
+            
+            if consensus.consensus_confidence < MIN_CONFIDENCE or consensus.agreement_level < MIN_AGREEMENT:
+                # Not high enough conviction, skip
+                print(f"⚠️ Weak Consensus for {symbol}: Conf={consensus.consensus_confidence:.2f} (min {MIN_CONFIDENCE}), Agreement={consensus.agreement_level:.2f} (min {MIN_AGREEMENT})")
                 continue
             
             print(f"✅ STRONG CONSENSUS: {symbol} {consensus.winning_signal} (conf={consensus.consensus_confidence:.2f}, agree={consensus.agreement_level:.2f})")
@@ -1291,10 +1294,16 @@ class MinimalTradingService:
 
             target_notional = base_notional * multiplier
 
-            # === RISK CHECKS ===
-            # Risk Constants
-            MAX_TOTAL_EXPOSURE = 0.50  # 50% of account in positions
-            MAX_POSITION_SIZE = 0.05   # 5% of account per position
+            # === RISK CHECKS (CONCENTRATED POSITION STRATEGY) ===
+            # Fewer, larger, higher-conviction positions for optimal returns
+            MAX_TOTAL_EXPOSURE = 0.60   # 60% of account in positions
+            MAX_POSITION_SIZE = 0.12    # 12% of account per position (larger bets)
+            MAX_CONCURRENT_POSITIONS = 4  # Focus on 4 best opportunities
+            
+            # Check 0: Max Positions Limit (concentrated strategy)
+            if len(self._open_positions) >= MAX_CONCURRENT_POSITIONS:
+                print(f"⚠️ Risk Check: Max Positions ({MAX_CONCURRENT_POSITIONS}) Reached - Focused Mode")
+                continue  # Skip - focus on existing positions
             
             # Check 1: Exposure Limit
             total_position_value = sum(
@@ -1308,10 +1317,10 @@ class MinimalTradingService:
                 print(f"⚠️ Risk Check: Exposure Limit Hit ({current_exposure:.1%} >= {MAX_TOTAL_EXPOSURE:.0%})")
                 continue  # Skip this trade
                 
-            # Check 2: Position Size Limit
+            # Check 2: Position Size Limit (allow larger positions for concentrated strategy)
             max_allowed_notional = account_balance * MAX_POSITION_SIZE
             if target_notional > max_allowed_notional:
-                print(f"⚠️ Risk Check: Position Size Reduced (${target_notional:.2f} -> ${max_allowed_notional:.2f})")
+                print(f"⚠️ Risk Check: Position Size Capped (${target_notional:.2f} -> ${max_allowed_notional:.2f})")
                 target_notional = max_allowed_notional
 
             # Get Price
