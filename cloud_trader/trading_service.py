@@ -1207,20 +1207,24 @@ class MinimalTradingService:
         # We iterate through the symbols that received signals (keys of pending_signals)
 
         pending_symbols = list(self._consensus_engine.pending_signals.keys())
+        print(f"📊 VOTE PHASE: {len(pending_symbols)} symbols have pending signals: {pending_symbols[:5]}...")
 
         for symbol in pending_symbols:
             # Conduct Vote (Consumes signals)
             consensus = await self._consensus_engine.conduct_consensus_vote(symbol)
 
             if not consensus or not consensus.winning_signal:
+                print(f"❌ No consensus for {symbol}")
                 continue
 
             # FILTER: High Conviction Swarm Only
             # We want at least modest agreement and confidence
             if consensus.consensus_confidence < 0.65 or consensus.agreement_level < 0.4:
                 # Weak consensus, skip
-                # print(f"Weak Consensus for {symbol}: Conf {consensus.consensus_confidence:.2f}")
+                print(f"⚠️ Weak Consensus for {symbol}: Conf={consensus.consensus_confidence:.2f}, Agreement={consensus.agreement_level:.2f}")
                 continue
+            
+            print(f"✅ STRONG CONSENSUS: {symbol} {consensus.winning_signal} (conf={consensus.consensus_confidence:.2f}, agree={consensus.agreement_level:.2f})")
 
             # --- EXECUTION ---
             winning_signal = consensus.winning_signal
