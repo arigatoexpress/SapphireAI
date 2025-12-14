@@ -558,6 +558,31 @@ class AsterClient:
         params = {"symbol": symbol, "orderId": order_id}
         return await self._make_request("DELETE", "/fapi/v1/order", params=params, signed=True)
 
+    async def cancel_all_orders(self, symbol: str) -> Dict[str, Any]:
+        """Cancel all open orders for a symbol."""
+        try:
+            # Get all open orders for this symbol
+            open_orders = await self.get_open_orders(symbol)
+            
+            if not open_orders:
+                return {"status": "success", "cancelled": 0}
+            
+            # Cancel each order
+            cancelled = 0
+            for order in open_orders:
+                try:
+                    order_id = order.get("orderId")
+                    if order_id:
+                        await self.cancel_order(symbol, str(order_id))
+                        cancelled += 1
+                except Exception as e:
+                    print(f"⚠️ Failed to cancel order {order.get('orderId')}: {e}")
+            
+            return {"status": "success", "cancelled": cancelled}
+        except Exception as e:
+            print(f"⚠️ Error in cancel_all_orders: {e}")
+            return {"status": "error", "error": str(e)}
+
     # Position Mode Management
     async def change_position_mode(self, dual_side_position: bool) -> Dict[str, Any]:
         """Change position mode (Hedge Mode or One-way Mode)."""

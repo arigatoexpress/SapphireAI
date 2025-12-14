@@ -196,22 +196,8 @@ class PositionManager:
             # Determine order side (Closing logic)
             order_side = "SELL" if side == "BUY" else "BUY"
 
-            # 1. Cancel existing open orders for this symbol to avoid duplicates
-            await self.exchange_client.cancel_all_orders(symbol)
-
-            # 2. Place new STOP_MARKET order
-            # Note: exact params depend on Aster API specifics, assuming standard params
-            order_params = {
-                "symbol": symbol,
-                "side": order_side,
-                "type": "STOP_MARKET",
-                "quantity": quantity,
-                "stopPrice": sl_price,
-                "reduceOnly": True,
-            }
-
-            # Execute via exchange client
-            print(f"🛡️ Syncing Hard Stop for {symbol}: {order_side} {quantity} @ {sl_price}")
+            # Place STOP_MARKET order
+            print(f"🛡️ Syncing Hard Stop for {symbol}: {order_side} {abs(quantity)} @ {sl_price}")
             await self.exchange_client.place_order(
                 symbol=symbol,
                 side=order_side,
