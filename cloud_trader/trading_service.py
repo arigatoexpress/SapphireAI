@@ -411,7 +411,7 @@ class MinimalTradingService:
     def _load_positions(self):
         """Load open positions from JSON file."""
         try:
-            file_path = os.path.join("/app", "data", "positions.json")
+            file_path = os.path.join("/tmp", "positions.json")
             if os.path.exists(file_path):
                 with open(file_path, "r") as f:
                     positions_data = json.load(f)
@@ -431,7 +431,7 @@ class MinimalTradingService:
     def _save_positions(self):
         """Save open positions to JSON file."""
         try:
-            file_path = os.path.join("/app", "data", "positions.json")
+            file_path = os.path.join("/tmp", "positions.json")
 
             # Create a serializable version of positions (remove agent objects)
             serializable_positions = {}
@@ -1782,7 +1782,7 @@ class MinimalTradingService:
                     self._pending_orders[str(order_result.get("orderId"))] = {
                         "symbol": symbol,
                         "side": side,
-                        "quantity": float(quantity),
+                        "quantity": float(quantity_float),
                         "agent": agent,
                         "timestamp": time.time(),
                         "thesis": thesis,
@@ -1792,7 +1792,7 @@ class MinimalTradingService:
                         agent,
                         symbol,
                         side,
-                        float(quantity),
+                        float(quantity_float),
                         0.0,
                         0.0,
                         True,
