@@ -4,6 +4,13 @@ from typing import Any, Dict, Optional
 
 from .definitions import SYMBOL_CONFIG, MinimalAgentState
 
+# PvP Counter-Retail Strategy
+try:
+    from .pvp_strategies import get_counter_retail_strategy
+    PVP_AVAILABLE = True
+except Exception:
+    PVP_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -203,6 +210,50 @@ class AnalysisEngine:
             except Exception:
                 # Silently continue if 4H data unavailable
                 pass
+
+            # ═══════════════════════════════════════════════════════════════
+            # COUNTER-RETAIL STRATEGY (PvP Logic)
+            # Retail traders enter at obvious TA levels - we wait for their
+            # capitulation before entering
+            # ═══════════════════════════════════════════════════════════════
+            is_capitulation = False
+            retail_trap_warning = False
+            
+            if PVP_AVAILABLE and ta_analysis:
+                try:
+                    rsi = ta_analysis.get("rsi")
+                    
+                    if rsi is not None:
+                        counter_retail = get_counter_retail_strategy()
+                        retail_signal = counter_retail.analyze_retail_trap(
+                            symbol=symbol,
+                            rsi=rsi,
+                            price_change_24h=price_change_pct,
+                            range_position=range_pos,
+                        )
+                        
+                        if retail_signal:
+                            if retail_signal.wait_for_capitulation:
+                                # This is a TRAP zone - reduce confidence
+                                confidence *= 0.6  # 40% penalty
+                                retail_trap_warning = True
+                                thesis_parts.append(
+                                    f"⚠️ RETAIL TRAP: {retail_signal.reason}"
+                                )
+                            elif not retail_signal.wait_for_capitulation:
+                                # CAPITULATION - boost confidence
+                                bonus = counter_retail.get_capitulation_bonus(rsi)
+                                confidence *= bonus
+                                is_capitulation = True
+                                thesis_parts.append(
+                                    f"🎯 CAPITULATION: {retail_signal.reason}"
+                                )
+                                # Override signal if capitulation gives direction
+                                if retail_signal.counter_direction in ("LONG", "SHORT"):
+                                    signal = "BUY" if retail_signal.counter_direction == "LONG" else "SELL"
+                except Exception as cre:
+                    # Silently continue if counter-retail fails
+                    pass
 
             # Add small randomization to avoid identical signals
             if confidence > 0.3:

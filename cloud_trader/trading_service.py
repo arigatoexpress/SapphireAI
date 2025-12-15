@@ -49,6 +49,19 @@ except Exception as ta_err:
     TAIndicators = None
     TA_AVAILABLE = False
 
+# PvP Adversarial Strategies
+try:
+    from .pvp_strategies import (
+        get_counter_retail_strategy,
+        get_dynamic_leverage_calculator,
+        CounterRetailStrategy,
+        DynamicLeverageCalculator,
+    )
+    PVP_AVAILABLE = True
+except Exception as pvp_err:
+    print(f"⚠️ PvP strategies not available: {pvp_err}")
+    PVP_AVAILABLE = False
+
 # Telegram integration
 try:
     from .enhanced_telegram import EnhancedTelegramService
@@ -57,6 +70,7 @@ try:
 except ImportError:
     TELEGRAM_AVAILABLE = False
     print("⚠️ Enhanced Telegram service not available")
+
 
 logger = logging.getLogger(__name__)
 
