@@ -170,6 +170,40 @@ class AnalysisEngine:
                     confidence = base_conf
                     thesis_parts.append(f"General trend: Downtrend {price_change_pct:.1f}%.")
 
+            # ═══════════════════════════════════════════════════════════════
+            # HIGHER TIMEFRAME CONFLUENCE FILTER (Anti-Manipulation)
+            # 4H trend is the "truth" - short-term is noise/manipulation
+            # ═══════════════════════════════════════════════════════════════
+            try:
+                # Get 4H klines for higher timeframe trend
+                klines_4h = await self.exchange_client.get_klines(symbol, interval="4h", limit=10)
+                if klines_4h and len(klines_4h) >= 5:
+                    # Simple 4H trend: compare current close to 5-period SMA
+                    closes_4h = [float(k[4]) for k in klines_4h[-5:]]
+                    sma_4h = sum(closes_4h) / len(closes_4h)
+                    current_4h_close = closes_4h[-1]
+                    
+                    higher_tf_bullish = current_4h_close > sma_4h
+                    higher_tf_bearish = current_4h_close < sma_4h
+                    
+                    # CONFLUENCE BOOST: Same direction as 4H trend
+                    if signal == "BUY" and higher_tf_bullish:
+                        confidence *= 1.15  # 15% boost for alignment
+                        thesis_parts.append("4H trend aligned (bullish).")
+                    elif signal == "SELL" and higher_tf_bearish:
+                        confidence *= 1.15
+                        thesis_parts.append("4H trend aligned (bearish).")
+                    # CONFLICT PENALTY: Opposite to 4H trend (possible trap)
+                    elif signal == "BUY" and higher_tf_bearish:
+                        confidence *= 0.70  # 30% penalty - potential trap
+                        thesis_parts.append("⚠️ 4H trend BEARISH - possible trap!")
+                    elif signal == "SELL" and higher_tf_bullish:
+                        confidence *= 0.70
+                        thesis_parts.append("⚠️ 4H trend BULLISH - possible trap!")
+            except Exception:
+                # Silently continue if 4H data unavailable
+                pass
+
             # Add small randomization to avoid identical signals
             if confidence > 0.3:
                 confidence += random.uniform(-0.02, 0.02)

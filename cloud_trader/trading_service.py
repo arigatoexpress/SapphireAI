@@ -2270,6 +2270,8 @@ class MinimalTradingService:
         Orchestrate the full trading cycle:
         1. Manage existing positions via _execute_agent_trading
         2. Scan for new opportunities via consensus-based approach
+        3. Check re-entry queue for positions to re-open
+        4. Detect stop hunts for opportunistic entries
         
         This method is called by the main trading loop.
         """
@@ -2279,6 +2281,205 @@ class MinimalTradingService:
         # 2. Execute new trades using consensus engine
         # This calls the full consensus-based logic defined earlier
         await self._scan_and_execute_new_trades()
+        
+        # 3. Check re-entry queue - execute queued re-entries at better prices
+        await self._check_and_execute_reentries()
+        
+        # 4. Detect stop hunts and capitalize on market maker exhaustion
+        await self._detect_and_trade_stop_hunts()
+
+    async def _check_and_execute_reentries(self):
+        """
+        Check the re-entry queue for positions that should be re-opened.
+        These are positions that were stopped out but queued for re-entry
+        at a better price (asymmetric upside strategy).
+        """
+        try:
+            reentry_queue = get_reentry_queue()
+            pending = reentry_queue.get_all_pending()
+            
+            if not pending:
+                return
+            
+            print(f"📋 Checking {len(pending)} pending re-entries...")
+            
+            # Get current prices
+            ticker_map = {}
+            try:
+                tickers = await self._exchange_client.get_all_tickers()
+                ticker_map = {t["symbol"]: t for t in tickers}
+            except Exception:
+                return
+            
+            triggered = reentry_queue.check_reentries(ticker_map)
+            
+            for order in triggered:
+                symbol = order.symbol
+                direction = order.direction
+                
+                # Skip if we already have a position in this symbol
+                if symbol in self._open_positions:
+                    print(f"⏳ Re-entry skip: Already have position in {symbol}")
+                    reentry_queue.remove(symbol)
+                    continue
+                
+                # Get an agent for this trade
+                agent = (
+                    self._agent_states.get("strategy-optimization-agent")
+                    or list(self._agent_states.values())[0]
+                )
+                
+                # Execute re-entry with boosted confidence
+                side = "BUY" if direction == "LONG" else "SELL"
+                current_price = float(ticker_map.get(symbol, {}).get("lastPrice", 0))
+                
+                if current_price == 0:
+                    continue
+                
+                # Calculate position size based on tight SL
+                # Since we're re-entering, we use 1.5x ATR for this tighter SL
+                notional_size = await self._calculate_position_size(
+                    symbol, current_price, confidence=order.confidence
+                )
+                
+                if notional_size <= 0:
+                    continue
+                
+                quantity = notional_size / current_price
+                
+                print(f"🔄 EXECUTING RE-ENTRY: {symbol} {direction} {quantity:.4f} @ ${current_price:.4f}")
+                
+                try:
+                    await self._execute_trade_order(
+                        agent, symbol, side, quantity,
+                        f"Re-Entry: Better price after stop hunt ({order.confidence:.0%} confidence)",
+                        is_closing=False
+                    )
+                    
+                    reentry_queue.mark_successful(symbol)
+                    
+                    # Telegram notification
+                    try:
+                        await self._telegram.send_message(
+                            f"🔄 **Re-Entry Executed**\n"
+                            f"Symbol: `{symbol}`\n"
+                            f"Direction: {direction}\n"
+                            f"Entry: `${current_price:.4f}`\n"
+                            f"Original Stop: `${order.original_stop_price:.4f}`\n"
+                            f"Savings: `{abs(current_price - order.original_stop_price) / order.original_stop_price:.1%}` better entry",
+                            priority=NotificationPriority.HIGH
+                        )
+                    except Exception:
+                        pass
+                        
+                except Exception as re_err:
+                    print(f"⚠️ Re-entry failed for {symbol}: {re_err}")
+                    if order.attempts >= order.max_attempts:
+                        reentry_queue.remove(symbol)
+                        
+        except Exception as e:
+            print(f"⚠️ Re-entry check error: {e}")
+
+    async def _detect_and_trade_stop_hunts(self):
+        """
+        Detect stop hunt patterns and capitalize on market maker exhaustion.
+        
+        A stop hunt is characterized by:
+        1. Quick spike below support (or above resistance)
+        2. Long wick relative to body
+        3. Immediate price reversal
+        4. Often occurs at key levels (round numbers, recent S/R)
+        
+        When we detect a stop hunt, we enter in the OPPOSITE direction
+        of the stop hunt (i.e., buy after stops were hunted below support).
+        """
+        try:
+            # Only run occasionally (not every cycle)
+            import random
+            if random.random() > 0.1:  # 10% chance each cycle
+                return
+            
+            # Get symbols we're interested in
+            all_symbols = set()
+            for agent in self._agent_states.values():
+                all_symbols.update(agent.symbols)
+            
+            # Sample a few symbols to check
+            symbols_to_check = random.sample(
+                list(all_symbols), 
+                min(5, len(all_symbols))
+            )
+            
+            for symbol in symbols_to_check:
+                try:
+                    stop_hunt = await self._analyze_for_stop_hunt(symbol)
+                    if stop_hunt:
+                        print(f"🎯 STOP HUNT DETECTED: {symbol} -> {stop_hunt['direction']}")
+                        # Could execute trade here, but for now just log
+                        # This avoids over-trading on every detected pattern
+                except Exception:
+                    pass
+                    
+        except Exception as e:
+            print(f"⚠️ Stop hunt detection error: {e}")
+
+    async def _analyze_for_stop_hunt(self, symbol: str) -> Optional[Dict[str, Any]]:
+        """
+        Analyze a symbol for stop hunt patterns using wick analysis.
+        
+        Returns a dict with direction to trade if stop hunt detected, else None.
+        """
+        try:
+            # Get recent 5m candles
+            klines = await self._exchange_client.get_klines(symbol, interval="5m", limit=12)
+            if not klines or len(klines) < 3:
+                return None
+            
+            # Analyze last few candles for stop hunt pattern
+            for i, candle in enumerate(klines[-3:]):
+                open_price = float(candle[1])
+                high = float(candle[2])
+                low = float(candle[3])
+                close = float(candle[4])
+                
+                body_size = abs(close - open_price)
+                total_range = high - low
+                
+                if total_range == 0:
+                    continue
+                
+                # Calculate wick ratios
+                if close >= open_price:  # Bullish candle
+                    lower_wick = open_price - low
+                    upper_wick = high - close
+                else:  # Bearish candle
+                    lower_wick = close - low
+                    upper_wick = high - open_price
+                
+                wick_to_body_ratio = max(lower_wick, upper_wick) / (body_size + 0.0001)
+                
+                # Stop hunt signal: Long lower wick (>3x body) + bullish close
+                if lower_wick > body_size * 3 and close > open_price:
+                    return {
+                        "direction": "LONG",
+                        "trigger_price": close,
+                        "wick_ratio": wick_to_body_ratio,
+                        "reason": "Long lower wick - stops hunted below"
+                    }
+                
+                # Stop hunt signal: Long upper wick (>3x body) + bearish close
+                if upper_wick > body_size * 3 and close < open_price:
+                    return {
+                        "direction": "SHORT",
+                        "trigger_price": close,
+                        "wick_ratio": wick_to_body_ratio,
+                        "reason": "Long upper wick - stops hunted above"
+                    }
+            
+            return None
+            
+        except Exception as e:
+            return None
 
     async def _sync_positions_from_exchange(self):
         """Sync positions from exchange to inherit existing positions on startup."""
