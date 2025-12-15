@@ -2141,32 +2141,37 @@ class MinimalTradingService:
 
                 thesis = f"Portfolio Guard: {reason}"
 
-                # Calculate PnL in USD
-                pnl_usd = (current_price - entry_price) * quantity if side == "BUY" else (entry_price - current_price) * quantity
+                # Calculate PnL in USD (use abs(quantity) for correct sign)
+                pnl_usd = (current_price - entry_price) * abs(quantity) if side == "BUY" else (entry_price - current_price) * abs(quantity)
 
                 # Telegram Notification for TP/SL
                 emoji = "💰" if pnl_pct > 0 else ("🚨" if is_emergency else "❌")
                 priority = NotificationPriority.CRITICAL if is_emergency else NotificationPriority.HIGH
-                
-                try:
-                    await self._telegram.send_message(
-                        f"{emoji} **Position Closed**\n"
-                        f"Symbol: `{symbol}`\n"
-                        f"Reason: {reason}\n"
-                        f"PnL: `{pnl_pct:+.2%}` (`${pnl_usd:+.2f}`)\n"
-                        f"Entry: `${entry_price:.4f}`\n"
-                        f"Exit: `${current_price:.4f}`",
-                        priority=priority
-                    )
-                except Exception as tg_err:
-                    print(f"⚠️ Telegram notification failed: {tg_err}")
 
-                # Execute Close
+                # Execute Close FIRST
                 # Note: side passed to _execute_trade_order is the CURRENT position side.
                 # is_closing=True tells it to close.
-                await self._execute_trade_order(
-                    agent, symbol, side, quantity, thesis, is_closing=True
-                )
+                try:
+                    await self._execute_trade_order(
+                        agent, symbol, side, quantity, thesis, is_closing=True
+                    )
+                    
+                    # Only send Telegram notification AFTER successful execution
+                    try:
+                        await self._telegram.send_message(
+                            f"{emoji} **Position Closed**\n"
+                            f"Symbol: `{symbol}`\n"
+                            f"Reason: {reason}\n"
+                            f"PnL: `{pnl_pct:+.2%}` (`${pnl_usd:+.2f}`)\n"
+                            f"Entry: `${entry_price:.4f}`\n"
+                            f"Exit: `${current_price:.4f}`",
+                            priority=priority
+                        )
+                    except Exception as tg_err:
+                        print(f"⚠️ Telegram notification failed: {tg_err}")
+                        
+                except Exception as close_err:
+                    print(f"⚠️ Failed to close {symbol}: {close_err}")
 
     async def _execute_trading_cycle(self):
         """

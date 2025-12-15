@@ -19,6 +19,7 @@ class PositionManager:
         self.exchange_client = exchange_client
         self.agent_states = agent_states
         self.open_positions: Dict[str, Dict[str, Any]] = {}
+        self._tpsl_placed: set = set()  # Track which symbols have TP/SL already placed
 
     async def sync_from_exchange(self):
         """Sync positions from exchange to inherit existing positions on startup."""
@@ -84,10 +85,12 @@ class PositionManager:
                             side = "BUY" if pos["quantity"] > 0 else "SELL"
                         
                         if entry_price > 0 and quantity > 0:
-                            await self.place_tpsl_orders(
-                                symbol=symbol,
-                                entry_price=entry_price,
-                                side=side,
+                            # Only place TP/SL if not already placed for this symbol
+                            if symbol not in self._tpsl_placed:
+                                await self.place_tpsl_orders(
+                                    symbol=symbol,
+                                    entry_price=entry_price,
+                                    side=side,
                                 quantity=quantity,
                                 tp_pct=0.05,  # 5% TP
                                 sl_pct=0.03,  # 3% SL
@@ -274,6 +277,9 @@ class PositionManager:
                 self.open_positions[symbol]["tp_price"] = tp_price
                 self.open_positions[symbol]["sl_price"] = sl_price
 
+            # Mark as TP/SL placed to avoid repeated cancellation/placement
+            self._tpsl_placed.add(symbol)
+            
             print(f"✅ NATIVE TP/SL ACTIVE for {symbol}")
             return True
 
