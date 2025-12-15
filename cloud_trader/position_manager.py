@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import time
+from decimal import Decimal, ROUND_DOWN
 from typing import Any, Dict, List, Optional, Tuple
 
 from .definitions import SYMBOL_CONFIG, MinimalAgentState
@@ -20,6 +21,30 @@ class PositionManager:
         self.agent_states = agent_states
         self.open_positions: Dict[str, Dict[str, Any]] = {}
         self._tpsl_placed: set = set()  # Track which symbols have TP/SL already placed
+        self._symbol_precision_cache: Dict[str, int] = {}  # Cache price precision
+
+    async def _round_price(self, symbol: str, price: float) -> float:
+        """
+        Round a price to the symbol's tick size precision.
+        This prevents the -1111 'Precision is over the maximum' error.
+        """
+        try:
+            # Check cache first
+            if symbol in self._symbol_precision_cache:
+                precision = self._symbol_precision_cache[symbol]
+            else:
+                # Fetch from exchange if not cached
+                filters = await self.exchange_client.get_symbol_filters(symbol)
+                precision = filters.get("price_precision", 2)
+                self._symbol_precision_cache[symbol] = precision
+            
+            # Round to precision using Decimal for accuracy
+            multiplier = 10 ** precision
+            rounded = round(price * multiplier) / multiplier
+            return rounded
+        except Exception as e:
+            logger.warning(f"Price rounding failed for {symbol}: {e}, using 4 decimals")
+            return round(price, 4)
 
     async def sync_from_exchange(self):
         """Sync positions from exchange to inherit existing positions on startup."""
@@ -201,20 +226,23 @@ class PositionManager:
         This ensures risk is managed even if the bot goes offline.
         """
         try:
+            # Round price to symbol's precision to avoid -1111 error
+            rounded_sl = await self._round_price(symbol, sl_price)
+            
             # Determine order side (Closing logic)
             order_side = "SELL" if side == "BUY" else "BUY"
 
             # Place STOP_MARKET order
-            print(f"🛡️ Syncing Hard Stop for {symbol}: {order_side} {abs(quantity)} @ {sl_price}")
+            print(f"🛡️ Syncing Hard Stop for {symbol}: {order_side} {abs(quantity)} @ {rounded_sl}")
             await self.exchange_client.place_order(
                 symbol=symbol,
                 side=order_side,
                 order_type=OrderType.STOP_MARKET,
                 quantity=abs(quantity),
-                stop_price=sl_price,
+                stop_price=rounded_sl,
                 reduce_only=True,
             )
-            print(f"✅ NATIVE SL ORDER PLACED: {symbol} @ {sl_price}")
+            print(f"✅ NATIVE SL ORDER PLACED: {symbol} @ {rounded_sl}")
 
         except Exception as e:
             print(f"⚠️ Failed to sync SL to exchange for {symbol}: {e}")
@@ -225,20 +253,23 @@ class PositionManager:
         This ensures profits are captured even if the bot goes offline.
         """
         try:
+            # Round price to symbol's precision to avoid -1111 error
+            rounded_tp = await self._round_price(symbol, tp_price)
+            
             # Determine order side (Closing logic)
             order_side = "SELL" if side == "BUY" else "BUY"
 
             # Place TAKE_PROFIT_MARKET order
-            print(f"💰 Syncing Take Profit for {symbol}: {order_side} {quantity} @ {tp_price}")
+            print(f"💰 Syncing Take Profit for {symbol}: {order_side} {quantity} @ {rounded_tp}")
             await self.exchange_client.place_order(
                 symbol=symbol,
                 side=order_side,
                 order_type=OrderType.TAKE_PROFIT_MARKET,
                 quantity=abs(quantity),
-                stop_price=tp_price,
+                stop_price=rounded_tp,
                 reduce_only=True,
             )
-            print(f"✅ NATIVE TP ORDER PLACED: {symbol} @ {tp_price}")
+            print(f"✅ NATIVE TP ORDER PLACED: {symbol} @ {rounded_tp}")
 
         except Exception as e:
             print(f"⚠️ Failed to sync TP to exchange for {symbol}: {e}")
