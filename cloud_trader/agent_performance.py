@@ -9,19 +9,20 @@ import json
 import logging
 import os
 from collections import defaultdict
-from typing import Any, Dict, List, Optional
 from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
 # Import persistent storage
 try:
     from .persistent_metrics import (
+        AGENT_PERFORMANCE_FILE,
         get_metrics_store,
         load_agent_performance,
         save_agent_performance,
-        AGENT_PERFORMANCE_FILE,
     )
+
     GCS_AVAILABLE = True
 except ImportError:
     GCS_AVAILABLE = False
@@ -32,14 +33,14 @@ class PerformanceTracker:
     """
     Tracks win rate per symbol per agent.
     Enables agents to bias toward profitable symbols.
-    
+
     Now with GCS-backed persistence for durability across deployments.
     """
 
     def __init__(self, use_gcs: bool = True):
         """
         Initialize the performance tracker.
-        
+
         Args:
             use_gcs: If True, use GCS-backed persistent storage
         """
@@ -48,13 +49,13 @@ class PerformanceTracker:
         self.data: Dict[str, Dict[str, Dict[str, Any]]] = {}
         self._initialized = False
         self._pending_save = False
-        
+
         # Ensure cache directory exists
         os.makedirs(os.path.dirname(self.cache_path), exist_ok=True)
-        
+
         # Load data synchronously for immediate availability
         self._load_sync()
-    
+
     def _load_sync(self):
         """Load data synchronously from local cache."""
         if os.path.exists(self.cache_path):
@@ -69,7 +70,7 @@ class PerformanceTracker:
                 self.data = {}
         else:
             self.data = {}
-    
+
     async def initialize(self):
         """
         Async initialization - loads from GCS on startup.
@@ -77,7 +78,7 @@ class PerformanceTracker:
         """
         if self._initialized:
             return
-        
+
         if self.use_gcs:
             try:
                 loaded = await load_agent_performance()
@@ -94,18 +95,17 @@ class PerformanceTracker:
                                         self.data[agent_id][symbol] = stats
                                     else:
                                         # Keep whichever has more trades
-                                        local_trades = (
-                                            self.data[agent_id][symbol].get("wins", 0) +
-                                            self.data[agent_id][symbol].get("losses", 0)
-                                        )
+                                        local_trades = self.data[agent_id][symbol].get(
+                                            "wins", 0
+                                        ) + self.data[agent_id][symbol].get("losses", 0)
                                         gcs_trades = stats.get("wins", 0) + stats.get("losses", 0)
                                         if gcs_trades > local_trades:
                                             self.data[agent_id][symbol] = stats
-                    
+
                     logger.info(f"☁️ Synced performance data from GCS: {len(self.data)} agents")
             except Exception as e:
                 logger.warning(f"⚠️ GCS sync failed: {e}, using local data")
-        
+
         self._initialized = True
 
     def _save(self):
@@ -114,7 +114,7 @@ class PerformanceTracker:
             # Save to local cache immediately
             with open(self.cache_path, "w") as f:
                 json.dump(self.data, f, indent=2, default=str)
-            
+
             # Schedule async GCS save
             if self.use_gcs:
                 self._pending_save = True
@@ -125,15 +125,15 @@ class PerformanceTracker:
                 except RuntimeError:
                     # No event loop, skip async save
                     pass
-                    
+
         except Exception as e:
             logger.error(f"❌ Failed to save performance data: {e}")
-    
+
     async def _save_to_gcs(self):
         """Async save to GCS."""
         if not self._pending_save:
             return
-        
+
         try:
             await save_agent_performance(self.data)
             self._pending_save = False
@@ -143,7 +143,7 @@ class PerformanceTracker:
     def record_trade(self, agent_id: str, symbol: str, pnl: float):
         """
         Record a completed trade for an agent on a symbol.
-        
+
         Args:
             agent_id: The agent's ID
             symbol: Trading pair (e.g., "BTCUSDT")
@@ -173,7 +173,7 @@ class PerformanceTracker:
         stats["last_trade"] = datetime.now().isoformat()
 
         self._save()
-        
+
         # Log significant trades
         win_rate = self.get_symbol_win_rate(agent_id, symbol)
         logger.info(
@@ -184,7 +184,7 @@ class PerformanceTracker:
     def get_symbol_win_rate(self, agent_id: str, symbol: str) -> float:
         """
         Get win rate for a specific agent-symbol pair.
-        
+
         Returns:
             Win rate (0.0 to 1.0), or 0.5 if no trades recorded.
         """
@@ -212,13 +212,13 @@ class PerformanceTracker:
     ) -> List[str]:
         """
         Get symbols that perform well for this agent.
-        
+
         Args:
             agent_id: The agent's ID
             all_symbols: List of all available symbols
             min_trades: Minimum trades to consider a symbol
             min_win_rate: Minimum win rate to be "preferred"
-            
+
         Returns:
             List of symbols sorted by win rate (best first),
             followed by untested symbols.
@@ -246,15 +246,16 @@ class PerformanceTracker:
 
         # Sort preferred by win rate (descending), then by PnL
         preferred.sort(key=lambda x: (x[1], x[2]), reverse=True)
-        
+
         # Return: preferred symbols first, then some untested for exploration
         result = [s[0] for s in preferred]
-        
+
         # Add some untested symbols for exploration (20% of selection)
         import random
+
         exploration_count = max(4, len(untested) // 5)
         result.extend(random.sample(untested, min(exploration_count, len(untested))))
-        
+
         return result
 
     def get_agent_summary(self, agent_id: str) -> Dict[str, Any]:
@@ -284,7 +285,7 @@ class PerformanceTracker:
             "total_pnl": round(total_pnl, 2),
             "symbols_traded": symbols_traded,
         }
-    
+
     def get_all_stats(self) -> Dict[str, Any]:
         """Get comprehensive stats for all agents."""
         result = {
@@ -295,9 +296,9 @@ class PerformanceTracker:
                 "total_losses": 0,
                 "total_pnl": 0.0,
                 "overall_win_rate": 0.0,
-            }
+            },
         }
-        
+
         for agent_id in self.data:
             if agent_id.startswith("_"):
                 continue
@@ -307,12 +308,12 @@ class PerformanceTracker:
             result["totals"]["total_wins"] += summary["wins"]
             result["totals"]["total_losses"] += summary["losses"]
             result["totals"]["total_pnl"] += summary["total_pnl"]
-        
+
         if result["totals"]["total_trades"] > 0:
             result["totals"]["overall_win_rate"] = (
                 result["totals"]["total_wins"] / result["totals"]["total_trades"]
             )
-        
+
         return result
 
 

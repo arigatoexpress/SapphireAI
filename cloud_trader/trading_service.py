@@ -1276,9 +1276,9 @@ class MinimalTradingService:
                 continue
 
             # FILTER: High Conviction Swarm Only (CONCENTRATED STRATEGY)
-            # Higher thresholds = fewer, better trades
-            MIN_CONFIDENCE = 0.75  # Increased from 0.65 for concentrated strategy
-            MIN_AGREEMENT = 0.50   # Increased from 0.40 for higher conviction
+            # Higher thresholds = fewer, better trades with larger size
+            MIN_CONFIDENCE = 0.80  # Increased from 0.75 for ultra-concentrated strategy
+            MIN_AGREEMENT = 0.60   # Increased from 0.50 for higher conviction
             
             if consensus.consensus_confidence < MIN_CONFIDENCE or consensus.agreement_level < MIN_AGREEMENT:
                 # Not high enough conviction, skip
@@ -1295,8 +1295,8 @@ class MinimalTradingService:
                 else "SELL"
             )
 
-            # Determine Sizing
-            base_notional = 300.0
+            # Determine Sizing (LARGER POSITIONS for concentrated strategy)
+            base_notional = 500.0  # Increased from 300 for larger positions
             multiplier = 1.0
             thesis = f"Swarm Consensus: {consensus.reasoning}"
 
@@ -1323,15 +1323,15 @@ class MinimalTradingService:
 
             target_notional = base_notional * multiplier
 
-            # === RISK CHECKS (CONCENTRATED POSITION STRATEGY) ===
+            # === RISK CHECKS (ULTRA-CONCENTRATED POSITION STRATEGY) ===
             # Fewer, larger, higher-conviction positions for optimal returns
-            MAX_TOTAL_EXPOSURE = 0.80   # 80% of account in positions (was 60%)
-            MAX_POSITION_SIZE = 0.15    # 15% of account per position (was 12%)
-            MAX_CONCURRENT_POSITIONS = 8  # Allow 8 positions (was 4, blocked all trades)
+            MAX_TOTAL_EXPOSURE = 0.80   # 80% of account in positions
+            MAX_POSITION_SIZE = 0.25    # 25% of account per position (was 15%)
+            MAX_CONCURRENT_POSITIONS = 4  # Only 4 positions (focused)
             
-            # Check 0: Max Positions Limit (concentrated strategy)
+            # Check 0: Max Positions Limit (ultra-concentrated strategy)
             if len(self._open_positions) >= MAX_CONCURRENT_POSITIONS:
-                print(f"⚠️ Risk Check: Max Positions ({MAX_CONCURRENT_POSITIONS}) Reached - Focused Mode")
+                print(f"⚠️ Risk Check: Max Positions ({MAX_CONCURRENT_POSITIONS}) Reached - Ultra-Focused Mode")
                 continue  # Skip - focus on existing positions
             
             # Check 1: Exposure Limit

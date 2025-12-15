@@ -11,7 +11,7 @@ import logging
 import math
 import os
 import time
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
@@ -24,6 +24,7 @@ try:
         load_analytics_metrics,
         save_analytics_metrics,
     )
+
     GCS_AVAILABLE = True
 except ImportError:
     GCS_AVAILABLE = False
@@ -53,14 +54,14 @@ class AgentMetrics:
 
 class PerformanceTracker:
     """Analytics performance tracker with GCS-backed persistence."""
-    
+
     def __init__(self, storage_path: str = "/tmp/sapphire_metrics/analytics_metrics.json"):
         self.storage_path = storage_path
         self.metrics: Dict[str, AgentMetrics] = {}
         self.risk_free_rate = 0.02  # 2% annual risk free
         self.use_gcs = GCS_AVAILABLE
         self._pending_save = False
-        
+
         # Ensure directory exists
         os.makedirs(os.path.dirname(self.storage_path), exist_ok=True)
         self._load_metrics()
@@ -98,7 +99,7 @@ class PerformanceTracker:
             data = {k: asdict(v) for k, v in self.metrics.items()}
             with open(self.storage_path, "w") as f:
                 json.dump(data, f, indent=2)
-            
+
             # Schedule async GCS save
             if self.use_gcs:
                 self._pending_save = True
