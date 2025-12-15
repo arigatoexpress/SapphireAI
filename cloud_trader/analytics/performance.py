@@ -1,18 +1,33 @@
 """
 Performance Analytics Module for Aster Self-Learning Agents.
 Tracks Sharpe Ratio, Sortino Ratio, Win Rate, and Alpha relative to Benchmark.
+
+Now with GCS-backed persistence for durability across deployments.
 """
 
+import asyncio
 import json
 import logging
 import math
 import os
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
+
+# Import persistent storage
+try:
+    from ..persistent_metrics import (
+        get_metrics_store,
+        load_analytics_metrics,
+        save_analytics_metrics,
+    )
+    GCS_AVAILABLE = True
+except ImportError:
+    GCS_AVAILABLE = False
+    logger.warning("⚠️ Persistent metrics not available, using local-only mode")
 
 
 @dataclass
@@ -37,10 +52,17 @@ class AgentMetrics:
 
 
 class PerformanceTracker:
-    def __init__(self, storage_path: str = "/tmp/logs/agent_performance.json"):
+    """Analytics performance tracker with GCS-backed persistence."""
+    
+    def __init__(self, storage_path: str = "/tmp/sapphire_metrics/analytics_metrics.json"):
         self.storage_path = storage_path
         self.metrics: Dict[str, AgentMetrics] = {}
         self.risk_free_rate = 0.02  # 2% annual risk free
+        self.use_gcs = GCS_AVAILABLE
+        self._pending_save = False
+        
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(self.storage_path), exist_ok=True)
         self._load_metrics()
 
     def _load_metrics(self):
@@ -50,20 +72,55 @@ class PerformanceTracker:
                 with open(self.storage_path, "r") as f:
                     data = json.load(f)
                     for agent_id, m_data in data.items():
-                        self.metrics[agent_id] = AgentMetrics(**m_data)
-                logger.info(f"Loaded performance metrics for {len(self.metrics)} agents")
+                        if not agent_id.startswith("_"):
+                            self.metrics[agent_id] = AgentMetrics(**m_data)
+                logger.info(f"📊 Loaded analytics metrics for {len(self.metrics)} agents")
             except Exception as e:
                 logger.error(f"Failed to load metrics: {e}")
 
+    async def initialize(self):
+        """Async initialization - loads from GCS on startup."""
+        if self.use_gcs:
+            try:
+                loaded = await load_analytics_metrics()
+                if loaded:
+                    for agent_id, m_data in loaded.items():
+                        if not agent_id.startswith("_"):
+                            if agent_id not in self.metrics:
+                                self.metrics[agent_id] = AgentMetrics(**m_data)
+                    logger.info(f"☁️ Synced analytics metrics from GCS: {len(self.metrics)} agents")
+            except Exception as e:
+                logger.warning(f"⚠️ GCS sync failed: {e}")
+
     def save_metrics(self):
-        """Save metrics to disk."""
+        """Save metrics to disk and queue GCS sync."""
         try:
-            os.makedirs(os.path.dirname(self.storage_path), exist_ok=True)
-            data = {k: v.__dict__ for k, v in self.metrics.items()}
+            data = {k: asdict(v) for k, v in self.metrics.items()}
             with open(self.storage_path, "w") as f:
                 json.dump(data, f, indent=2)
+            
+            # Schedule async GCS save
+            if self.use_gcs:
+                self._pending_save = True
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        asyncio.create_task(self._save_to_gcs())
+                except RuntimeError:
+                    pass
         except Exception as e:
             logger.error(f"Failed to save metrics: {e}")
+
+    async def _save_to_gcs(self):
+        """Async save to GCS."""
+        if not self._pending_save:
+            return
+        try:
+            data = {k: asdict(v) for k, v in self.metrics.items()}
+            await save_analytics_metrics(data)
+            self._pending_save = False
+        except Exception as e:
+            logger.error(f"❌ GCS save failed: {e}")
 
     def record_trade(self, agent_id: str, pnl: float, capital_used: float = 1000.0):
         """Record a completed trade for an agent."""
