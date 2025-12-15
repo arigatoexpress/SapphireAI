@@ -38,8 +38,16 @@ from .reentry_queue import get_reentry_queue, ReEntryQueue
 from .risk import PortfolioState, RiskManager
 from .self_healing import SelfHealingWatchdog
 from .swarm import SwarmManager
-from .ta_indicators import TAIndicators
 from .websocket_manager import broadcast_market_regime
+
+# TAIndicators - optional, may fail due to pandas_ta numba cache issues
+try:
+    from .ta_indicators import TAIndicators
+    TA_AVAILABLE = True
+except Exception as ta_err:
+    print(f"⚠️ TAIndicators not available: {ta_err}")
+    TAIndicators = None
+    TA_AVAILABLE = False
 
 # Telegram integration
 try:
@@ -2130,16 +2138,23 @@ class MinimalTradingService:
             # ═══════════════════════════════════════════════════════════════
             
             # Get ATR for dynamic thresholds
+            atr = None
             try:
                 klines = await self._exchange_client.get_klines(symbol, interval="1h", limit=20)
                 if klines and len(klines) >= 14:
                     highs = [float(k[2]) for k in klines]
                     lows = [float(k[3]) for k in klines]
                     closes = [float(k[4]) for k in klines]
-                    atr = TAIndicators.calculate_atr(highs, lows, closes, period=14)
-                else:
-                    atr = None
-            except Exception:
+                    
+                    # Use TAIndicators if available, otherwise fallback
+                    if TA_AVAILABLE and TAIndicators:
+                        atr = TAIndicators.calculate_atr(highs, lows, closes, period=14)
+                    else:
+                        # Fallback: Simple ATR calculation (average of H-L)
+                        true_ranges = [highs[i] - lows[i] for i in range(len(highs))]
+                        atr = sum(true_ranges[-14:]) / 14 if len(true_ranges) >= 14 else None
+            except Exception as atr_err:
+                print(f"⚠️ ATR calculation failed for {symbol}: {atr_err}")
                 atr = None
             
             # Dynamic thresholds based on ATR
