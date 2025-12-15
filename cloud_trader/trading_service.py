@@ -34,9 +34,11 @@ from .exchange import AsterClient
 from .market_data import MarketDataManager
 from .partial_exits import PartialExitStrategy
 from .position_manager import PositionManager
+from .reentry_queue import get_reentry_queue, ReEntryQueue
 from .risk import PortfolioState, RiskManager
 from .self_healing import SelfHealingWatchdog
 from .swarm import SwarmManager
+from .ta_indicators import TAIndicators
 from .websocket_manager import broadcast_market_regime
 
 # Telegram integration
@@ -2122,30 +2124,61 @@ class MinimalTradingService:
                 # Silent fail - partial exits are bonus, not critical
                 pass
 
-            # RISK THRESHOLDS (Aster - optimized for crypto volatility)
-            TP_THRESHOLD = 0.05       # +5% Take Profit
-            SL_THRESHOLD = -0.03      # -3% Stop Loss
-            EMERGENCY_SL = -0.08      # -8% Emergency Stop (prevent liquidation)
+            # ═══════════════════════════════════════════════════════════════
+            # DYNAMIC ATR-BASED THRESHOLDS (PvP Adversarial Strategy)
+            # Tight stops (1.2x ATR) to minimize losses, wider TP for asymmetric R:R
+            # ═══════════════════════════════════════════════════════════════
+            
+            # Get ATR for dynamic thresholds
+            try:
+                klines = await self._exchange_client.get_klines(symbol, interval="1h", limit=20)
+                if klines and len(klines) >= 14:
+                    highs = [float(k[2]) for k in klines]
+                    lows = [float(k[3]) for k in klines]
+                    closes = [float(k[4]) for k in klines]
+                    atr = TAIndicators.calculate_atr(highs, lows, closes, period=14)
+                else:
+                    atr = None
+            except Exception:
+                atr = None
+            
+            # Dynamic thresholds based on ATR
+            if atr and atr > 0:
+                atr_pct = atr / current_price
+                # TIGHT STOP LOSS: 1.2x ATR (usually 1-2% for crypto)
+                SL_THRESHOLD = -min(atr_pct * 1.2, 0.03)  # Max 3%
+                # WIDER TAKE PROFIT: 2.5x ATR (asymmetric R:R in our favor)
+                TP_THRESHOLD = min(atr_pct * 2.5, 0.08)  # Max 8%
+            else:
+                # Fallback to fixed if ATR unavailable
+                SL_THRESHOLD = -0.02  # Tight 2% fallback
+                TP_THRESHOLD = 0.05   # 5% TP fallback
+            
+            EMERGENCY_SL = -0.05  # Emergency at 5% (tighter for high leverage)
 
             action = None
             reason = None
             is_emergency = False
+            queue_reentry = False  # Flag to queue re-entry after stop
 
-            # Priority 1: Emergency Stop Loss (-8%)
+            # Priority 1: Emergency Stop Loss
             if pnl_pct <= EMERGENCY_SL:
                 action = "SELL" if side == "BUY" else "BUY"
                 reason = f"🚨 EMERGENCY STOP ({pnl_pct:.1%})"
                 is_emergency = True
+                queue_reentry = True  # Queue for re-entry at better price
                 print(f"🚨🚨 EMERGENCY: {symbol} at {pnl_pct:.1%} - FORCE CLOSING")
 
             # Priority 2: Take Profit
             elif pnl_pct >= TP_THRESHOLD:
                 action = "SELL" if side == "BUY" else "BUY"
                 reason = f"Take Profit (+{pnl_pct:.1%})"
-            # Priority 3: Stop Loss
+            
+            # Priority 3: Tight Stop Loss
             elif pnl_pct <= SL_THRESHOLD:
                 action = "SELL" if side == "BUY" else "BUY"
-                reason = f"Stop Loss ({pnl_pct:.1%})"
+                reason = f"Tight Stop ({pnl_pct:.1%}, ATR-based)"
+                queue_reentry = True  # Queue for re-entry at better price
 
             if action:
                 print(f"🚨 PORTFOLIO GUARD: {symbol} PnL {pnl_pct:.1%} -> {reason}")
@@ -2180,6 +2213,39 @@ class MinimalTradingService:
                         )
                     except Exception as tg_err:
                         print(f"⚠️ Telegram notification failed: {tg_err}")
+                    
+                    # ═══════════════════════════════════════════════════════════════
+                    # RE-ENTRY QUEUE: If stopped out, queue for re-entry at better price
+                    # This creates asymmetric upside - we lose small, but can re-enter
+                    # ═══════════════════════════════════════════════════════════════
+                    if queue_reentry and atr:
+                        try:
+                            reentry_queue = get_reentry_queue()
+                            direction = "LONG" if side == "BUY" else "SHORT"
+                            
+                            reentry_queue.queue_reentry(
+                                symbol=symbol,
+                                direction=direction,
+                                stop_price=current_price,
+                                atr=atr,
+                                thesis=thesis,
+                                confidence_boost=1.15,  # 15% higher confidence on re-entry
+                            )
+                            
+                            # Notify about re-entry queue
+                            try:
+                                await self._telegram.send_message(
+                                    f"📋 **Re-Entry Queued**\n"
+                                    f"Symbol: `{symbol}`\n"
+                                    f"Direction: {direction}\n"
+                                    f"Waiting for better entry after stop hunt exhaustion",
+                                    priority=NotificationPriority.MEDIUM
+                                )
+                            except Exception:
+                                pass
+                                
+                        except Exception as reentry_err:
+                            print(f"⚠️ Failed to queue re-entry for {symbol}: {reentry_err}")
                         
                 except Exception as close_err:
                     print(f"⚠️ Failed to close {symbol}: {close_err}")
