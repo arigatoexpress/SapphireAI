@@ -144,15 +144,10 @@ export const TradingProvider: React.FC<{ children: ReactNode }> = ({ children })
           active: true
         }));
 
-        // Calculate aggregate metrics
-        const avgWinRate = agents.length > 0
-          ? agents.reduce((sum, a) => sum + a.win_rate, 0) / agents.length
-          : 0.5;
-
         setData(prev => ({
           ...prev,
           agents,
-          total_pnl_percent: avgWinRate * 10 - 5,  // Simulated: centered around 0
+          total_pnl_percent: consensusData.total_pnl_percent || 0,  // Use real PnL from backend
           market_regime: {
             current_regime: healthData.running ? 'Active Trading' : 'Idle',
             volatility_score: stats.avg_confidence || 0,

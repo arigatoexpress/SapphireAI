@@ -270,6 +270,9 @@ class MinimalTradingService:
             # 3. Start Background Tasks
             logger.debug("Starting main trading loop...")
             self._task = asyncio.create_task(self._run_trading_loop())
+            
+            # Start Capital Efficiency Guard (hourly ghost order cleanup)
+            asyncio.create_task(self._capital_efficiency_guard())
 
             # 4. Start Listeners
             # Redis listener (Hyperliquid) removed Phase 25
@@ -2742,6 +2745,64 @@ class MinimalTradingService:
         except Exception as e:
             # Don't spam errors if account info structure differs
             pass
+
+
+    async def _capital_efficiency_guard(self):
+        """
+        Capital Efficiency Guard:
+        Runs every hour to clean up ghost TP/SL orders from closed positions.
+        Prevents capital from being locked in stale limit orders.
+        """
+        logger.info("🛡️ Capital Efficiency Guard started (runs hourly)")
+        
+        while self._health.running:
+            try:
+                await asyncio.sleep(3600)  # Run every hour
+                
+                # Get all open orders
+                open_orders = await self._exchange_client.get_open_orders()
+                
+                # Get current position symbols
+                current_positions = set(self._open_positions.keys())
+                
+                # Find ghost orders (orders for symbols we don't have positions in)
+                ghost_orders = [
+                    order for order in open_orders 
+                    if order.get('symbol') not in current_positions
+                ]
+                
+                if ghost_orders:
+                    logger.info(f"🧹 Found {len(ghost_orders)} ghost orders to clean up")
+                    cancelled_count = 0
+                    
+                    for order in ghost_orders:
+                        try:
+                            await self._exchange_client.cancel_order(
+                                symbol=order['symbol'],
+                                order_id=order['orderId']
+                            )
+                            cancelled_count += 1
+                        except Exception as cancel_err:
+                            logger.warning(f"Failed to cancel ghost order {order['orderId']}: {cancel_err}")
+                    
+                    if cancelled_count > 0:
+                        logger.info(f"✅ Capital Efficiency Guard: Cancelled {cancelled_count} ghost orders")
+                        # Send Telegram notification
+                        if self._telegram:
+                            await self._telegram.send_notification(
+                                f"🧹 Capital Efficiency Guard\nCancelled {cancelled_count} ghost orders\nFreed up locked capital",
+                                priority=NotificationPriority.LOW
+                            )
+                else:
+                    logger.debug("Capital Efficiency Guard: No ghost orders found")
+                    
+            except asyncio.CancelledError:
+                logger.info("Capital Efficiency Guard stopped")
+                break
+            except Exception as e:
+                logger.error(f"Capital Efficiency Guard error: {e}")
+                # Continue running even if one cycle fails
+                await asyncio.sleep(60)  # Wait 1 min before retry
 
     async def stop(self):
         """Stop the trading service and gracefully close positions."""

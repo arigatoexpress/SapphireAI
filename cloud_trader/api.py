@@ -912,16 +912,45 @@ async def get_consensus_state() -> Dict[str, Any]:
             for agent_id in engine.agent_registry.keys()
         }
 
+        # Add portfolio P&L data from trading service
+        portfolio_data = {}
+        if service and hasattr(service, "_portfolio"):
+            try:
+                # Get position PnL
+                all_positions = []
+                if hasattr(service, "_open_positions"):
+                    all_positions = list(service._open_positions.values())
+                
+                unrealized_pnl = sum(p.get("pnl", 0) for p in all_positions)
+                realized_pnl = getattr(service, "_total_realized_pnl", 0.0)
+                total_pnl = unrealized_pnl + realized_pnl
+                
+                # Calculate % return
+                initial_balance = service._portfolio.balance if service._portfolio.balance > 0 else 3000.0
+                total_pnl_percent = (total_pnl / initial_balance) * 100 if initial_balance > 0 else 0.0
+                
+                portfolio_data = {
+                    "total_pnl": total_pnl,
+                    "total_pnl_percent": total_pnl_percent,
+                    "unrealized_pnl": unrealized_pnl,
+                    "realized_pnl": realized_pnl,
+                    "portfolio_value": initial_balance + total_pnl,
+                }
+            except Exception as pnl_err:
+                logger.warning(f"Could not calculate PnL: {pnl_err}")
+
         return {
             "status": "active",
             "stats": stats,
             "weights": weights,
+            **portfolio_data,  # Include PnL data if available
             "timestamp_us": int(time.time() * 1_000_000),
         }
 
     except Exception as e:
         logger.error(f"Failed to get consensus state: {e}")
         return {"status": "error", "error": str(e)}
+
         return {"status": "error", "error": str(e), "message": "Agent registration failed"}
 
 
