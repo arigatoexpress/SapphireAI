@@ -2507,6 +2507,9 @@ class MinimalTradingService:
         """
         Fetch and update account balance from exchange.
         Critical for position sizing and risk management.
+        
+        NOTE: This fetches from /fapi/ (futures API), NOT /api/ (spot).
+        Portfolio value tracks ONLY the perpetual futures account balance.
         """
         try:
             # Cache for 60 seconds to avoid excessive API calls
@@ -2515,16 +2518,17 @@ class MinimalTradingService:
             if self._account_balance > 0 and (current_time - self._last_balance_fetch) < 60:
                 return  # Use cached value
             
+            # Get FUTURES account balance (not spot)
             balances = await self._exchange_client.get_account_balance()
             
-            # Find USDT balance
+            # Find USDT balance in futures wallet
             for balance in balances:
                 if balance.get("asset") == "USDT":
                     available = float(balance.get("availableBalance", 0) or balance.get("free", 0))
                     wallet = float(balance.get("walletBalance", 0) or balance.get("balance", 0))
                     self._account_balance = max(available, wallet)
                     self._last_balance_fetch = current_time
-                    print(f"💰 Account Balance: ${self._account_balance:.2f} USDT")
+                    print(f"💰 Futures Account Balance: ${self._account_balance:.2f} USDT")
                     return
             
             # Fallback: sum all USDT-equivalent balances
