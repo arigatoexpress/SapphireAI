@@ -295,6 +295,101 @@ async def test_telegram(request: Request, _: None = Depends(require_admin)) -> D
     return {"status": "test message sent"}
 
 
+@app.post("/admin/cancel-all-orders")
+async def cancel_all_orders(request: Request, _: None = Depends(require_admin)) -> Dict[str, Any]:
+    """
+    Cancel ALL open orders across all symbols to free up locked capital.
+    This helps improve capital efficiency when too many pending orders are consuming margin.
+    """
+    client_ip = request.client.host if request.client else "unknown"
+    if not rate_limiter.is_allowed(f"cancel_orders_{client_ip}"):
+        raise HTTPException(status_code=429, detail="Too many requests")
+
+    try:
+        service = get_service_instance()
+        if not service or not service._exchange_client:
+            raise HTTPException(status_code=503, detail="Trading service not initialized")
+
+        # Get all open orders
+        all_open_orders = await service._exchange_client.get_open_orders()
+        
+        if not all_open_orders:
+            return {
+                "status": "success",
+                "message": "No open orders to cancel",
+                "cancelled_count": 0,
+                "orders": []
+            }
+
+        cancelled = []
+        errors = []
+
+        for order in all_open_orders:
+            try:
+                symbol = order.get("symbol")
+                order_id = order.get("orderId")
+                if symbol and order_id:
+                    await service._exchange_client.cancel_order(symbol, str(order_id))
+                    cancelled.append({
+                        "symbol": symbol,
+                        "orderId": order_id,
+                        "type": order.get("type"),
+                        "side": order.get("side")
+                    })
+            except Exception as e:
+                errors.append({
+                    "symbol": order.get("symbol"),
+                    "orderId": order.get("orderId"),
+                    "error": str(e)
+                })
+
+        # Send notification
+        if service._telegram:
+            msg = f"🗑️ **Capital Cleanup**\n\nCancelled {len(cancelled)} open orders\nErrors: {len(errors)}\nFree margin restored!"
+            await service._telegram.send_message(msg)
+
+        return {
+            "status": "success",
+            "message": f"Cancelled {len(cancelled)} orders, {len(errors)} errors",
+            "cancelled_count": len(cancelled),
+            "error_count": len(errors),
+            "cancelled": cancelled,
+            "errors": errors if errors else None
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to cancel all orders: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/admin/open-orders")
+async def get_all_open_orders(request: Request, _: None = Depends(require_admin)) -> Dict[str, Any]:
+    """Get all open orders to see what's consuming capital."""
+    try:
+        service = get_service_instance()
+        if not service or not service._exchange_client:
+            raise HTTPException(status_code=503, detail="Trading service not initialized")
+
+        all_orders = await service._exchange_client.get_open_orders()
+        
+        # Calculate total locked capital
+        total_notional = sum(
+            float(o.get("origQty", 0)) * float(o.get("price", 0) or o.get("stopPrice", 0) or 0)
+            for o in all_orders
+        )
+
+        return {
+            "status": "success",
+            "total_open_orders": len(all_orders),
+            "estimated_locked_capital": round(total_notional, 2),
+            "orders": all_orders
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to get open orders: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/time")
 async def get_precision_time() -> Dict[str, Any]:
     """Get current time information."""
