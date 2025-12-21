@@ -8,7 +8,7 @@ Add these to your `.env` file or deployment secrets:
 # Symphony API Key (REQUIRED)
 SYMPHONY_API_KEY=sk_live_k7h5KAh71HJM7uKARBf4a-JGJoaltQoRaAuY7a4wjp8
 
-# Symphony API Base URL  
+# Symphony API Base URL
 SYMPHONY_BASE_URL=https://api.symphony.finance
 
 # MIT Fund Settings

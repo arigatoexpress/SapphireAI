@@ -14,7 +14,7 @@ SYMPHONY_BASE_URL: str = os.getenv("SYMPHONY_BASE_URL", "https://api.symphony.fi
 MIT_FUND_NAME: str = os.getenv("MIT_FUND_NAME", "Sapphire MIT Agent")
 MIT_FUND_DESCRIPTION: str = os.getenv(
     "MIT_FUND_DESCRIPTION",
-    "Autonomous AI trading agent powered by Sapphire intelligence on Monad blockchain"
+    "Autonomous AI trading agent powered by Sapphire intelligence on Monad blockchain",
 )
 MIT_AUTO_SUBSCRIBE: bool = os.getenv("MIT_AUTO_SUBSCRIBE", "true").lower() == "true"
 
