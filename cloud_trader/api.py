@@ -12,19 +12,17 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
+import firebase_admin
 import httpx
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, WebSocket, status
 from fastapi.middleware.cors import CORSMiddleware  # CORS handled manually
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from firebase_admin import auth, credentials
 from prometheus_fastapi_instrumentator import Instrumentator
 from starlette.websockets import WebSocketDisconnect
 
-
 from .analytics.performance import AgentMetrics
-import firebase_admin
-from firebase_admin import auth, credentials
-from fastapi.responses import JSONResponse
 
 # Initialize Firebase Admin
 try:
@@ -95,11 +93,11 @@ rate_limiter = RateLimiter(requests_per_minute=60)  # 60 requests per minute per
 class TTLCache:
     """
     Simple TTL-based cache for API responses.
-    
+
     First Principle: Expensive computations should be cached.
     The consensus/state endpoint aggregates data from multiple sources,
     so caching it reduces CPU usage and response latency.
-    
+
     Usage:
         cache = TTLCache()
         cached = cache.get("key")
@@ -107,10 +105,10 @@ class TTLCache:
             data = compute_expensive_data()
             cache.set("key", data, ttl=30)
     """
-    
+
     def __init__(self):
         self._cache: Dict[str, Tuple[Any, float]] = {}  # key -> (value, expiry_time)
-    
+
     def get(self, key: str) -> Optional[Any]:
         """Get cached value if not expired."""
         if key in self._cache:
@@ -120,16 +118,16 @@ class TTLCache:
             else:
                 del self._cache[key]
         return None
-    
+
     def set(self, key: str, value: Any, ttl: int = 30) -> None:
         """Set cached value with TTL in seconds."""
         self._cache[key] = (value, time.time() + ttl)
-    
+
     def invalidate(self, key: str) -> None:
         """Remove a cached value."""
         if key in self._cache:
             del self._cache[key]
-    
+
     def clear(self) -> None:
         """Clear all cached values."""
         self._cache.clear()
@@ -252,7 +250,7 @@ async def get_dashboard_data() -> Dict[str, Any]:
     """
     Batch endpoint that combines multiple data sources into a single response.
     Reduces network calls from 4+ to 1 for the main dashboard.
-    
+
     Returns:
         - portfolio: Balance, equity, P&L
         - agents: Active agents with performance metrics
@@ -270,38 +268,42 @@ async def get_dashboard_data() -> Dict[str, Any]:
                 "stats": {},
                 "history": [],
             }
-        
+
         # Gather all data concurrently
         portfolio_data = service.get_portfolio_status()
-        
+
         # Get agents
         agents_data = []
         if hasattr(service, "_agent_states"):
             for agent_id, agent in service._agent_states.items():
-                agents_data.append({
-                    "id": agent_id,
-                    "name": getattr(agent, "name", agent_id),
-                    "emoji": getattr(agent, "emoji", "🤖"),
-                    "status": "active" if getattr(agent, "is_active", True) else "idle",
-                    "win_rate": getattr(agent, "win_rate", 0.5),
-                    "total_trades": getattr(agent, "total_trades", 0),
-                    "weight": getattr(agent, "voting_weight", 1.0),
-                })
-        
+                agents_data.append(
+                    {
+                        "id": agent_id,
+                        "name": getattr(agent, "name", agent_id),
+                        "emoji": getattr(agent, "emoji", "🤖"),
+                        "status": "active" if getattr(agent, "is_active", True) else "idle",
+                        "win_rate": getattr(agent, "win_rate", 0.5),
+                        "total_trades": getattr(agent, "total_trades", 0),
+                        "weight": getattr(agent, "voting_weight", 1.0),
+                    }
+                )
+
         # Get recent signals from consensus engine
         signals = []
         if hasattr(service, "_consensus_engine"):
             recent = getattr(service._consensus_engine, "_recent_results", [])
             for result in list(recent)[-20:]:
-                signals.append({
-                    "symbol": getattr(result, "symbol", ""),
-                    "winning_signal": getattr(result, "winning_signal", "hold"),
-                    "confidence": getattr(result, "consensus_confidence", 0),
-                    "agreement": getattr(result, "agreement_ratio", 0),
-                    "is_strong": getattr(result, "consensus_confidence", 0) > 0.7,
-                    "timestamp_us": int(time.time() * 1000000),
-                })
-        
+                signals.append(
+                    {
+                        "symbol": getattr(result, "symbol", ""),
+                        "winning_signal": getattr(result, "winning_signal", "hold"),
+                        "confidence": getattr(result, "consensus_confidence", 0),
+                        "agreement": getattr(result, "agreement_ratio", 0),
+                        "is_strong": getattr(result, "consensus_confidence", 0) > 0.7,
+                        "timestamp_us": int(time.time() * 1000000),
+                    }
+                )
+
         # Get portfolio history for sparkline (simulated if not available)
         history = []
         if hasattr(service, "_portfolio_history"):
@@ -310,8 +312,9 @@ async def get_dashboard_data() -> Dict[str, Any]:
             # Generate mock history based on current value
             base = portfolio_data.get("balance", 1000)
             import random
+
             history = [base * (1 + random.uniform(-0.02, 0.02)) for _ in range(24)]
-        
+
         # Aggregated stats
         stats = {
             "total_pnl_percent": portfolio_data.get("total_pnl_percent", 0),
@@ -319,7 +322,7 @@ async def get_dashboard_data() -> Dict[str, Any]:
             "active_agents_count": len([a for a in agents_data if a["status"] == "active"]),
             "total_signals": len(signals),
         }
-        
+
         return {
             "portfolio": {
                 "balance": portfolio_data.get("balance", 0),
@@ -343,23 +346,25 @@ async def get_dashboard_data() -> Dict[str, Any]:
             "error": str(e),
         }
 
+
 @app.get("/healthz")
 async def healthz() -> Dict[str, object]:
     """
     Enhanced health check endpoint.
-    
+
     Returns comprehensive system health including:
     - Service status (running, paper trading mode)
     - Dependency health (Exchange, Telegram, Firestore)
     - Performance metrics snapshot
     - Circuit breaker states
-    
+
     This follows the first principle: Health checks should be actionable.
     If something is unhealthy, the response tells you what and why.
     """
-    from fastapi.responses import JSONResponse
     import time
-    
+
+    from fastapi.responses import JSONResponse
+
     health_data = {
         "status": "healthy",
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -382,10 +387,10 @@ async def healthz() -> Dict[str, object]:
         },
         "circuit_breakers": {},
     }
-    
+
     try:
         service = get_service_instance()
-        
+
         if service:
             # Core service health
             status = service.health()
@@ -394,22 +399,25 @@ async def healthz() -> Dict[str, object]:
                 "paper_trading": status.paper_trading,
                 "last_error": status.last_error,
             }
-            
+
             # Agent count
             if hasattr(service, "_agent_states"):
-                health_data["performance"]["agents_active"] = len([
-                    a for a in service._agent_states.values() 
-                    if getattr(a, "status", "") == "active"
-                ])
-            
+                health_data["performance"]["agents_active"] = len(
+                    [
+                        a
+                        for a in service._agent_states.values()
+                        if getattr(a, "status", "") == "active"
+                    ]
+                )
+
             # Open positions count
             if hasattr(service, "_open_positions"):
                 health_data["performance"]["open_positions"] = len(service._open_positions)
-            
+
             # Pending orders count
             if hasattr(service, "_pending_orders"):
                 health_data["performance"]["pending_orders"] = len(service._pending_orders)
-            
+
             # Exchange health check (quick ping)
             if hasattr(service, "_exchange_client") and service._exchange_client:
                 try:
@@ -424,34 +432,35 @@ async def healthz() -> Dict[str, object]:
                         "status": "unhealthy",
                         "error": str(e)[:100],
                     }
-            
+
             # Telegram health
             if hasattr(service, "_telegram") and service._telegram:
                 health_data["dependencies"]["telegram"] = {"status": "healthy"}
             else:
                 health_data["dependencies"]["telegram"] = {"status": "disabled"}
-            
+
             # Firestore health (check Firebase Admin SDK)
             try:
                 import firebase_admin
+
                 firebase_admin.get_app()
                 health_data["dependencies"]["firestore"] = {"status": "healthy"}
             except Exception:
                 health_data["dependencies"]["firestore"] = {"status": "unknown"}
-            
+
         else:
             health_data["status"] = "degraded"
             health_data["service"]["last_error"] = "Trading service not initialized"
-            
+
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         health_data["status"] = "unhealthy"
         health_data["service"]["last_error"] = str(e)
-    
+
     # Set overall status based on critical dependencies
     if health_data["dependencies"]["exchange"].get("status") == "unhealthy":
         health_data["status"] = "unhealthy"
-    
+
     response = JSONResponse(content=health_data)
     response.headers["Access-Control-Allow-Origin"] = "*"
     response.headers["Access-Control-Allow-Credentials"] = "true"
@@ -547,13 +556,13 @@ async def cancel_all_orders(request: Request, _: None = Depends(require_admin)) 
 
         # Get all open orders
         all_open_orders = await service._exchange_client.get_open_orders()
-        
+
         if not all_open_orders:
             return {
                 "status": "success",
                 "message": "No open orders to cancel",
                 "cancelled_count": 0,
-                "orders": []
+                "orders": [],
             }
 
         cancelled = []
@@ -565,18 +574,22 @@ async def cancel_all_orders(request: Request, _: None = Depends(require_admin)) 
                 order_id = order.get("orderId")
                 if symbol and order_id:
                     await service._exchange_client.cancel_order(symbol, str(order_id))
-                    cancelled.append({
-                        "symbol": symbol,
-                        "orderId": order_id,
-                        "type": order.get("type"),
-                        "side": order.get("side")
-                    })
+                    cancelled.append(
+                        {
+                            "symbol": symbol,
+                            "orderId": order_id,
+                            "type": order.get("type"),
+                            "side": order.get("side"),
+                        }
+                    )
             except Exception as e:
-                errors.append({
-                    "symbol": order.get("symbol"),
-                    "orderId": order.get("orderId"),
-                    "error": str(e)
-                })
+                errors.append(
+                    {
+                        "symbol": order.get("symbol"),
+                        "orderId": order.get("orderId"),
+                        "error": str(e),
+                    }
+                )
 
         # Send notification
         if service._telegram:
@@ -589,7 +602,7 @@ async def cancel_all_orders(request: Request, _: None = Depends(require_admin)) 
             "cancelled_count": len(cancelled),
             "error_count": len(errors),
             "cancelled": cancelled,
-            "errors": errors if errors else None
+            "errors": errors if errors else None,
         }
 
     except Exception as e:
@@ -606,7 +619,7 @@ async def get_all_open_orders(request: Request, _: None = Depends(require_admin)
             raise HTTPException(status_code=503, detail="Trading service not initialized")
 
         all_orders = await service._exchange_client.get_open_orders()
-        
+
         # Calculate total locked capital
         total_notional = sum(
             float(o.get("origQty", 0)) * float(o.get("price", 0) or o.get("stopPrice", 0) or 0)
@@ -617,7 +630,7 @@ async def get_all_open_orders(request: Request, _: None = Depends(require_admin)
             "status": "success",
             "total_open_orders": len(all_orders),
             "estimated_locked_capital": round(total_notional, 2),
-            "orders": all_orders
+            "orders": all_orders,
         }
 
     except Exception as e:
@@ -1155,55 +1168,55 @@ async def get_consensus_state() -> Dict[str, Any]:
                 all_positions = []
                 if hasattr(service, "_open_positions"):
                     all_positions = list(service._open_positions.values())
-                
+
                 unrealized_pnl = sum(p.get("pnl", 0) for p in all_positions)
                 realized_pnl = getattr(service, "_total_realized_pnl", 0.0)
-                
+
                 # Calculate fees and funding (WORLD-CLASS ACCURACY)
                 total_fees = 0.0
                 total_funding = 0.0
-                
+
                 if hasattr(service, "_exchange_client") and service._exchange_client:
                     try:
                         # Get trading fees from last 7 days
                         seven_days_ago = int((time.time() - 7 * 24 * 3600) * 1000)
-                        
+
                         # Aggregate fees across all traded symbols
                         symbols_traded = set(p.get("symbol") for p in all_positions)
                         for symbol in symbols_traded:
                             try:
                                 trades = await service._exchange_client.get_account_trades(
-                                    symbol=symbol,
-                                    start_time=seven_days_ago,
-                                    limit=100
+                                    symbol=symbol, start_time=seven_days_ago, limit=100
                                 )
                                 # Sum commission from all trades
-                                total_fees += sum(float(t.get('commission', 0)) for t in trades)
+                                total_fees += sum(float(t.get("commission", 0)) for t in trades)
                             except:
                                 pass  # Skip if symbol fails
-                        
+
                         # Get funding payments (income type: FUNDING_FEE)
                         try:
                             funding_history = await service._exchange_client.get_income_history(
-                                income_type='FUNDING_FEE',
-                                start_time=seven_days_ago,
-                                limit=100
+                                income_type="FUNDING_FEE", start_time=seven_days_ago, limit=100
                             )
                             # Sum funding payments (negative = paid, positive = received)
-                            total_funding = sum(float(f.get('income', 0)) for f in funding_history)
+                            total_funding = sum(float(f.get("income", 0)) for f in funding_history)
                         except:
                             pass  # Funding might not be available on all exchanges
-                            
+
                     except Exception as fee_err:
                         logger.debug(f"Could not fetch fees/funding: {fee_err}")
-                
+
                 # Calculate NET PnL (after fees and funding)
                 total_pnl = unrealized_pnl + realized_pnl - total_fees + total_funding
-                
+
                 # Calculate % return
-                initial_balance = service._portfolio.balance if service._portfolio.balance > 0 else 3000.0
-                total_pnl_percent = (total_pnl / initial_balance) * 100 if initial_balance > 0 else 0.0
-                
+                initial_balance = (
+                    service._portfolio.balance if service._portfolio.balance > 0 else 3000.0
+                )
+                total_pnl_percent = (
+                    (total_pnl / initial_balance) * 100 if initial_balance > 0 else 0.0
+                )
+
                 portfolio_data = {
                     "total_pnl": total_pnl,
                     "total_pnl_percent": total_pnl_percent,
@@ -3069,13 +3082,14 @@ async def get_live_dashboard_data() -> Dict[str, Any]:
 # SOCIAL SENTIMENT & GAMIFICATION ENDPOINTS
 # ===================================================================
 
+
 @app.middleware("http")
 async def verify_firebase_token(request: Request, call_next):
     # Public endpoints that don't require auth
     public_paths = [
-        "/health", 
-        "/healthz", 
-        "/consensus/state", 
+        "/health",
+        "/healthz",
+        "/consensus/state",
         "/portfolio-status",
         "/metrics",
         "/",
@@ -3083,16 +3097,16 @@ async def verify_firebase_token(request: Request, call_next):
         "/assets",
         "/favicon.ico",
         "/api/chat/messages",  # Public read-only
-        "/api/chat/ticker",    # Public ticker search
-        "/api/chat/sentiment", # Public sentiment
-        "/api/leaderboard",    # Public leaderboard
-        "/api/dashboard",      # Batch dashboard data
+        "/api/chat/ticker",  # Public ticker search
+        "/api/chat/sentiment",  # Public sentiment
+        "/api/leaderboard",  # Public leaderboard
+        "/api/dashboard",  # Batch dashboard data
     ]
-    
+
     # Check if path is public (startswith to handle subpaths)
     if any(request.url.path.startswith(p) for p in public_paths):
         return await call_next(request)
-        
+
     # Special handling for admin cron job (protected by header secret)
     if request.url.path == "/api/admin/score-predictions":
         # Check for X-Admin-Key header (set in Cloud Scheduler)
@@ -3100,7 +3114,7 @@ async def verify_firebase_token(request: Request, call_next):
         # In production use secret manager. For now using hardcoded or env var.
         expected_key = os.environ.get("ADMIN_API_KEY", "admin-secret-123")
         if admin_key != expected_key:
-             return JSONResponse({"error": "Unauthorized Admin Request"}, status_code=401)
+            return JSONResponse({"error": "Unauthorized Admin Request"}, status_code=401)
         return await call_next(request)
 
     # Verify Firebase ID token from Authorization header
@@ -3109,7 +3123,7 @@ async def verify_firebase_token(request: Request, call_next):
         # For websocket upgrades or other non-auth requests might need handling
         # But for /api/vote etc we need this.
         if request.url.path.startswith("/api/"):
-             return JSONResponse({"error": "Missing Authorization Header"}, status_code=401)
+            return JSONResponse({"error": "Missing Authorization Header"}, status_code=401)
         return await call_next(request)
 
     token = auth_header.replace("Bearer ", "")
@@ -3119,30 +3133,31 @@ async def verify_firebase_token(request: Request, call_next):
     except Exception as e:
         logger.warning(f"Auth failed: {e}")
         return JSONResponse({"error": "Invalid Token"}, status_code=401)
-    
+
     return await call_next(request)
+
 
 @app.post("/api/vote")
 async def submit_vote(request: Request) -> Dict[str, Any]:
     """Submit a daily market prediction vote."""
     try:
         from .voting_service import get_voting_service
-        
+
         uid = getattr(request.state, "uid", None)
         if not uid:
             return {"error": "Unauthorized"}
-            
+
         body = await request.json()
         symbol = body.get("symbol")
         prediction = body.get("prediction")
         confidence = body.get("confidence", 0.5)
-        
+
         if not uid or not symbol or not prediction:
             return {"error": "Missing required fields: uid, symbol, prediction"}
-        
+
         voting_service = get_voting_service()
         result = await voting_service.submit_vote(uid, symbol, prediction, confidence)
-        
+
         return result
     except Exception as e:
         logger.error(f"Vote submission failed: {e}")
@@ -3154,10 +3169,10 @@ async def get_sentiment(symbol: str) -> Dict[str, Any]:
     """Get aggregated crowd sentiment for a symbol."""
     try:
         from .voting_service import get_voting_service
-        
+
         voting_service = get_voting_service()
         sentiment = await voting_service.get_crowd_sentiment(symbol)
-        
+
         return sentiment
     except Exception as e:
         logger.error(f"Failed to get sentiment for {symbol}: {e}")
@@ -3169,16 +3184,16 @@ async def get_user_stats(request: Request) -> Dict[str, Any]:
     """Get user stats."""
     try:
         from .user_service import get_user_service
-        
+
         uid = getattr(request.state, "uid", None)
         if not uid:
-             # Allow inspection if uid param matches (or for admin later)
-             # But for now, require auth
-             return {"error": "Unauthorized"}
-             
+            # Allow inspection if uid param matches (or for admin later)
+            # But for now, require auth
+            return {"error": "Unauthorized"}
+
         user_service = get_user_service()
         stats = await user_service.get_user_stats(uid)
-        
+
         return stats
     except Exception as e:
         logger.error(f"Failed to get user stats: {e}")
@@ -3190,14 +3205,14 @@ async def daily_checkin(request: Request) -> Dict[str, Any]:
     """Record daily check-in and award points."""
     try:
         from .user_service import get_user_service
-        
+
         uid = getattr(request.state, "uid", None)
         if not uid:
             return {"error": "Unauthorized"}
-            
+
         user_service = get_user_service()
         result = await user_service.record_daily_checkin(uid)
-        
+
         return result
     except Exception as e:
         logger.error(f"Daily check-in failed: {e}")
@@ -3209,10 +3224,10 @@ async def score_predictions(request: Request) -> Dict[str, Any]:
     """Admin endpoint to manually trigger prediction scoring."""
     try:
         from .voting_service import get_voting_service
-        
+
         voting_service = get_voting_service()
         result = await voting_service.score_predictions()
-        
+
         return result
     except Exception as e:
         logger.error(f"Prediction scoring failed: {e}")
@@ -3220,23 +3235,25 @@ async def score_predictions(request: Request) -> Dict[str, Any]:
 
 
 @app.get("/api/leaderboard")
-async def get_leaderboard(timeframe: str = Query("all", regex="^(all|monthly|accuracy|streaks)$")) -> List[Dict[str, Any]]:
+async def get_leaderboard(
+    timeframe: str = Query("all", regex="^(all|monthly|accuracy|streaks)$")
+) -> List[Dict[str, Any]]:
     """
     Get leaderboard rankings.
-    
+
     Args:
         timeframe: 'all' | 'monthly' | 'accuracy' | 'streaks'
     """
     try:
         from .points_system import get_points_system
-        
+
         points_system = get_points_system()
-        
+
         if timeframe == "streaks":
             leaderboard = await points_system.get_streak_leaderboard()
         else:
             leaderboard = await points_system.get_leaderboard(timeframe)
-        
+
         return leaderboard
     except Exception as e:
         logger.error(f"Leaderboard fetch failed: {e}")
@@ -3245,6 +3262,7 @@ async def get_leaderboard(timeframe: str = Query("all", regex="^(all|monthly|acc
 
 # ============ CHAT API ENDPOINTS ============
 
+
 @app.get("/api/chat/messages")
 async def get_chat_messages(
     limit: int = Query(50, ge=1, le=100),
@@ -3252,10 +3270,10 @@ async def get_chat_messages(
     """Get recent chat messages."""
     try:
         from .chat_service import get_chat_service
-        
+
         chat_service = get_chat_service()
         messages = await chat_service.get_messages(limit=limit)
-        
+
         return {
             "messages": [
                 {
@@ -3287,7 +3305,7 @@ async def get_chat_messages(
 async def send_chat_message(request: Request) -> Dict[str, Any]:
     """
     Send a chat message.
-    
+
     Body:
     {
         "content": "I think $BTC is going to pump!",
@@ -3296,28 +3314,28 @@ async def send_chat_message(request: Request) -> Dict[str, Any]:
     """
     try:
         # Get authenticated user from middleware (already verified)
-        uid = getattr(request.state, 'uid', None)
+        uid = getattr(request.state, "uid", None)
         if not uid:
             return {"error": "Authentication required"}
-        
-        from .chat_service import get_chat_service
+
         from .chat_bot import get_chat_bot
-        
+        from .chat_service import get_chat_service
+
         body = await request.json()
         content = body.get("content", "").strip()
         reply_to = body.get("reply_to")
-        
+
         if not content:
             return {"error": "Message content is required"}
-        
+
         if len(content) > 500:
             return {"error": "Message too long (max 500 characters)"}
-        
+
         chat_service = get_chat_service()
-        
+
         # Get or create user profile
         profile = await chat_service.get_or_create_profile(uid)
-        
+
         # Send message
         message = await chat_service.send_message(
             user_id=uid,
@@ -3327,14 +3345,12 @@ async def send_chat_message(request: Request) -> Dict[str, Any]:
             avatar="👤",
             reply_to=reply_to,
         )
-        
+
         # Check for bot mentions
         if "@sapphire" in content.lower() or "@bot" in content.lower():
             chat_bot = get_chat_bot()
-            asyncio.create_task(
-                chat_bot.respond_to_mention(message.id, content, profile.username)
-            )
-        
+            asyncio.create_task(chat_bot.respond_to_mention(message.id, content, profile.username))
+
         return {
             "success": True,
             "message": {
@@ -3353,21 +3369,21 @@ async def send_chat_message(request: Request) -> Dict[str, Any]:
 async def like_chat_message(request: Request) -> Dict[str, Any]:
     """Like a chat message."""
     try:
-        uid = getattr(request.state, 'uid', None)
+        uid = getattr(request.state, "uid", None)
         if not uid:
             return {"error": "Authentication required"}
-        
+
         from .chat_service import get_chat_service
-        
+
         body = await request.json()
         message_id = body.get("message_id")
-        
+
         if not message_id:
             return {"error": "message_id is required"}
-        
+
         chat_service = get_chat_service()
         success = await chat_service.like_message(message_id, uid)
-        
+
         return {"success": success, "liked": success}
     except Exception as e:
         logger.error(f"Chat like failed: {e}")
@@ -3379,10 +3395,10 @@ async def get_ticker_messages(ticker: str, limit: int = 20) -> Dict[str, Any]:
     """Get messages mentioning a specific ticker."""
     try:
         from .chat_service import get_chat_service
-        
+
         chat_service = get_chat_service()
         messages = await chat_service.get_messages_with_ticker(ticker, limit=limit)
-        
+
         return {
             "ticker": ticker.upper(),
             "messages": [
@@ -3407,10 +3423,10 @@ async def get_chat_sentiment(symbol: str) -> Dict[str, Any]:
     """Get crowd sentiment for a symbol based on chat messages."""
     try:
         from .chat_bot import get_chat_bot
-        
+
         chat_bot = get_chat_bot()
         sentiment = await chat_bot.get_crowd_sentiment(symbol)
-        
+
         return {
             "symbol": symbol.upper(),
             **sentiment,
@@ -3422,19 +3438,20 @@ async def get_chat_sentiment(symbol: str) -> Dict[str, Any]:
 
 # ============ USER PROFILE ENDPOINTS ============
 
+
 @app.get("/api/user/profile")
 async def get_user_profile(request: Request) -> Dict[str, Any]:
     """Get the authenticated user's profile."""
     try:
-        uid = getattr(request.state, 'uid', None)
+        uid = getattr(request.state, "uid", None)
         if not uid:
             return {"error": "Authentication required"}
-        
+
         from .chat_service import get_chat_service
-        
+
         chat_service = get_chat_service()
         profile = await chat_service.get_or_create_profile(uid)
-        
+
         return {
             "uid": profile.uid,
             "username": profile.username,
@@ -3458,7 +3475,7 @@ async def get_user_profile(request: Request) -> Dict[str, Any]:
 async def update_user_profile(request: Request) -> Dict[str, Any]:
     """
     Update user profile.
-    
+
     Body:
     {
         "username": "trader123",  // Must be unique
@@ -3467,26 +3484,26 @@ async def update_user_profile(request: Request) -> Dict[str, Any]:
     }
     """
     try:
-        uid = getattr(request.state, 'uid', None)
+        uid = getattr(request.state, "uid", None)
         if not uid:
             return {"error": "Authentication required"}
-        
+
         from .chat_service import get_chat_service
-        
+
         body = await request.json()
         username = body.get("username")
         display_name = body.get("display_name")
         bio = body.get("bio")
-        
+
         # Validate username
         if username:
             if len(username) < 3 or len(username) > 20:
                 return {"error": "Username must be 3-20 characters"}
             if not username.isalnum() and "_" not in username:
                 return {"error": "Username can only contain letters, numbers, and underscores"}
-        
+
         chat_service = get_chat_service()
-        
+
         try:
             profile = await chat_service.update_profile(
                 uid=uid,
@@ -3496,7 +3513,7 @@ async def update_user_profile(request: Request) -> Dict[str, Any]:
             )
         except ValueError as ve:
             return {"error": str(ve)}
-        
+
         return {
             "success": True,
             "profile": {
@@ -3511,14 +3528,16 @@ async def update_user_profile(request: Request) -> Dict[str, Any]:
 
 
 @app.get("/api/user/check-username")
-async def check_username_available(username: str = Query(..., min_length=3, max_length=20)) -> Dict[str, Any]:
+async def check_username_available(
+    username: str = Query(..., min_length=3, max_length=20)
+) -> Dict[str, Any]:
     """Check if a username is available."""
     try:
         from .chat_service import get_chat_service
-        
+
         chat_service = get_chat_service()
         available = await chat_service.check_username_available(username)
-        
+
         return {"username": username, "available": available}
     except Exception as e:
         logger.error(f"Username check failed: {e}")
@@ -3530,18 +3549,18 @@ async def get_bot_stats() -> Dict[str, Any]:
     """Get chat bot statistics."""
     try:
         from .chat_bot import get_chat_bot
-        
+
         chat_bot = get_chat_bot()
-        
+
         return {
             "pending_advice_count": chat_bot.get_pending_advice_count(),
             "recent_suggestions": chat_bot.get_recent_suggestions(limit=10),
-            "last_analysis": chat_bot._last_analysis_time.isoformat() if chat_bot._last_analysis_time else None,
+            "last_analysis": (
+                chat_bot._last_analysis_time.isoformat() if chat_bot._last_analysis_time else None
+            ),
         }
     except Exception as e:
         logger.error(f"Bot stats fetch failed: {e}")
         return {"error": str(e)}
 
-
     return app
-

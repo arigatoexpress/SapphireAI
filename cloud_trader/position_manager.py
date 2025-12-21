@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import time
-from decimal import Decimal, ROUND_DOWN
+from decimal import ROUND_DOWN, Decimal
 from typing import Any, Dict, List, Optional, Tuple
 
 from .definitions import SYMBOL_CONFIG, MinimalAgentState
@@ -29,10 +29,12 @@ class PositionManager:
             filters = await self.exchange_client.get_symbol_filters(symbol)
             tick_size = filters.get("tick_size", Decimal("0.01"))
             price_precision = filters.get("price_precision", 2)
-            
+
             price_dec = Decimal(str(price))
-            rounded = (price_dec / tick_size).quantize(Decimal('1'), rounding=ROUND_DOWN) * tick_size
-            
+            rounded = (price_dec / tick_size).quantize(
+                Decimal("1"), rounding=ROUND_DOWN
+            ) * tick_size
+
             # Format with exact decimal places
             format_str = f"{{:.{price_precision}f}}"
             return format_str.format(float(rounded))
@@ -47,16 +49,16 @@ class PositionManager:
             step_size = filters.get("step_size", Decimal("0.001"))
             min_qty = filters.get("min_qty", Decimal("0.001"))
             quantity_precision = filters.get("quantity_precision", 3)
-            
+
             qty_dec = Decimal(str(quantity))
-            
+
             # Floor to step_size
-            rounded = (qty_dec / step_size).quantize(Decimal('1'), rounding=ROUND_DOWN) * step_size
-            
+            rounded = (qty_dec / step_size).quantize(Decimal("1"), rounding=ROUND_DOWN) * step_size
+
             # Ensure at least min_qty
             if rounded < min_qty and quantity > 0:
                 rounded = min_qty
-            
+
             # Format with exact decimal places
             format_str = f"{{:.{quantity_precision}f}}"
             result = format_str.format(float(rounded))
@@ -99,12 +101,12 @@ class PositionManager:
                 # Compute actual side from quantity sign (Aster hedge mode)
                 raw_quantity = float(pos.get("positionAmt", 0))
                 actual_side = "BUY" if raw_quantity > 0 else "SELL"
-                
+
                 # Store position in our tracking
                 # Compute actual side from quantity sign (Aster hedge mode)
                 raw_quantity = float(pos.get("positionAmt", 0))
                 actual_side = "BUY" if raw_quantity > 0 else "SELL"
-                
+
                 # Round prices for inherited sync
                 entry_price = float(pos.get("entryPrice", 0))
                 tp_price = await self._round_price(symbol, entry_price * 1.05)
@@ -132,17 +134,19 @@ class PositionManager:
             # NATIVE TP/SL: Place orders for ALL inherited positions
             # This ensures risk is managed even if bot goes offline
             if self.open_positions:
-                print(f"🛡️ Placing native TP/SL for {len(self.open_positions)} inherited positions...")
+                print(
+                    f"🛡️ Placing native TP/SL for {len(self.open_positions)} inherited positions..."
+                )
                 for symbol, pos in self.open_positions.items():
                     try:
                         entry_price = pos["entry_price"]
                         side = pos["side"]
                         quantity = abs(pos["quantity"])
-                        
+
                         # Determine side from quantity sign if side is ambiguous
                         if side == "BOTH":
                             side = "BUY" if pos["quantity"] > 0 else "SELL"
-                        
+
                         if entry_price > 0 and quantity > 0:
                             # Only place TP/SL if not already placed for this symbol
                             if symbol not in self._tpsl_placed:
@@ -150,13 +154,13 @@ class PositionManager:
                                     symbol=symbol,
                                     entry_price=entry_price,
                                     side=side,
-                                quantity=quantity,
-                                tp_pct=0.05,  # 5% TP
-                                sl_pct=0.03,  # 3% SL
-                            )
+                                    quantity=quantity,
+                                    tp_pct=0.05,  # 5% TP
+                                    sl_pct=0.03,  # 3% SL
+                                )
                     except Exception as tpsl_err:
                         print(f"⚠️ Failed to place native TP/SL for inherited {symbol}: {tpsl_err}")
-                
+
                 print(f"✅ Native TP/SL setup complete for inherited positions")
 
         except Exception as e:
@@ -257,13 +261,13 @@ class PositionManager:
         try:
             # Round price to symbol's precision to avoid -1111 error
             rounded_sl = await self._round_price(symbol, sl_price)
-            
+
             # Determine order side (Closing logic)
             order_side = "SELL" if side == "BUY" else "BUY"
 
             # Round quantity to symbol's step size
             rounded_qty = await self._round_quantity(symbol, abs(quantity))
-            
+
             # Place STOP_MARKET order
             print(f"🛡️ Syncing Hard Stop for {symbol}: {order_side} {rounded_qty} @ {rounded_sl}")
             await self.exchange_client.place_order(
@@ -287,13 +291,13 @@ class PositionManager:
         try:
             # Round price to symbol's precision to avoid -1111 error
             rounded_tp = await self._round_price(symbol, tp_price)
-            
+
             # Determine order side (Closing logic)
             order_side = "SELL" if side == "BUY" else "BUY"
 
             # Round quantity to symbol's step size
             rounded_qty = await self._round_quantity(symbol, abs(quantity))
-            
+
             # Place TAKE_PROFIT_MARKET order
             print(f"💰 Syncing Take Profit for {symbol}: {order_side} {rounded_qty} @ {rounded_tp}")
             await self.exchange_client.place_order(
@@ -310,13 +314,13 @@ class PositionManager:
             print(f"⚠️ Failed to sync TP to exchange for {symbol}: {e}")
 
     async def place_tpsl_orders(
-        self, 
-        symbol: str, 
-        entry_price: float, 
-        side: str, 
+        self,
+        symbol: str,
+        entry_price: float,
+        side: str,
         quantity: float,
         tp_pct: float = 0.05,  # Default 5% TP
-        sl_pct: float = 0.03   # Default 3% SL
+        sl_pct: float = 0.03,  # Default 3% SL
     ):
         """
         Place both TP and SL orders on the exchange after position entry.
@@ -334,13 +338,15 @@ class PositionManager:
                 tp_price = entry_price * (1 - tp_pct)
                 sl_price = entry_price * (1 + sl_pct)
 
-            print(f"📊 Placing native TP/SL for {symbol}: Entry={entry_price:.6f}, TP={tp_price:.6f} ({tp_pct*100}%), SL={sl_price:.6f} ({sl_pct*100}%)")
+            print(
+                f"📊 Placing native TP/SL for {symbol}: Entry={entry_price:.6f}, TP={tp_price:.6f} ({tp_pct*100}%), SL={sl_price:.6f} ({sl_pct*100}%)"
+            )
 
             # Place both orders concurrently
             await asyncio.gather(
                 self.update_tp_on_exchange(symbol, tp_price, side, quantity),
                 self.update_sl_on_exchange(symbol, sl_price, side, quantity),
-                return_exceptions=True
+                return_exceptions=True,
             )
 
             # Update internal tracking
@@ -350,7 +356,7 @@ class PositionManager:
 
             # Mark as TP/SL placed to avoid repeated cancellation/placement
             self._tpsl_placed.add(symbol)
-            
+
             print(f"✅ NATIVE TP/SL ACTIVE for {symbol}")
             return True
 

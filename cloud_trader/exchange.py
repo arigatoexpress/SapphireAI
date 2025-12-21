@@ -445,7 +445,7 @@ class AsterClient:
         """Fetch symbol filters with caching (1h TTL)."""
         symbol = symbol.upper()
         now = time.time()
-        
+
         # Check cache (1h TTL)
         if symbol in self._filter_cache and (now - self._filter_cache_time.get(symbol, 0)) < 3600:
             return self._filter_cache[symbol]
@@ -480,11 +480,11 @@ class AsterClient:
             "quantity_precision": quantity_precision,
             "price_precision": price_precision,
         }
-        
+
         # Store in cache
         self._filter_cache[symbol] = result
         self._filter_cache_time[symbol] = now
-        
+
         return result
 
     async def get_position_risk(self) -> List[Dict[str, Any]]:
@@ -579,10 +579,10 @@ class AsterClient:
         try:
             # Get all open orders for this symbol
             open_orders = await self.get_open_orders(symbol)
-            
+
             if not open_orders:
                 return {"status": "success", "cancelled": 0}
-            
+
             # Cancel each order
             cancelled = 0
             for order in open_orders:
@@ -593,7 +593,7 @@ class AsterClient:
                         cancelled += 1
                 except Exception as e:
                     print(f"⚠️ Failed to cancel order {order.get('orderId')}: {e}")
-            
+
             return {"status": "success", "cancelled": cancelled}
         except Exception as e:
             print(f"⚠️ Error in cancel_all_orders: {e}")

@@ -1,5 +1,7 @@
 """Main entrypoint for Cloud Run deployment."""
+
 import os
+
 import uvicorn
 
 if __name__ == "__main__":

@@ -8,7 +8,7 @@
 
 **Autonomous AI Trading System for Aster DEX Perpetual Futures**
 
-[Live Dashboard](https://sapphire-479610.web.app) • [Backend API](https://cloud-trader-267358751314.northamerica-northeast1.run.app)
+[Live Dashboard](https://sapphire-479610.web.app) • [Backend API](https://cloud-trader-267358751314.europe-west1.run.app)
 
 </div>
 

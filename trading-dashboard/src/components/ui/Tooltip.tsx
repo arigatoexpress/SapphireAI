@@ -1,8 +1,8 @@
 /**
  * Tooltip Wrapper Component (Tailwind CSS)
- * 
+ *
  * First Principle: Users should understand what they're looking at.
- * 
+ *
  * This component wraps dashboard metrics with informative tooltips
  * that explain trading concepts in plain language.
  */

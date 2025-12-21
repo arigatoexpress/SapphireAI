@@ -6,11 +6,11 @@ Only essential functionality for basic trading operations.
 import asyncio
 import json
 import logging
+import math
 import os
 import random
 import time
-import math
-from collections import deque, defaultdict
+from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -23,19 +23,14 @@ from .analytics.performance import PerformanceTracker
 from .config import Settings, get_settings
 from .credentials import CredentialManager
 from .data.feature_pipeline import FeaturePipeline
-from .definitions import (
-    AGENT_DEFINITIONS,
-    SYMBOL_CONFIG,
-    HealthStatus,
-    MinimalAgentState,
-)
+from .definitions import AGENT_DEFINITIONS, SYMBOL_CONFIG, HealthStatus, MinimalAgentState
 from .enhanced_telegram import EnhancedTelegramService, NotificationPriority
 from .enums import OrderType
 from .exchange import AsterClient
 from .market_data import MarketDataManager
 from .partial_exits import PartialExitStrategy
 from .position_manager import PositionManager
-from .reentry_queue import get_reentry_queue, ReEntryQueue
+from .reentry_queue import ReEntryQueue, get_reentry_queue
 from .risk import PortfolioState, RiskManager
 from .self_healing import SelfHealingWatchdog
 from .swarm import SwarmManager
@@ -44,6 +39,7 @@ from .websocket_manager import broadcast_market_regime
 # Adaptive TP/SL Calculator
 try:
     from .adaptive_tpsl import AdaptiveTPSLCalculator, get_adaptive_tpsl_calculator
+
     ADAPTIVE_TPSL_AVAILABLE = True
 except ImportError as e:
     print(f"⚠️ Adaptive TP/SL not available: {e}")
@@ -51,7 +47,8 @@ except ImportError as e:
 
 # Risk Guard - Global Risk Protection
 try:
-    from .risk_guard import get_risk_guard, RiskCheckResult
+    from .risk_guard import RiskCheckResult, get_risk_guard
+
     RISK_GUARD_AVAILABLE = True
 except ImportError as e:
     print(f"⚠️ RiskGuard not available: {e}")
@@ -60,6 +57,7 @@ except ImportError as e:
 # TAIndicators - optional, may fail due to pandas_ta numba cache issues
 try:
     from .ta_indicators import TAIndicators
+
     TA_AVAILABLE = True
 except Exception as ta_err:
     print(f"⚠️ TAIndicators not available: {ta_err}")
@@ -69,11 +67,12 @@ except Exception as ta_err:
 # PvP Adversarial Strategies
 try:
     from .pvp_strategies import (
-        get_counter_retail_strategy,
-        get_dynamic_leverage_calculator,
         CounterRetailStrategy,
         DynamicLeverageCalculator,
+        get_counter_retail_strategy,
+        get_dynamic_leverage_calculator,
     )
+
     PVP_AVAILABLE = True
 except Exception as pvp_err:
     print(f"⚠️ PvP strategies not available: {pvp_err}")
@@ -142,9 +141,15 @@ class MinimalTradingService:
         self._portfolio = PortfolioState(balance=0.0, equity=0.0)
         self._recent_trades = deque(maxlen=200)
         self._pending_orders: Dict[str, Dict] = {}
-        self._closing_positions: Set[str] = set()  # Track positions being closed to prevent duplicates
-        self._internal_open_positions: Dict[str, Dict] = {}  # Internal storage, accessed via property
-        self._internal_market_structure: Dict[str, Dict] = {}  # Internal storage for property fallback
+        self._closing_positions: Set[str] = (
+            set()
+        )  # Track positions being closed to prevent duplicates
+        self._internal_open_positions: Dict[str, Dict] = (
+            {}
+        )  # Internal storage, accessed via property
+        self._internal_market_structure: Dict[str, Dict] = (
+            {}
+        )  # Internal storage for property fallback
         self._account_balance: float = 0.0  # Will be updated from exchange
         self._last_balance_fetch: float = 0.0  # Timestamp of last balance fetch
 
@@ -171,7 +176,7 @@ class MinimalTradingService:
         # Hyperliquid (Removed Phase 25)
         self._hyperliquid_metrics = {}  # Keeping empty dict to avoid attr errors until full purge
         self._hyperliquid_positions = {}  # Empty dict to prevent AttributeError
-        
+
         # Aster tracking
         self._aster_fees = 0.0  # Track cumulative fees paid
         self._swept_profits = 0.0  # Track swept profits for dashboard
@@ -188,7 +193,9 @@ class MinimalTradingService:
 
         logger.info("=" * 50)
         logger.info(f"🚀 SAPPHIRE TRADER v2.1.0 - {datetime.now()}")
-        logger.info(f"📦 Telegram: {'ENABLED' if TELEGRAM_AVAILABLE and self._settings.enable_telegram else 'DISABLED'}")
+        logger.info(
+            f"📦 Telegram: {'ENABLED' if TELEGRAM_AVAILABLE and self._settings.enable_telegram else 'DISABLED'}"
+        )
         logger.info("=" * 50)
 
     def _init_managers_offline(self):
@@ -198,7 +205,7 @@ class MinimalTradingService:
             # they will be updated in start() with real clients.
             self.market_data_manager = MarketDataManager(None)
             self.position_manager = PositionManager(None, self._agent_states)
-            
+
             # Partial Exit Strategy for multi-target profit taking
             self.partial_exit_strategy = PartialExitStrategy()
 
@@ -287,16 +294,16 @@ class MinimalTradingService:
 
             # 2. Online Initialization (Clients, Managers, State)
             await self._init_online_components()
-            
+
             # Start Telegram Bot if available
-            if self._telegram and hasattr(self._telegram, 'start'):
+            if self._telegram and hasattr(self._telegram, "start"):
                 logger.info("🤖 Initializing Telegram bot handlers...")
                 asyncio.create_task(self._telegram.start())
 
             # 3. Start Background Tasks
             logger.debug("Starting main trading loop...")
             self._task = asyncio.create_task(self._run_trading_loop())
-            
+
             # Start Capital Efficiency Guard (hourly ghost order cleanup)
             asyncio.create_task(self._capital_efficiency_guard())
 
@@ -307,7 +314,7 @@ class MinimalTradingService:
             logger.debug("Syncing positions...")
             await self._sync_positions_from_exchange()
             await self._review_inherited_positions()
-            
+
             # 5b. Fetch Account Balance (critical for position sizing)
             await self._update_account_balance()
 
@@ -823,7 +830,9 @@ class MinimalTradingService:
                                 )
                                 print(f"📊 Partial Exit Plan created for {symbol}")
                             except Exception as pe_err:
-                                print(f"⚠️ Failed to create partial exit plan for {symbol}: {pe_err}")
+                                print(
+                                    f"⚠️ Failed to create partial exit plan for {symbol}: {pe_err}"
+                                )
 
                     # MCP Notification: Execution
                     self._mcp.add_message(
@@ -1216,18 +1225,23 @@ class MinimalTradingService:
         if not active_agents:
             print("🚫 DEBUG: No active agents available for trading")
             return
-        
+
         # Check for circuit breaker blocks
         breached_count = sum(1 for a in self._agent_states.values() if a.daily_loss_breached)
-        print(f"✅ DEBUG: {len(active_agents)} active agents ready (Total: {len(self._agent_states)}, Breached: {breached_count})")
+        print(
+            f"✅ DEBUG: {len(active_agents)} active agents ready (Total: {len(self._agent_states)}, Breached: {breached_count})"
+        )
         print(f"🚀 SCAN: Starting _scan_and_execute_new_trades (Per-Symbol Mode)...")
 
         # Optimization: Limit symbols to scan for responsiveness
         import random
+
         all_symbols = list(self._market_structure.keys()) if self._market_structure else []
         # Cycle through 5 random symbols per loop to ensure quick execution
-        symbols_to_scan = random.sample(all_symbols, min(5, len(all_symbols))) if all_symbols else []
-        
+        symbols_to_scan = (
+            random.sample(all_symbols, min(5, len(all_symbols))) if all_symbols else []
+        )
+
         if not symbols_to_scan:
             print("⚠️ No symbols to scan found in market structure")
             return
@@ -1243,28 +1257,32 @@ class MinimalTradingService:
             if hasattr(self, "_last_trade_time") and symbol in self._last_trade_time:
                 if time.time() - self._last_trade_time[symbol] < 900:  # 15 minutes
                     continue
-            
+
             # --- PHASE 1: GATHER SIGNALS (Concurrent) ---
             # All agents analyze this symbol concurrently
             analysis_tasks = []
             for agent in active_agents:
                 analysis_tasks.append(self._analyze_market_for_agent(agent, symbol))
-            
+
             # Wait for all agents to analyze this symbol
             results = await asyncio.gather(*analysis_tasks, return_exceptions=True)
-            
+
             # Process results
             params_updated = False
             for i, analysis in enumerate(results):
                 if isinstance(analysis, Exception):
                     continue
-                    
+
                 agent = active_agents[i]
-                
+
                 # If actionable (or at least worthy of logging), Submit to Consensus
                 # LOWERED THRESHOLD: 0.45 (was 0.65) to ensure Intelligence Feed is active
-                if isinstance(analysis, dict) and analysis.get("signal") in ["BUY", "SELL"] and analysis.get("confidence", 0) >= 0.45:
-                    
+                if (
+                    isinstance(analysis, dict)
+                    and analysis.get("signal") in ["BUY", "SELL"]
+                    and analysis.get("confidence", 0) >= 0.45
+                ):
+
                     # Register if needed
                     if agent.id not in self._consensus_engine.agent_registry:
                         self._consensus_engine.register_agent(
@@ -1272,7 +1290,7 @@ class MinimalTradingService:
                             agent.type,
                             "trend" if "trend" in agent.name.lower() else "mean_reversion",
                         )
-                    
+
                     # Create Signal
                     sig_type = (
                         SignalType.ENTRY_LONG
@@ -1296,11 +1314,11 @@ class MinimalTradingService:
             # --- PHASE 2: CONSENSUS VOTE (Immediate) ---
             # Query consensus engine for this symbol
             signals = self._consensus_engine.pending_signals.get(symbol, [])
-            
+
             if not signals or len(signals) == 0:
                 print(f"🚫 DEBUG: No signals for {symbol}, skipping")
-                continue # No signals for this symbol, move to next
-            
+                continue  # No signals for this symbol, move to next
+
             print(f"📊 DEBUG: {len(signals)} signals for {symbol}, conducting vote...")
             # Conduct Vote immediately
             consensus = await self._consensus_engine.conduct_consensus_vote(symbol)
@@ -1311,15 +1329,20 @@ class MinimalTradingService:
 
             # FILTER: High Conviction Swarm Only
             # LOWERED THRESHOLD: 0.60 (was 0.75) for Demo/Responsiveness
-            MIN_CONFIDENCE = 0.60 
-            MIN_AGREEMENT = 0.45 # (was 0.50)
-            
-            if consensus.consensus_confidence < MIN_CONFIDENCE or consensus.agreement_level < MIN_AGREEMENT:
+            MIN_CONFIDENCE = 0.60
+            MIN_AGREEMENT = 0.45  # (was 0.50)
+
+            if (
+                consensus.consensus_confidence < MIN_CONFIDENCE
+                or consensus.agreement_level < MIN_AGREEMENT
+            ):
                 print(f"⚠️ Weak Consensus for {symbol}: Conf={consensus.consensus_confidence:.2f}")
                 # We still produced a consensus result, so it will show up in the UI history!
                 continue
-            
-            print(f"✅ STRONG CONSENSUS: {symbol} {consensus.winning_signal} (conf={consensus.consensus_confidence:.2f})")
+
+            print(
+                f"✅ STRONG CONSENSUS: {symbol} {consensus.winning_signal} (conf={consensus.consensus_confidence:.2f})"
+            )
 
             # --- PHASE 3: EXECUTION ---
             winning_signal = consensus.winning_signal
@@ -1332,23 +1355,31 @@ class MinimalTradingService:
             # Determine Position Size
             account_balance = self._portfolio.balance
             print(f"💰 DEBUG: Account balance: ${account_balance:.2f}")
-            
+
             # Base size: 15% of account per trade (High Conviction)
             # Adjusted by confidence
-            base_size = 0.15 
+            base_size = 0.15
             size_multiplier = consensus.consensus_confidence  # 0.8 to 1.0
-            
+
             # Apply Agreement Bonus (if everyone agrees, go bigger)
-            agreement_bonus = 1.0 + (consensus.agreement_level - 0.5) 
-            
+            agreement_bonus = 1.0 + (consensus.agreement_level - 0.5)
+
             # Market Cap Tier Weighting: Larger bets on higher market cap tokens
             # Tier 1 (BTC, ETH): 1.5x multiplier (max confidence)
             # Tier 2 (SOL, BNB, XRP, ADA): 1.2x multiplier
             # Tier 3 (Other large caps): 1.0x multiplier
             # Tier 4 (Small caps): 0.7x multiplier (reduced risk)
             TIER_1_TOKENS = {"BTCUSDT", "ETHUSDT"}
-            TIER_2_TOKENS = {"SOLUSDT", "BNBUSDT", "XRPUSDT", "ADAUSDT", "DOGEUSDT", "AVAXUSDT", "LINKUSDT"}
-            
+            TIER_2_TOKENS = {
+                "SOLUSDT",
+                "BNBUSDT",
+                "XRPUSDT",
+                "ADAUSDT",
+                "DOGEUSDT",
+                "AVAXUSDT",
+                "LINKUSDT",
+            }
+
             if symbol in TIER_1_TOKENS:
                 mcap_multiplier = 1.5
                 print(f"📈 Market Cap Tier 1 (Major): {symbol} -> 1.5x size multiplier")
@@ -1361,10 +1392,14 @@ class MinimalTradingService:
             else:
                 mcap_multiplier = 0.7
                 print(f"⚠️ Market Cap Tier 4 (Small Cap): {symbol} -> 0.7x size multiplier")
-            
-            target_notional = account_balance * base_size * size_multiplier * agreement_bonus * mcap_multiplier
-            print(f"📏 DEBUG: Target notional: ${target_notional:.2f} (balance: ${account_balance:.2f}, conf: {consensus.consensus_confidence:.2f}, mcap: {mcap_multiplier}x)")
-            
+
+            target_notional = (
+                account_balance * base_size * size_multiplier * agreement_bonus * mcap_multiplier
+            )
+            print(
+                f"📏 DEBUG: Target notional: ${target_notional:.2f} (balance: ${account_balance:.2f}, conf: {consensus.consensus_confidence:.2f}, mcap: {mcap_multiplier}x)"
+            )
+
             # Hard Cap: Max 25% of account per trade (30% for Tier 1)
             MAX_POSITION_SIZE = 0.30 if symbol in TIER_1_TOKENS else 0.25
             max_allowed_notional = account_balance * MAX_POSITION_SIZE
@@ -1376,10 +1411,10 @@ class MinimalTradingService:
                 # 🛡️ RiskGuard: Global risk protection (MAX $50 loss per trade)
                 if RISK_GUARD_AVAILABLE:
                     risk_guard = get_risk_guard()
-                    
+
                     # Get stop-loss percentage (default 1.5% if not calculated)
                     sl_pct = 0.015  # Default stop-loss percentage
-                    
+
                     # Check trade against all risk limits
                     risk_check = risk_guard.check_trade(
                         portfolio_balance=account_balance,
@@ -1390,44 +1425,55 @@ class MinimalTradingService:
                         symbol=symbol,
                         atr_pct=0.02,  # Default ATR, could be fetched from market data
                     )
-                    
+
                     if not risk_check.approved:
                         print(f"🛡️ RiskGuard BLOCKED: {symbol} - {risk_check.reason}")
                         continue
-                    
+
                     # Apply adjusted notional from RiskGuard
                     if risk_check.adjusted_size < target_notional:
-                        print(f"🛡️ RiskGuard adjusted: ${target_notional:.2f} → ${risk_check.adjusted_size:.2f}")
+                        print(
+                            f"🛡️ RiskGuard adjusted: ${target_notional:.2f} → ${risk_check.adjusted_size:.2f}"
+                        )
                         target_notional = risk_check.adjusted_size
-                    
-                    print(f"🛡️ RiskGuard: MaxLoss=${risk_check.max_loss_usd:.2f} | {risk_check.reason}")
-                
+
+                    print(
+                        f"🛡️ RiskGuard: MaxLoss=${risk_check.max_loss_usd:.2f} | {risk_check.reason}"
+                    )
+
                 # 1. Exposure & Concentration Checks
-                MAX_TOTAL_EXPOSURE = 0.80   
+                MAX_TOTAL_EXPOSURE = 0.80
                 MAX_POSITION_SIZE = 0.15  # Reduced from 0.25 for safety
-                MAX_CONCURRENT_POSITIONS = 4  
-                
+                MAX_CONCURRENT_POSITIONS = 4
+
                 # Check A: Max Positions Limit
                 if len(self._open_positions) >= MAX_CONCURRENT_POSITIONS:
-                    print(f"⚠️ Risk Check: Max Positions ({MAX_CONCURRENT_POSITIONS}) Reached - Ultra-Focused Mode")
+                    print(
+                        f"⚠️ Risk Check: Max Positions ({MAX_CONCURRENT_POSITIONS}) Reached - Ultra-Focused Mode"
+                    )
                     continue
-                
+
                 # Check B: Exposure Limit
                 total_position_value = sum(
-                    abs(p["quantity"] * p["entry_price"]) 
-                    for p in self._open_positions.values()
+                    abs(p["quantity"] * p["entry_price"]) for p in self._open_positions.values()
                 )
                 account_balance = self._account_balance or 1000
-                current_exposure = total_position_value / account_balance if account_balance > 0 else 1.0
-                
+                current_exposure = (
+                    total_position_value / account_balance if account_balance > 0 else 1.0
+                )
+
                 if current_exposure >= MAX_TOTAL_EXPOSURE:
-                    print(f"⚠️ Risk Check: Exposure Limit Hit ({current_exposure:.1%} >= {MAX_TOTAL_EXPOSURE:.0%})")
+                    print(
+                        f"⚠️ Risk Check: Exposure Limit Hit ({current_exposure:.1%} >= {MAX_TOTAL_EXPOSURE:.0%})"
+                    )
                     continue
-                    
+
                 # Check C: Position Size Limit
                 max_allowed_notional = account_balance * MAX_POSITION_SIZE
                 if target_notional > max_allowed_notional:
-                    print(f"⚠️ Risk Check: Position Size Capped (${target_notional:.2f} -> ${max_allowed_notional:.2f})")
+                    print(
+                        f"⚠️ Risk Check: Position Size Capped (${target_notional:.2f} -> ${max_allowed_notional:.2f})"
+                    )
                     target_notional = max_allowed_notional
 
                 # 2. Get Market Context
@@ -1440,8 +1486,14 @@ class MinimalTradingService:
 
                 # 3. Agent Attribution
                 # Use matching agent definition if possible
-                best_agent_id = next(iter(consensus.agent_votes)) if consensus.agent_votes else active_agents[0].id
-                best_agent = next((a for a in active_agents if a.id == best_agent_id), active_agents[0])
+                best_agent_id = (
+                    next(iter(consensus.agent_votes))
+                    if consensus.agent_votes
+                    else active_agents[0].id
+                )
+                best_agent = next(
+                    (a for a in active_agents if a.id == best_agent_id), active_agents[0]
+                )
                 thesis = f"Swarm Consensus ({consensus.consensus_confidence:.2f}): {consensus.reasoning[:50]}..."
 
                 print(
@@ -1452,7 +1504,7 @@ class MinimalTradingService:
                 await self._execute_trade_order(
                     best_agent, symbol, side, quantity_float, thesis, is_closing=False
                 )
-                
+
                 # Mark as traded
                 if not hasattr(self, "_last_trade_time"):
                     self._last_trade_time = {}
@@ -1558,7 +1610,9 @@ class MinimalTradingService:
             final_quantity_float = float(quantity_float) * quantity_fuzz
 
             # Format quantity with precision using central PositionManager logic
-            formatted_quantity = await self.position_manager._round_quantity(symbol, final_quantity_float)
+            formatted_quantity = await self.position_manager._round_quantity(
+                symbol, final_quantity_float
+            )
 
             print(
                 f"🚀 ATTEMPTING TRADE: {agent.emoji} {agent.name} - {trade_side} {formatted_quantity} {symbol}{'(CLOSING)' if is_closing else ''}"
@@ -1578,8 +1632,10 @@ class MinimalTradingService:
 
                     total_balance = float(account_info.get("totalWalletBalance", 0))
                     available_balance = float(account_info.get("availableBalance", 0))
-                    
-                    print(f"💵 DEBUG: Total: ${total_balance:.2f}, Available: ${available_balance:.2f}")
+
+                    print(
+                        f"💵 DEBUG: Total: ${total_balance:.2f}, Available: ${available_balance:.2f}"
+                    )
 
                     cushion = total_balance * 0.10
 
@@ -1624,7 +1680,9 @@ class MinimalTradingService:
                             print(f"✅ Leverage adjusted to 1x for {symbol}")
 
                             # Retry Order with properly rounded quantity
-                            retry_qty = await self.position_manager._round_quantity(symbol, quantity_float)
+                            retry_qty = await self.position_manager._round_quantity(
+                                symbol, quantity_float
+                            )
                             order_result = await self._exchange_client.place_order(
                                 symbol=symbol,
                                 side=trade_side,
@@ -1695,7 +1753,7 @@ class MinimalTradingService:
                                 # Always clear from closing tracking
                                 if symbol in self._closing_positions:
                                     self._closing_positions.remove(symbol)
-                            
+
                             del self._open_positions[symbol]
                             self._save_positions()  # Persist removal
 
@@ -1709,21 +1767,32 @@ class MinimalTradingService:
                         # Uses ATR (volatility), win rate (history), and confidence
                         tp_pct = 0.025  # Fallback defaults
                         sl_pct = 0.015
-                        tp_price = avg_price * (1 + tp_pct) if side == "BUY" else avg_price * (1 - tp_pct)
-                        sl_price = avg_price * (1 - sl_pct) if side == "BUY" else avg_price * (1 + sl_pct)
+                        tp_price = (
+                            avg_price * (1 + tp_pct) if side == "BUY" else avg_price * (1 - tp_pct)
+                        )
+                        sl_price = (
+                            avg_price * (1 - sl_pct) if side == "BUY" else avg_price * (1 + sl_pct)
+                        )
                         adaptive_reasoning = "Default (2.5%/1.5%)"
-                        
+
                         if ADAPTIVE_TPSL_AVAILABLE:
                             try:
                                 # Get adaptive calculator
                                 from .agent_performance import PerformanceTracker
-                                perf_tracker = PerformanceTracker() if hasattr(self, '_perf_tracker') else None
-                                
+
+                                perf_tracker = (
+                                    PerformanceTracker() if hasattr(self, "_perf_tracker") else None
+                                )
+
                                 adaptive_calc = get_adaptive_tpsl_calculator(
                                     performance_tracker=perf_tracker,
-                                    feature_pipeline=self._feature_pipeline if hasattr(self, '_feature_pipeline') else None,
+                                    feature_pipeline=(
+                                        self._feature_pipeline
+                                        if hasattr(self, "_feature_pipeline")
+                                        else None
+                                    ),
                                 )
-                                
+
                                 # Calculate optimal TP/SL
                                 adaptive_result = await adaptive_calc.calculate(
                                     symbol=symbol,
@@ -1733,18 +1802,18 @@ class MinimalTradingService:
                                     consensus_confidence=0.7,  # Default if not available
                                     market_analysis=None,  # Will fetch fresh ATR data
                                 )
-                                
+
                                 tp_pct = adaptive_result.tp_pct
                                 sl_pct = adaptive_result.sl_pct
                                 tp_price = adaptive_result.tp_price
                                 sl_price = adaptive_result.sl_price
                                 adaptive_reasoning = adaptive_result.reasoning
-                                
+
                                 print(f"📊 ADAPTIVE TP/SL: {adaptive_reasoning}")
-                                
+
                             except Exception as adaptive_err:
                                 print(f"⚠️ Adaptive TP/SL failed, using defaults: {adaptive_err}")
-                        
+
                         # Add small jitter to avoid detection (game theory)
                         tp_jitter = random.uniform(0.995, 1.005)
                         sl_jitter = random.uniform(0.995, 1.005)
@@ -1756,11 +1825,15 @@ class MinimalTradingService:
                             # Centralized rounding for TP/SL to avoid -1111 errors
                             rounded_tp = await self.position_manager._round_price(symbol, tp_price)
                             rounded_sl = await self.position_manager._round_price(symbol, sl_price)
-                            rounded_qty = await self.position_manager._round_quantity(symbol, float(formatted_quantity))
-                            
+                            rounded_qty = await self.position_manager._round_quantity(
+                                symbol, float(formatted_quantity)
+                            )
+
                             sl_side = "SELL" if side == "BUY" else "BUY"
 
-                            logger.info(f"🛡️ Placing Native TP/SL: TP {rounded_tp} | SL {rounded_sl} (Qty: {rounded_qty})")
+                            logger.info(
+                                f"🛡️ Placing Native TP/SL: TP {rounded_tp} | SL {rounded_sl} (Qty: {rounded_qty})"
+                            )
 
                             # Place STOP_MARKET order for Stop Loss
                             await self._exchange_client.place_order(
@@ -1780,7 +1853,9 @@ class MinimalTradingService:
                                 stop_price=rounded_tp,
                                 reduce_only=True,
                             )
-                            print(f"✅ Native TP/SL orders placed: TP {rounded_tp} | SL {rounded_sl}")
+                            print(
+                                f"✅ Native TP/SL orders placed: TP {rounded_tp} | SL {rounded_sl}"
+                            )
                         except Exception as e:
                             logger.warning(f"⚠️ Failed to place Native TP/SL orders: {e}")
 
@@ -2206,15 +2281,17 @@ SOURCE: *Source:* Sapphire Duality System"""
 
             side = pos["side"]  # BUY, SELL, or BOTH (hedge mode)
             quantity = pos["quantity"]
-            
+
             # Handle Aster hedge mode: side='BOTH' means direction is in quantity sign
             if side == "BOTH":
                 if quantity > 0:
                     side = "BUY"  # Long position
                 else:
                     side = "SELL"  # Short position
-                print(f"⚠️ Warning: Position {symbol} has side 'BOTH', detected as {side} from quantity {quantity}")
-            
+                print(
+                    f"⚠️ Warning: Position {symbol} has side 'BOTH', detected as {side} from quantity {quantity}"
+                )
+
             # Always use absolute quantity for calculations
             abs_quantity = abs(quantity)
 
@@ -2225,19 +2302,26 @@ SOURCE: *Source:* Sapphire Duality System"""
 
             # PARTIAL EXIT STRATEGY: Check for partial profit targets
             try:
-                exit_signals = self.partial_exit_strategy.update_position_price(symbol, current_price)
+                exit_signals = self.partial_exit_strategy.update_position_price(
+                    symbol, current_price
+                )
                 for exit_signal in exit_signals:
                     if exit_signal.exit_size > 0:
                         partial_qty = exit_signal.exit_size
-                        print(f"📊 PARTIAL EXIT: {symbol} taking {partial_qty:.4f} @ ${current_price:.4f} ({exit_signal.reason})")
-                        
+                        print(
+                            f"📊 PARTIAL EXIT: {symbol} taking {partial_qty:.4f} @ ${current_price:.4f} ({exit_signal.reason})"
+                        )
+
                         # Execute partial exit
                         await self._execute_trade_order(
-                            agent, symbol, side, partial_qty,
+                            agent,
+                            symbol,
+                            side,
+                            partial_qty,
                             f"Partial Exit: {exit_signal.reason}",
-                            is_closing=True
+                            is_closing=True,
                         )
-                        
+
                         # Telegram notification for partial exit
                         try:
                             await self._telegram.send_message(
@@ -2246,11 +2330,11 @@ SOURCE: *Source:* Sapphire Duality System"""
                                 f"Size: `{partial_qty:.4f}`\n"
                                 f"PnL: `{pnl_pct:+.2%}`\n"
                                 f"Reason: {exit_signal.reason}",
-                                priority=NotificationPriority.MEDIUM
+                                priority=NotificationPriority.MEDIUM,
                             )
                         except Exception:
                             pass
-                        
+
                         # Execute in strategy
                         self.partial_exit_strategy.execute_exit(symbol, exit_signal)
             except Exception as pe_err:
@@ -2261,7 +2345,7 @@ SOURCE: *Source:* Sapphire Duality System"""
             # DYNAMIC ATR-BASED THRESHOLDS (PvP Adversarial Strategy)
             # Tight stops (1.2x ATR) to minimize losses, wider TP for asymmetric R:R
             # ═══════════════════════════════════════════════════════════════
-            
+
             # Get ATR for dynamic thresholds
             atr = None
             try:
@@ -2270,7 +2354,7 @@ SOURCE: *Source:* Sapphire Duality System"""
                     highs = [float(k[2]) for k in klines]
                     lows = [float(k[3]) for k in klines]
                     closes = [float(k[4]) for k in klines]
-                    
+
                     # Use TAIndicators if available, otherwise fallback
                     if TA_AVAILABLE and TAIndicators:
                         atr = TAIndicators.calculate_atr(highs, lows, closes, period=14)
@@ -2281,11 +2365,11 @@ SOURCE: *Source:* Sapphire Duality System"""
             except Exception as atr_err:
                 print(f"⚠️ ATR calculation failed for {symbol}: {atr_err}")
                 atr = None
-            
+
             # Dynamic thresholds based on ATR + Leverage Scaling
             leverage = getattr(agent, "leverage", 1) or 1
             scale = max(1, math.sqrt(leverage))  # Dampening factor
-            
+
             # Volatility Expansion: Allow more room in wider markets
             volatility_expansion = 1.0
             if atr and atr > 0:
@@ -2293,25 +2377,25 @@ SOURCE: *Source:* Sapphire Duality System"""
                 # If ATR > 1%, expand breathing room
                 volatility_expansion = 1.0 + max(0, (atr_pct - 0.01) * 20)
                 volatility_expansion = min(volatility_expansion, 2.5)  # Cap at 2.5x expansion
-            
+
             # Effective Scale: Tightened by Leverage, Loosened by Volatility
             effective_scale = max(0.5, scale / volatility_expansion)
-            
+
             MAX_SL_CAP = 0.05  # 5% Max SL (relaxed from 3%)
             MAX_TP_CAP = 0.12  # 12% Max TP (relaxed from 8%)
-            
+
             if atr and atr > 0:
                 atr_pct = atr / current_price
                 # TIGHT STOP LOSS: 1.2x ATR / Effective Scale
                 SL_THRESHOLD = -min(atr_pct * 1.5, MAX_SL_CAP) / effective_scale
-                
+
                 # WIDER TAKE PROFIT: 4.0x ATR / Effective Scale (Capture Trend)
                 TP_THRESHOLD = min(atr_pct * 4.0, MAX_TP_CAP) / effective_scale
             else:
                 # Fallback
                 SL_THRESHOLD = -0.02 / effective_scale
                 TP_THRESHOLD = 0.05 / effective_scale
-            
+
             EMERGENCY_SL = -0.05 / effective_scale  # Base 5% scaled
 
             action = None
@@ -2331,7 +2415,7 @@ SOURCE: *Source:* Sapphire Duality System"""
             elif pnl_pct >= TP_THRESHOLD:
                 action = "SELL" if side == "BUY" else "BUY"
                 reason = f"Take Profit (+{pnl_pct:.1%})"
-            
+
             # Priority 3: Tight Stop Loss
             elif pnl_pct <= SL_THRESHOLD:
                 action = "SELL" if side == "BUY" else "BUY"
@@ -2344,24 +2428,30 @@ SOURCE: *Source:* Sapphire Duality System"""
                 thesis = f"Portfolio Guard: {reason}"
 
                 # Calculate PnL in USD
-                pnl_usd = (current_price - entry_price) * abs_quantity if side == "BUY" else (entry_price - current_price) * abs_quantity
+                pnl_usd = (
+                    (current_price - entry_price) * abs_quantity
+                    if side == "BUY"
+                    else (entry_price - current_price) * abs_quantity
+                )
 
                 # Telegram Notification for TP/SL
                 emoji = "💰" if pnl_pct > 0 else ("🚨" if is_emergency else "❌")
-                priority = NotificationPriority.CRITICAL if is_emergency else NotificationPriority.HIGH
+                priority = (
+                    NotificationPriority.CRITICAL if is_emergency else NotificationPriority.HIGH
+                )
 
                 # Execute Close FIRST
                 # Note: side passed to _execute_trade_order is the CURRENT position side.
                 # is_closing=True tells it to close.
-                
+
                 # Mark as closing IMMEDIATELY to prevent duplicate notifications
                 self._closing_positions.add(symbol)
-                
+
                 try:
                     await self._execute_trade_order(
                         agent, symbol, side, abs_quantity, thesis, is_closing=True
                     )
-                    
+
                     # Only send Telegram notification AFTER successful execution
                     try:
                         await self._telegram.send_message(
@@ -2371,11 +2461,11 @@ SOURCE: *Source:* Sapphire Duality System"""
                             f"PnL: `{pnl_pct:+.2%}` (`${pnl_usd:+.2f}`)\n"
                             f"Entry: `${entry_price:.4f}`\n"
                             f"Exit: `${current_price:.4f}`",
-                            priority=priority
+                            priority=priority,
                         )
                     except Exception as tg_err:
                         print(f"⚠️ Telegram notification failed: {tg_err}")
-                    
+
                     # ═══════════════════════════════════════════════════════════════
                     # RE-ENTRY QUEUE: If stopped out, queue for re-entry at better price
                     # This creates asymmetric upside - we lose small, but can re-enter
@@ -2384,7 +2474,7 @@ SOURCE: *Source:* Sapphire Duality System"""
                         try:
                             reentry_queue = get_reentry_queue()
                             direction = "LONG" if side == "BUY" else "SHORT"
-                            
+
                             reentry_queue.queue_reentry(
                                 symbol=symbol,
                                 direction=direction,
@@ -2393,7 +2483,7 @@ SOURCE: *Source:* Sapphire Duality System"""
                                 thesis=thesis,
                                 confidence_boost=1.15,  # 15% higher confidence on re-entry
                             )
-                            
+
                             # Notify about re-entry queue (with throttling to prevent spam)
                             try:
                                 # Only send if throttler allows (30min cooldown per symbol)
@@ -2403,16 +2493,16 @@ SOURCE: *Source:* Sapphire Duality System"""
                                         f"Symbol: `{symbol}`\n"
                                         f"Direction: {direction}\n"
                                         f"Waiting for better entry after stop hunt exhaustion",
-                                        priority=NotificationPriority.MEDIUM
+                                        priority=NotificationPriority.MEDIUM,
                                     )
                                 else:
                                     logger.debug(f"Throttled re-entry notification for {symbol}")
                             except Exception:
                                 pass
-                                
+
                         except Exception as reentry_err:
                             logger.warning(f"Failed to queue re-entry for {symbol}: {reentry_err}")
-                        
+
                 except Exception as close_err:
                     print(f"⚠️ Failed to close {symbol}: {close_err}")
 
@@ -2423,7 +2513,7 @@ SOURCE: *Source:* Sapphire Duality System"""
         2. Scan for new opportunities via consensus-based approach
         3. Check re-entry queue for positions to re-open
         4. Detect stop hunts for opportunistic entries
-        
+
         This method is called by the main trading loop.
         """
         # 1. Manage existing positions (TP/SL, closes, adds)
@@ -2432,10 +2522,10 @@ SOURCE: *Source:* Sapphire Duality System"""
         # 2. Execute new trades using consensus engine
         # This calls the full consensus-based logic defined earlier
         await self._scan_and_execute_new_trades()
-        
+
         # 3. Check re-entry queue - execute queued re-entries at better prices
         await self._check_and_execute_reentries()
-        
+
         # 4. Detect stop hunts and capitalize on market maker exhaustion
         await self._detect_and_trade_stop_hunts()
 
@@ -2448,12 +2538,12 @@ SOURCE: *Source:* Sapphire Duality System"""
         try:
             reentry_queue = get_reentry_queue()
             pending = reentry_queue.get_all_pending()
-            
+
             if not pending:
                 return
-            
+
             print(f"📋 Checking {len(pending)} pending re-entries...")
-            
+
             # Get current prices
             ticker_map = {}
             try:
@@ -2461,54 +2551,59 @@ SOURCE: *Source:* Sapphire Duality System"""
                 ticker_map = {t["symbol"]: t for t in tickers}
             except Exception:
                 return
-            
+
             triggered = reentry_queue.check_reentries(ticker_map)
-            
+
             for order in triggered:
                 symbol = order.symbol
                 direction = order.direction
-                
+
                 # Skip if we already have a position in this symbol
                 if symbol in self._open_positions:
                     print(f"⏳ Re-entry skip: Already have position in {symbol}")
                     reentry_queue.remove(symbol)
                     continue
-                
+
                 # Get an agent for this trade
                 agent = (
                     self._agent_states.get("strategy-optimization-agent")
                     or list(self._agent_states.values())[0]
                 )
-                
+
                 # Execute re-entry with boosted confidence
                 side = "BUY" if direction == "LONG" else "SELL"
                 current_price = float(ticker_map.get(symbol, {}).get("lastPrice", 0))
-                
+
                 if current_price == 0:
                     continue
-                
+
                 # Calculate position size based on tight SL
                 # Since we're re-entering, we use 1.5x ATR for this tighter SL
                 notional_size = await self._calculate_position_size(
                     symbol, current_price, confidence=order.confidence
                 )
-                
+
                 if notional_size <= 0:
                     continue
-                
+
                 quantity = notional_size / current_price
-                
-                print(f"🔄 EXECUTING RE-ENTRY: {symbol} {direction} {quantity:.4f} @ ${current_price:.4f}")
-                
+
+                print(
+                    f"🔄 EXECUTING RE-ENTRY: {symbol} {direction} {quantity:.4f} @ ${current_price:.4f}"
+                )
+
                 try:
                     await self._execute_trade_order(
-                        agent, symbol, side, quantity,
+                        agent,
+                        symbol,
+                        side,
+                        quantity,
                         f"Re-Entry: Better price after stop hunt ({order.confidence:.0%} confidence)",
-                        is_closing=False
+                        is_closing=False,
                     )
-                    
+
                     reentry_queue.mark_successful(symbol)
-                    
+
                     # Telegram notification
                     try:
                         await self._telegram.send_message(
@@ -2518,49 +2613,47 @@ SOURCE: *Source:* Sapphire Duality System"""
                             f"Entry: `${current_price:.4f}`\n"
                             f"Original Stop: `${order.original_stop_price:.4f}`\n"
                             f"Savings: `{abs(current_price - order.original_stop_price) / order.original_stop_price:.1%}` better entry",
-                            priority=NotificationPriority.HIGH
+                            priority=NotificationPriority.HIGH,
                         )
                     except Exception:
                         pass
-                        
+
                 except Exception as re_err:
                     print(f"⚠️ Re-entry failed for {symbol}: {re_err}")
                     if order.attempts >= order.max_attempts:
                         reentry_queue.remove(symbol)
-                        
+
         except Exception as e:
             print(f"⚠️ Re-entry check error: {e}")
 
     async def _detect_and_trade_stop_hunts(self):
         """
         Detect stop hunt patterns and capitalize on market maker exhaustion.
-        
+
         A stop hunt is characterized by:
         1. Quick spike below support (or above resistance)
         2. Long wick relative to body
         3. Immediate price reversal
         4. Often occurs at key levels (round numbers, recent S/R)
-        
+
         When we detect a stop hunt, we enter in the OPPOSITE direction
         of the stop hunt (i.e., buy after stops were hunted below support).
         """
         try:
             # Only run occasionally (not every cycle)
             import random
+
             if random.random() > 0.1:  # 10% chance each cycle
                 return
-            
+
             # Get symbols we're interested in
             all_symbols = set()
             for agent in self._agent_states.values():
                 all_symbols.update(agent.symbols)
-            
+
             # Sample a few symbols to check
-            symbols_to_check = random.sample(
-                list(all_symbols), 
-                min(5, len(all_symbols))
-            )
-            
+            symbols_to_check = random.sample(list(all_symbols), min(5, len(all_symbols)))
+
             for symbol in symbols_to_check:
                 try:
                     stop_hunt = await self._analyze_for_stop_hunt(symbol)
@@ -2570,14 +2663,14 @@ SOURCE: *Source:* Sapphire Duality System"""
                         # This avoids over-trading on every detected pattern
                 except Exception:
                     pass
-                    
+
         except Exception as e:
             print(f"⚠️ Stop hunt detection error: {e}")
 
     async def _analyze_for_stop_hunt(self, symbol: str) -> Optional[Dict[str, Any]]:
         """
         Analyze a symbol for stop hunt patterns using wick analysis.
-        
+
         Returns a dict with direction to trade if stop hunt detected, else None.
         """
         try:
@@ -2585,20 +2678,20 @@ SOURCE: *Source:* Sapphire Duality System"""
             klines = await self._exchange_client.get_klines(symbol, interval="5m", limit=12)
             if not klines or len(klines) < 3:
                 return None
-            
+
             # Analyze last few candles for stop hunt pattern
             for i, candle in enumerate(klines[-3:]):
                 open_price = float(candle[1])
                 high = float(candle[2])
                 low = float(candle[3])
                 close = float(candle[4])
-                
+
                 body_size = abs(close - open_price)
                 total_range = high - low
-                
+
                 if total_range == 0:
                     continue
-                
+
                 # Calculate wick ratios
                 if close >= open_price:  # Bullish candle
                     lower_wick = open_price - low
@@ -2606,29 +2699,29 @@ SOURCE: *Source:* Sapphire Duality System"""
                 else:  # Bearish candle
                     lower_wick = close - low
                     upper_wick = high - open_price
-                
+
                 wick_to_body_ratio = max(lower_wick, upper_wick) / (body_size + 0.0001)
-                
+
                 # Stop hunt signal: Long lower wick (>3x body) + bullish close
                 if lower_wick > body_size * 3 and close > open_price:
                     return {
                         "direction": "LONG",
                         "trigger_price": close,
                         "wick_ratio": wick_to_body_ratio,
-                        "reason": "Long lower wick - stops hunted below"
+                        "reason": "Long lower wick - stops hunted below",
                     }
-                
+
                 # Stop hunt signal: Long upper wick (>3x body) + bearish close
                 if upper_wick > body_size * 3 and close < open_price:
                     return {
                         "direction": "SHORT",
                         "trigger_price": close,
                         "wick_ratio": wick_to_body_ratio,
-                        "reason": "Long upper wick - stops hunted above"
+                        "reason": "Long upper wick - stops hunted above",
                     }
-            
+
             return None
-            
+
         except Exception as e:
             return None
 
@@ -2636,20 +2729,21 @@ SOURCE: *Source:* Sapphire Duality System"""
         """
         Fetch and update account balance from exchange.
         Critical for position sizing and risk management.
-        
+
         NOTE: This fetches from /fapi/ (futures API), NOT /api/ (spot).
         Portfolio value tracks ONLY the perpetual futures account balance.
         """
         try:
             # Cache for 60 seconds to avoid excessive API calls
             import time
+
             current_time = time.time()
             if self._account_balance > 0 and (current_time - self._last_balance_fetch) < 60:
                 return  # Use cached value
-            
+
             # Get FUTURES account balance (not spot)
             balances = await self._exchange_client.get_account_balance()
-            
+
             # Find USDT balance in futures wallet
             for balance in balances:
                 if balance.get("asset") == "USDT":
@@ -2659,12 +2753,9 @@ SOURCE: *Source:* Sapphire Duality System"""
                     self._last_balance_fetch = current_time
                     print(f"💰 Futures Account Balance: ${self._account_balance:.2f} USDT")
                     return
-            
+
             # Fallback: sum all USDT-equivalent balances
-            total = sum(
-                float(b.get("availableBalance", 0) or b.get("free", 0))
-                for b in balances
-            )
+            total = sum(float(b.get("availableBalance", 0) or b.get("free", 0)) for b in balances)
             if total > 0:
                 self._account_balance = total
                 self._last_balance_fetch = current_time
@@ -2672,7 +2763,7 @@ SOURCE: *Source:* Sapphire Duality System"""
             else:
                 print("⚠️ Could not fetch balance, using fallback of $1000")
                 self._account_balance = 1000.0
-                
+
         except Exception as e:
             print(f"⚠️ Balance fetch error: {e}, using fallback of $1000")
             self._account_balance = 1000.0
@@ -2879,7 +2970,6 @@ SOURCE: *Source:* Sapphire Duality System"""
             # Don't spam errors if account info structure differs
             pass
 
-
     async def _capital_efficiency_guard(self):
         """
         Capital Efficiency Guard:
@@ -2887,48 +2977,50 @@ SOURCE: *Source:* Sapphire Duality System"""
         Prevents capital from being locked in stale limit orders.
         """
         logger.info("🛡️ Capital Efficiency Guard started (runs hourly)")
-        
+
         while self._health.running:
             try:
                 await asyncio.sleep(3600)  # Run every hour
-                
+
                 # Get all open orders
                 open_orders = await self._exchange_client.get_open_orders()
-                
+
                 # Get current position symbols
                 current_positions = set(self._open_positions.keys())
-                
+
                 # Find ghost orders (orders for symbols we don't have positions in)
                 ghost_orders = [
-                    order for order in open_orders 
-                    if order.get('symbol') not in current_positions
+                    order for order in open_orders if order.get("symbol") not in current_positions
                 ]
-                
+
                 if ghost_orders:
                     logger.info(f"🧹 Found {len(ghost_orders)} ghost orders to clean up")
                     cancelled_count = 0
-                    
+
                     for order in ghost_orders:
                         try:
                             await self._exchange_client.cancel_order(
-                                symbol=order['symbol'],
-                                order_id=order['orderId']
+                                symbol=order["symbol"], order_id=order["orderId"]
                             )
                             cancelled_count += 1
                         except Exception as cancel_err:
-                            logger.warning(f"Failed to cancel ghost order {order['orderId']}: {cancel_err}")
-                    
+                            logger.warning(
+                                f"Failed to cancel ghost order {order['orderId']}: {cancel_err}"
+                            )
+
                     if cancelled_count > 0:
-                        logger.info(f"✅ Capital Efficiency Guard: Cancelled {cancelled_count} ghost orders")
+                        logger.info(
+                            f"✅ Capital Efficiency Guard: Cancelled {cancelled_count} ghost orders"
+                        )
                         # Send Telegram notification only if significant cleanup (5+ orders)
                         if cancelled_count >= 5 and self._telegram:
                             await self._telegram.send_notification(
                                 f"🧹 Capital Efficiency Guard\nCancelled {cancelled_count} ghost orders\nFreed up locked capital",
-                                priority=NotificationPriority.LOW
+                                priority=NotificationPriority.LOW,
                             )
                 else:
                     logger.debug("Capital Efficiency Guard: No ghost orders found")
-                    
+
             except asyncio.CancelledError:
                 logger.info("Capital Efficiency Guard stopped")
                 break

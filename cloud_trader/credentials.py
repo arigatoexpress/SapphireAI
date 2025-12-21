@@ -7,8 +7,8 @@ import os
 from dataclasses import dataclass
 from typing import Optional
 
-from .config import get_settings
 from .api_secrets import GcpSecretManager
+from .config import get_settings
 
 _secret_manager = GcpSecretManager()
 

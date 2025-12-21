@@ -1,6 +1,8 @@
 """Main entrypoint for Cloud Run deployment."""
+
 import os
 import sys
+
 import uvicorn
 
 # Add parent directory to path to allow cloud_trader package imports

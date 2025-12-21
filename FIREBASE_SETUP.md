@@ -46,18 +46,18 @@ The error `auth/operation-not-allowed` means Email/Password authentication is no
        match /users/{userId} {
          allow read, write: if request.auth != null && request.auth.uid == userId;
        }
-       
+
        // Users can read all user profiles (for leaderboard)
        match /users/{userId} {
          allow read: if request.auth != null;
        }
-       
+
        // Users can write their own votes
        match /daily_votes/{voteId} {
          allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
          allow read: if request.auth != null;
        }
-       
+
        // Users can read their own points history
        match /points_history/{pointId} {
          allow read: if request.auth != null && resource.data.uid == request.auth.uid;
@@ -85,7 +85,7 @@ For the backend to access Firestore, you need a service account:
    ```bash
    # Upload as secret
    gcloud secrets create firebase-admin-key --data-file=./service-account-key.json
-   
+
    # Mount to Cloud Run
    gcloud run services update cloud-trader \
      --region=northamerica-northeast1 \

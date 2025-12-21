@@ -7,6 +7,7 @@ from .definitions import SYMBOL_CONFIG, MinimalAgentState
 # PvP Counter-Retail Strategy
 try:
     from .pvp_strategies import get_counter_retail_strategy
+
     PVP_AVAILABLE = True
 except Exception:
     PVP_AVAILABLE = False
@@ -27,7 +28,7 @@ class AnalysisEngine:
         """
         Perform basic technical analysis suited to the agent's specialization.
         Returns a dict with 'signal' ('BUY', 'SELL', 'NEUTRAL'), 'confidence', and 'thesis'.
-        
+
         Uses agent.type for matching:
         - 'momentum' → Trend/momentum strategy
         - 'market_maker' → Mean reversion strategy
@@ -82,7 +83,7 @@ class AnalysisEngine:
 
             # Trend strength (0-1 scale, based on 24h change)
             trend_strength = min(abs(price_change_pct) / 3.0, 1.0)
-            
+
             # Volatility score (0-1 scale)
             volatility_score = min((high_24h - low_24h) / price / 0.10, 1.0)
 
@@ -90,7 +91,7 @@ class AnalysisEngine:
             signal = "NEUTRAL"
             confidence = 0.0
             thesis_parts = []
-            agent_type = getattr(agent, 'type', 'general')
+            agent_type = getattr(agent, "type", "general")
 
             # ═══════════════════════════════════════════════════════════════
             # MOMENTUM AGENT: Trend following, likes strong directional moves
@@ -98,20 +99,24 @@ class AnalysisEngine:
             if agent_type == "momentum":
                 # Base confidence starts at 0.65 for actionable signals
                 base_conf = 0.65 + (trend_strength * 0.25)  # 0.65 to 0.90
-                
+
                 if abs(price_change_pct) > 1.5:  # Significant 24h move
                     if is_uptrend:
-                        if rsi < 75: # Not overbought
+                        if rsi < 75:  # Not overbought
                             signal = "BUY"
                             confidence = base_conf
-                            thesis_parts.append(f"Strong uptrend +{price_change_pct:.1f}%. Momentum BUY.")
+                            thesis_parts.append(
+                                f"Strong uptrend +{price_change_pct:.1f}%. Momentum BUY."
+                            )
                         else:
                             thesis_parts.append(f"Uptrend but RSI Overbought ({rsi:.0f}). Waiting.")
                     else:
-                        if rsi > 25: # Not oversold
+                        if rsi > 25:  # Not oversold
                             signal = "SELL"
                             confidence = base_conf
-                            thesis_parts.append(f"Strong downtrend {price_change_pct:.1f}%. Momentum SELL.")
+                            thesis_parts.append(
+                                f"Strong downtrend {price_change_pct:.1f}%. Momentum SELL."
+                            )
                         else:
                             thesis_parts.append(f"Downtrend but RSI Oversold ({rsi:.0f}). Waiting.")
 
@@ -124,7 +129,7 @@ class AnalysisEngine:
                         signal = "SELL"
                         confidence = base_conf * 0.9
                         thesis_parts.append(f"Moderate downtrend {price_change_pct:.1f}%.")
-                
+
                 # Order Flow Confirmation
                 if signal == "BUY" and bid_pressure > 0.55:
                     confidence *= 1.1
@@ -138,62 +143,68 @@ class AnalysisEngine:
             # ═══════════════════════════════════════════════════════════════
             elif agent_type == "market_maker":
                 base_conf = 0.65 + (volatility_score * 0.20)  # 0.65 to 0.85
-                
-                # Market Makers hate wide spreads (takers) or love them (makers). 
+
+                # Market Makers hate wide spreads (takers) or love them (makers).
                 # Since we TAKE liquidity via API key usually, we prefer tight spreads.
-                if spread_pct > 0.002: # >0.2% spread is expensive
-                     base_conf *= 0.8
-                     thesis_parts.append(f"⚠️ High Spread ({spread_pct:.2%}). Reducing size.")
+                if spread_pct > 0.002:  # >0.2% spread is expensive
+                    base_conf *= 0.8
+                    thesis_parts.append(f"⚠️ High Spread ({spread_pct:.2%}). Reducing size.")
 
                 if near_support or rsi < 35:  # Oversold - expect bounce
                     signal = "BUY"
                     confidence = base_conf
-                    if rsi < 30: confidence *= 1.1
-                    thesis_parts.append(f"Price Support/Oversold (RSI {rsi:.0f}). Mean Reversion BUY.")
-                    
+                    if rsi < 30:
+                        confidence *= 1.1
+                    thesis_parts.append(
+                        f"Price Support/Oversold (RSI {rsi:.0f}). Mean Reversion BUY."
+                    )
+
                 elif near_resistance or rsi > 65:  # Overbought - expect pullback
                     signal = "SELL"
                     confidence = base_conf
-                    if rsi > 70: confidence *= 1.1
-                    thesis_parts.append(f"Price Resistance/Overbought (RSI {rsi:.0f}). Mean Reversion SELL.")
-                
+                    if rsi > 70:
+                        confidence *= 1.1
+                    thesis_parts.append(
+                        f"Price Resistance/Overbought (RSI {rsi:.0f}). Mean Reversion SELL."
+                    )
+
                 # Order Book Imbalance acts as magnet? or simplified pressure?
                 # If heavy buying pressure (bids) at support -> Stronger Buy
                 if signal == "BUY" and bid_pressure > 0.60:
-                     confidence *= 1.15
-                     thesis_parts.append(f"Strong Bid Wall (Pressure {bid_pressure:.2f}).")
+                    confidence *= 1.15
+                    thesis_parts.append(f"Strong Bid Wall (Pressure {bid_pressure:.2f}).")
                 elif signal == "SELL" and bid_pressure < 0.40:
-                     confidence *= 1.15
-                     thesis_parts.append(f"Strong Ask Wall (Pressure {bid_pressure:.2f}).")
+                    confidence *= 1.15
+                    thesis_parts.append(f"Strong Ask Wall (Pressure {bid_pressure:.2f}).")
 
             # ═══════════════════════════════════════════════════════════════
             # SWING AGENT: Looks for multi-day trend reversals and continuations
             # ═══════════════════════════════════════════════════════════════
             elif agent_type == "swing":
                 base_conf = 0.65 + (trend_strength * 0.20)  # 0.65 to 0.85
-                
+
                 # Swing traders like buying dips in uptrends, selling rallies in downtrends
                 if is_uptrend:
-                    if rsi < 45: # Dip
+                    if rsi < 45:  # Dip
                         signal = "BUY"
                         confidence = base_conf * 1.1
                         thesis_parts.append(f"Uptrend with RSI Dip ({rsi:.0f}). Swing BUY.")
-                    elif rsi > 75: # Exhaustion?
+                    elif rsi > 75:  # Exhaustion?
                         # Maybe take profit logic elsewhere, but don't enter new long
-                         pass
+                        pass
                     else:
                         signal = "BUY"
                         confidence = base_conf
                         thesis_parts.append(f"Established uptrend continuation.")
 
-                else: # Downtrend
-                     if rsi > 55: # Rally
+                else:  # Downtrend
+                    if rsi > 55:  # Rally
                         signal = "SELL"
                         confidence = base_conf * 1.1
                         thesis_parts.append(f"Downtrend with RSI Rally ({rsi:.0f}). Swing SELL.")
-                     elif rsi < 25:
-                        pass # Don't sell into hole
-                     else:
+                    elif rsi < 25:
+                        pass  # Don't sell into hole
+                    else:
                         signal = "SELL"
                         confidence = base_conf
                         thesis_parts.append(f"Established downtrend continuation.")
@@ -224,10 +235,10 @@ class AnalysisEngine:
                     closes_4h = [float(k[4]) for k in klines_4h[-5:]]
                     sma_4h = sum(closes_4h) / len(closes_4h)
                     current_4h_close = closes_4h[-1]
-                    
+
                     higher_tf_bullish = current_4h_close > sma_4h
                     higher_tf_bearish = current_4h_close < sma_4h
-                    
+
                     # CONFLUENCE BOOST: Same direction as 4H trend
                     if signal == "BUY" and higher_tf_bullish:
                         confidence *= 1.15  # 15% boost for alignment
@@ -253,11 +264,11 @@ class AnalysisEngine:
             # ═══════════════════════════════════════════════════════════════
             is_capitulation = False
             retail_trap_warning = False
-            
+
             if PVP_AVAILABLE and ta_analysis:
                 try:
                     # rsi already extracted
-                    
+
                     if rsi is not None:
                         counter_retail = get_counter_retail_strategy()
                         retail_signal = counter_retail.analyze_retail_trap(
@@ -266,26 +277,26 @@ class AnalysisEngine:
                             price_change_24h=price_change_pct,
                             range_position=range_pos,
                         )
-                        
+
                         if retail_signal:
                             if retail_signal.wait_for_capitulation:
                                 # This is a TRAP zone - reduce confidence
                                 confidence *= 0.6  # 40% penalty
                                 retail_trap_warning = True
-                                thesis_parts.append(
-                                    f"⚠️ RETAIL TRAP: {retail_signal.reason}"
-                                )
+                                thesis_parts.append(f"⚠️ RETAIL TRAP: {retail_signal.reason}")
                             elif not retail_signal.wait_for_capitulation:
                                 # CAPITULATION - boost confidence
                                 bonus = counter_retail.get_capitulation_bonus(rsi)
                                 confidence *= bonus
                                 is_capitulation = True
-                                thesis_parts.append(
-                                    f"🎯 CAPITULATION: {retail_signal.reason}"
-                                )
+                                thesis_parts.append(f"🎯 CAPITULATION: {retail_signal.reason}")
                                 # Override signal if capitulation gives direction
                                 if retail_signal.counter_direction in ("LONG", "SHORT"):
-                                    signal = "BUY" if retail_signal.counter_direction == "LONG" else "SELL"
+                                    signal = (
+                                        "BUY"
+                                        if retail_signal.counter_direction == "LONG"
+                                        else "SELL"
+                                    )
                 except Exception as cre:
                     # Silently continue if counter-retail fails
                     pass
@@ -305,12 +316,13 @@ class AnalysisEngine:
             # LOGGING: Track all analysis results for debugging
             # ═══════════════════════════════════════════════════════════════
             log_level = logging.INFO if confidence >= 0.65 else logging.DEBUG
-            logger.log(log_level, 
+            logger.log(
+                log_level,
                 f"📊 SIGNAL: {agent.id} | {symbol} | {signal} | conf={confidence:.2f} | "
                 f"24h={price_change_pct:+.1f}% | range_pos={range_pos:.0%} | "
-                f"type={agent_type}"
+                f"type={agent_type}",
             )
-            
+
             # Print high-confidence signals prominently
             if confidence >= 0.65:
                 print(f"🎯 HIGH CONF SIGNAL: {agent.id} → {symbol} {signal} ({confidence:.0%})")
@@ -321,4 +333,3 @@ class AnalysisEngine:
             print(f"⚠️ Analysis error for {symbol}: {e}")
             logger.error(f"Analysis error for {symbol}: {e}")
             return {"signal": "NEUTRAL", "confidence": 0.0, "thesis": f"Analysis failed: {str(e)}"}
-

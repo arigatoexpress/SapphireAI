@@ -201,11 +201,15 @@ class AgentConsensusEngine:
 
     def submit_signal(self, signal: AgentSignal) -> None:
         """Submit a signal from an agent for consensus consideration."""
-        print(f"🔔 SUBMIT_SIGNAL: {signal.agent_id} → {signal.symbol} {signal.signal_type.value} ({signal.confidence:.2f})")
-        
+        print(
+            f"🔔 SUBMIT_SIGNAL: {signal.agent_id} → {signal.symbol} {signal.signal_type.value} ({signal.confidence:.2f})"
+        )
+
         # Validate agent is registered
         if signal.agent_id not in self.agent_registry:
-            print(f"❌ REJECTED: Agent {signal.agent_id} not registered! Registry has: {list(self.agent_registry.keys())}")
+            print(
+                f"❌ REJECTED: Agent {signal.agent_id} not registered! Registry has: {list(self.agent_registry.keys())}"
+            )
             logger.warning(f"Received signal from unregistered agent: {signal.agent_id}")
             return
 
@@ -214,8 +218,10 @@ class AgentConsensusEngine:
 
         # Add to pending aggregation
         self.pending_signals[signal.symbol].append(signal)
-        
-        print(f"✅ SIGNAL ADDED: {signal.symbol} now has {len(self.pending_signals[signal.symbol])} pending signals")
+
+        print(
+            f"✅ SIGNAL ADDED: {signal.symbol} now has {len(self.pending_signals[signal.symbol])} pending signals"
+        )
 
         # Signal will be processed in consensus voting
         logger.debug(
@@ -388,7 +394,12 @@ class AgentConsensusEngine:
 
         # Generate reasoning
         reasoning = self._generate_consensus_reasoning(
-            winning_signal, max_score, agreement_level, participation_rate, signal_scores, agent_votes
+            winning_signal,
+            max_score,
+            agreement_level,
+            participation_rate,
+            signal_scores,
+            agent_votes,
         )
 
         return ConsensusResult(
@@ -411,7 +422,7 @@ class AgentConsensusEngine:
         agreement_level: float,
         participation_rate: float,
         signal_scores: Dict,
-        agent_votes: Dict[str, AgentSignal] = None, # Added agent_votes
+        agent_votes: Dict[str, AgentSignal] = None,  # Added agent_votes
     ) -> str:
         """Generate human-readable reasoning for consensus result."""
 
@@ -419,12 +430,12 @@ class AgentConsensusEngine:
             return "No consensus reached - insufficient signals or participation"
 
         reasons = []
-        
+
         # 1. EXTRACT AGENT THESIS (The "Intelligence")
         # Find the agent with highest confidence who voted for the winner
         best_thesis = ""
         best_conf = -1.0
-        
+
         if agent_votes:
             for agent_id, signal in agent_votes.items():
                 if signal.signal_type == winning_signal:
@@ -438,7 +449,6 @@ class AgentConsensusEngine:
         else:
             reasons.append(f"Winning signal: {winning_signal.value}")
 
-
         if max_score > 0.8:
             reasons.append("Strong consensus")
         elif max_score > 0.6:
@@ -447,7 +457,7 @@ class AgentConsensusEngine:
         if agreement_level > 0.8:
             reasons.append("High agreement")
         elif agreement_level < 0.5:
-             reasons.append("Low agreement")
+            reasons.append("Low agreement")
 
         # Add signal breakdown
         signal_breakdown = []
@@ -588,21 +598,23 @@ class AgentConsensusEngine:
         # Actually simplest is to just show the CONSENSUS results which contain the aggregate thesis
         # But user wants "Agent Logic".
         # Let's check if ConsensusResult has a 'reasoning' or 'trace'.
-        
-        # If we want detailed agent signals, we might need to store them in history too. 
+
+        # If we want detailed agent signals, we might need to store them in history too.
         # For now, let's expose the Consensus History as the activity feed.
-        for res in reversed(recent_results[-20:]): # Last 20 events
-             recent_activity.append({
-                 "symbol": res.symbol,
-                 "timestamp_us": res.timestamp_us,
-                 "winning_signal": res.winning_signal.value if res.winning_signal else "NEUTRAL",
-                 "confidence": res.consensus_confidence,
-                 "agreement": res.agreement_level,
-                 "is_strong": res.consensus_confidence >= 0.75 and res.agreement_level >= 0.6,
-                 # If we had a 'primary_thesis' field in ConsensusResult it would be great.
-                 # Since we don't, we'll return the consensus data.
-                 # TODO: Future - store top agent thesis in ConsensusResult
-             })
+        for res in reversed(recent_results[-20:]):  # Last 20 events
+            recent_activity.append(
+                {
+                    "symbol": res.symbol,
+                    "timestamp_us": res.timestamp_us,
+                    "winning_signal": res.winning_signal.value if res.winning_signal else "NEUTRAL",
+                    "confidence": res.consensus_confidence,
+                    "agreement": res.agreement_level,
+                    "is_strong": res.consensus_confidence >= 0.75 and res.agreement_level >= 0.6,
+                    # If we had a 'primary_thesis' field in ConsensusResult it would be great.
+                    # Since we don't, we'll return the consensus data.
+                    # TODO: Future - store top agent thesis in ConsensusResult
+                }
+            )
 
         return {
             "total_consensus_events": len(self.consensus_history),
@@ -613,7 +625,7 @@ class AgentConsensusEngine:
             "signal_distribution": signal_distribution,
             "agent_performance": agent_summary,
             "active_agents": len(self.agent_registry),
-            "recent_activity": recent_activity
+            "recent_activity": recent_activity,
         }
 
 

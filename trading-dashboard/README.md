@@ -66,7 +66,7 @@ VITE_FIREBASE_PROJECT_ID=sapphire-479610
 For production, create `.env.production`:
 
 ```bash
-VITE_API_URL=https://cloud-trader-267358751314.northamerica-northeast1.run.app
+VITE_API_URL=https://cloud-trader-267358751314.europe-west1.run.app
 VITE_FIREBASE_API_KEY=your_key
 VITE_FIREBASE_PROJECT_ID=sapphire-479610
 ```

@@ -7,9 +7,9 @@ and tracks profitable trade suggestions.
 import asyncio
 import logging
 import re
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
-from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +56,7 @@ RESPONSES = {
 @dataclass
 class TradeAdvice:
     """Tracks a piece of advice linked to a trade."""
+
     message_id: str
     user_id: str
     username: str
@@ -75,7 +76,7 @@ class TradingChatBot:
     """
     Bot that interacts with community chat, analyzes suggestions,
     and awards points for profitable advice.
-    
+
     Features:
     - Monitors chat for ticker mentions
     - Responds to @bot mentions
@@ -83,32 +84,34 @@ class TradingChatBot:
     - Awards bonus points for profitable suggestions
     - Posts trade outcomes back to chat
     """
-    
+
     def __init__(self, chat_service=None):
         self.chat_service = chat_service
         self._pending_advice: Dict[str, TradeAdvice] = {}  # ticker -> advice
         self._recent_suggestions: List[TradeAdvice] = []
         self._last_analysis_time = None
         self.bot_id = "sapphire-ai"
-        
+
     def _get_chat_service(self):
         """Lazy load chat service."""
         if self.chat_service is None:
             from .chat_service import get_chat_service
+
             self.chat_service = get_chat_service()
         return self.chat_service
-    
+
     def _pick_response(self, category: str, **kwargs) -> str:
         """Pick a random response template and fill in variables."""
         import random
+
         templates = RESPONSES.get(category, ["Response not configured."])
         template = random.choice(templates)
         return template.format(**kwargs)
-    
+
     async def analyze_recent_messages(self, limit: int = 20) -> List[Dict[str, Any]]:
         """
         Analyze recent chat messages for trading suggestions.
-        
+
         Returns list of parsed suggestions with:
         - ticker: The mentioned ticker
         - direction: Inferred direction (long/short)
@@ -118,19 +121,19 @@ class TradingChatBot:
         """
         chat = self._get_chat_service()
         messages = await chat.get_messages(limit=limit)
-        
+
         suggestions = []
-        
+
         for msg in messages:
             if msg.is_bot:
                 continue
-                
+
             if not msg.tickers:
                 continue
-            
+
             # Analyze sentiment of the message
             direction, confidence = self._parse_direction(msg.content)
-            
+
             for ticker in msg.tickers:
                 suggestion = {
                     "ticker": ticker,
@@ -143,7 +146,7 @@ class TradingChatBot:
                     "timestamp": msg.timestamp,
                 }
                 suggestions.append(suggestion)
-                
+
                 # Track as pending advice
                 advice = TradeAdvice(
                     message_id=msg.id,
@@ -155,43 +158,60 @@ class TradingChatBot:
                 )
                 self._pending_advice[ticker] = advice
                 self._recent_suggestions.append(advice)
-        
+
         self._last_analysis_time = datetime.now(timezone.utc)
-        
+
         return suggestions
-    
+
     def _parse_direction(self, content: str) -> Tuple[str, float]:
         """
         Parse trading direction and confidence from message content.
-        
+
         Returns:
             (direction, confidence) where direction is "long" or "short"
             and confidence is 0.0-1.0
         """
         content_lower = content.lower()
-        
+
         # Long indicators
         long_patterns = [
-            r'\blong\b', r'\bbuy\b', r'\bbullish\b', r'\bpump\b', 
-            r'\bmoon\b', r'\bbreakout\b', r'\buptrend\b', r'\brally\b',
-            r'\bgo up\b', r'\bgoing up\b', r'\b📈\b', r'\b🚀\b',
+            r"\blong\b",
+            r"\bbuy\b",
+            r"\bbullish\b",
+            r"\bpump\b",
+            r"\bmoon\b",
+            r"\bbreakout\b",
+            r"\buptrend\b",
+            r"\brally\b",
+            r"\bgo up\b",
+            r"\bgoing up\b",
+            r"\b📈\b",
+            r"\b🚀\b",
         ]
-        
+
         # Short indicators
         short_patterns = [
-            r'\bshort\b', r'\bsell\b', r'\bbearish\b', r'\bdump\b',
-            r'\bcrash\b', r'\bbreakdown\b', r'\bdowntrend\b', r'\bdrop\b',
-            r'\bgo down\b', r'\bgoing down\b', r'\b📉\b',
+            r"\bshort\b",
+            r"\bsell\b",
+            r"\bbearish\b",
+            r"\bdump\b",
+            r"\bcrash\b",
+            r"\bbreakdown\b",
+            r"\bdowntrend\b",
+            r"\bdrop\b",
+            r"\bgo down\b",
+            r"\bgoing down\b",
+            r"\b📉\b",
         ]
-        
+
         long_score = sum(1 for p in long_patterns if re.search(p, content_lower))
         short_score = sum(1 for p in short_patterns if re.search(p, content_lower))
-        
+
         total = long_score + short_score
-        
+
         if total == 0:
             return "neutral", 0.3
-        
+
         if long_score > short_score:
             confidence = min(0.9, 0.5 + (long_score / (total * 2)))
             return "long", confidence
@@ -200,16 +220,16 @@ class TradingChatBot:
             return "short", confidence
         else:
             return "neutral", 0.4
-    
+
     async def respond_to_mention(self, message_id: str, content: str, username: str):
         """
         Respond to a direct @bot mention in chat.
         """
         chat = self._get_chat_service()
-        
+
         # Parse tickers from the mention
         tickers = chat.parse_tickers(content)
-        
+
         if not tickers:
             await chat.send_bot_message(
                 bot_id=self.bot_id,
@@ -217,7 +237,7 @@ class TradingChatBot:
                 reply_to=message_id,
             )
             return
-        
+
         # Award points for bot interaction
         await chat.award_points(
             message_id=message_id,
@@ -225,22 +245,22 @@ class TradingChatBot:
             reason="Bot interaction",
             bot_id=self.bot_id,
         )
-        
+
         ticker = tickers[0]
         direction, confidence = self._parse_direction(content)
-        
+
         # Respond based on analysis
         if confidence > 0.6:
             response = self._pick_response("considering", ticker=ticker, username=username)
         else:
             response = f"@{username}, I'm watching ${ticker}. Share more details about your thesis!"
-        
+
         await chat.send_bot_message(
             bot_id=self.bot_id,
             content=response,
             reply_to=message_id,
         )
-    
+
     async def on_trade_opened(
         self,
         symbol: str,
@@ -250,7 +270,7 @@ class TradingChatBot:
     ):
         """
         Called when a trade is opened. Check if any user advice influenced it.
-        
+
         Args:
             symbol: Trading pair (e.g., "BTCUSDT")
             side: "BUY" or "SELL"
@@ -258,28 +278,28 @@ class TradingChatBot:
             trade_id: Unique trade identifier
         """
         chat = self._get_chat_service()
-        
+
         # Check for matching pending advice
         advice = self._pending_advice.get(symbol)
-        
+
         if not advice:
             return
-        
+
         # Check if advice direction matches trade
         trade_direction = "long" if side == "BUY" else "short"
-        
+
         if advice.direction != trade_direction:
             return
-        
+
         # Check if advice is recent (within 30 minutes)
         time_diff = datetime.now(timezone.utc) - advice.timestamp
         if time_diff > timedelta(minutes=30):
             return
-        
+
         # Link advice to trade
         advice.trade_id = trade_id
         advice.trade_entry_price = entry_price
-        
+
         # Award points for advice being taken
         await chat.award_points(
             message_id=advice.message_id,
@@ -287,24 +307,24 @@ class TradingChatBot:
             reason=f"${symbol} {trade_direction.upper()} trade influenced by your advice!",
             bot_id=self.bot_id,
         )
-        
+
         advice.points_awarded += POINTS["advice_taken"]
-        
+
         # Post to chat
         response = self._pick_response(
             "agreed",
             ticker=symbol.replace("USDT", ""),
             username=advice.username,
         )
-        
+
         await chat.send_bot_message(
             bot_id=self.bot_id,
             content=response,
             reply_to=advice.message_id,
         )
-        
+
         logger.info(f"Trade {trade_id} linked to advice from {advice.username}")
-    
+
     async def on_trade_closed(
         self,
         symbol: str,
@@ -315,7 +335,7 @@ class TradingChatBot:
     ):
         """
         Called when a trade is closed. Award bonus points if profitable.
-        
+
         Args:
             symbol: Trading pair
             trade_id: Unique trade identifier
@@ -324,39 +344,39 @@ class TradingChatBot:
             pnl_percent: Profit/loss percentage
         """
         chat = self._get_chat_service()
-        
+
         # Find advice linked to this trade
         advice = None
         for a in self._recent_suggestions:
             if a.trade_id == trade_id and not a.resolved:
                 advice = a
                 break
-        
+
         if not advice:
             return
-        
+
         # Update advice with trade result
         advice.trade_exit_price = exit_price
         advice.trade_pnl = pnl
         advice.trade_pnl_percent = pnl_percent
         advice.resolved = True
-        
+
         # Award bonus points if profitable
         if pnl_percent > 0:
             if pnl_percent >= 5:
                 bonus_points = POINTS["high_profit_advice"]
             else:
                 bonus_points = POINTS["profitable_advice"]
-            
+
             await chat.award_points(
                 message_id=advice.message_id,
                 points=bonus_points,
                 reason=f"${symbol} trade closed at +{pnl_percent:.1f}% profit!",
                 bot_id=self.bot_id,
             )
-            
+
             advice.points_awarded += bonus_points
-            
+
             # Post celebration to chat
             response = self._pick_response(
                 "profitable",
@@ -365,13 +385,15 @@ class TradingChatBot:
                 profit_pct=f"{pnl_percent:.1f}",
                 points=bonus_points,
             )
-            
+
             await chat.send_bot_message(
                 bot_id=self.bot_id,
                 content=response,
             )
-            
-            logger.info(f"Awarded {bonus_points} bonus points to {advice.username} for profitable {symbol} advice")
+
+            logger.info(
+                f"Awarded {bonus_points} bonus points to {advice.username} for profitable {symbol} advice"
+            )
         else:
             # Still acknowledge the prediction was tracked
             response = self._pick_response(
@@ -379,20 +401,20 @@ class TradingChatBot:
                 ticker=symbol.replace("USDT", ""),
                 profit_pct=f"{pnl_percent:.1f}",
             )
-            
+
             await chat.send_bot_message(
                 bot_id=self.bot_id,
                 content=response,
             )
-        
+
         # Clean up pending advice
         if symbol in self._pending_advice:
             del self._pending_advice[symbol]
-    
+
     async def get_crowd_sentiment(self, symbol: str) -> Dict[str, Any]:
         """
         Get crowd sentiment for a symbol based on recent chat.
-        
+
         Returns:
             {
                 "bullish_count": int,
@@ -405,7 +427,7 @@ class TradingChatBot:
         """
         chat = self._get_chat_service()
         messages = await chat.get_messages_with_ticker(symbol, limit=50)
-        
+
         if not messages:
             return {
                 "bullish_count": 0,
@@ -415,32 +437,34 @@ class TradingChatBot:
                 "confidence": 0.5,
                 "messages": [],
             }
-        
+
         bullish = 0
         bearish = 0
         neutral = 0
-        
+
         analyzed = []
-        
+
         for msg in messages:
             direction, conf = self._parse_direction(msg.content)
-            
+
             if direction == "long":
                 bullish += 1
             elif direction == "short":
                 bearish += 1
             else:
                 neutral += 1
-            
-            analyzed.append({
-                "username": msg.username,
-                "direction": direction,
-                "confidence": conf,
-                "timestamp": msg.timestamp.isoformat(),
-            })
-        
+
+            analyzed.append(
+                {
+                    "username": msg.username,
+                    "direction": direction,
+                    "confidence": conf,
+                    "timestamp": msg.timestamp.isoformat(),
+                }
+            )
+
         total = bullish + bearish + neutral
-        
+
         if bullish > bearish:
             direction = "long"
             confidence = bullish / total
@@ -450,7 +474,7 @@ class TradingChatBot:
         else:
             direction = "neutral"
             confidence = 0.5
-        
+
         return {
             "bullish_count": bullish,
             "bearish_count": bearish,
@@ -459,11 +483,11 @@ class TradingChatBot:
             "confidence": confidence,
             "messages": analyzed,
         }
-    
+
     def get_pending_advice_count(self) -> int:
         """Get number of pending advice being tracked."""
         return len(self._pending_advice)
-    
+
     def get_recent_suggestions(self, limit: int = 20) -> List[Dict[str, Any]]:
         """Get recent suggestions with their status."""
         return [

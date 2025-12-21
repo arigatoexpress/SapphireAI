@@ -85,14 +85,14 @@ class FeaturePipeline:
 
     async def get_market_analysis(self, symbol: str) -> Dict[str, Any]:
         """Get full analysis snapshot for an agent."""
-        
+
         # Parallel fetch for speed
         candles_task = self.fetch_candles(symbol, interval="1h", limit=100)
         orderbook_task = self.client.get_order_book(symbol, limit=20)
-        
+
         results = await asyncio.gather(candles_task, orderbook_task, return_exceptions=True)
         df, orderbook = results[0], results[1]
-        
+
         # 1. Technical Analysis
         ta_data = {}
         if pd is not None and isinstance(df, pd.DataFrame) and not df.empty:
@@ -108,7 +108,7 @@ class FeaturePipeline:
                     "HIGH" if latest.get("ATRr_14", 0) > (latest["close"] * 0.02) else "LOW"
                 ),
             }
-        
+
         # 2. Order Book Analysis (Depth & Pressure)
         ob_data = {"bid_pressure": 0.0, "spread_pct": 0.0}
         if isinstance(orderbook, dict) and "bids" in orderbook:
@@ -118,10 +118,10 @@ class FeaturePipeline:
                 bid_vol = sum(bids)
                 ask_vol = sum(asks)
                 total_vol = bid_vol + ask_vol
-                
+
                 if total_vol > 0:
                     ob_data["bid_pressure"] = bid_vol / total_vol  # >0.5 means buying pressure
-                
+
                 best_bid = float(orderbook["bids"][0][0])
                 best_ask = float(orderbook["asks"][0][0])
                 if best_ask > 0:
@@ -131,7 +131,7 @@ class FeaturePipeline:
 
         return {
             "symbol": symbol,
-            "price": ta_data.get("close", 0) if ta_data else 0, # Fallback
+            "price": ta_data.get("close", 0) if ta_data else 0,  # Fallback
             **ta_data,
-            **ob_data
+            **ob_data,
         }

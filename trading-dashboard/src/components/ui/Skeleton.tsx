@@ -1,10 +1,10 @@
 /**
  * Skeleton Loading Component (Tailwind CSS)
- * 
+ *
  * First Principle: Loading states should feel responsive.
  * Users should see immediate visual feedback that content is loading,
  * with smooth animations that make the wait feel shorter.
- * 
+ *
  * This component provides reusable skeleton shapes that match
  * the TerminalPro dark theme aesthetic.
  */

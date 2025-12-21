@@ -135,7 +135,7 @@ class MinimalAgentState:
     personality: str = ""
     specialization: str = ""
     system: str = "aster"
-    
+
     # Performance tracking
     active: bool = True
     total_trades: int = 0
@@ -147,18 +147,18 @@ class MinimalAgentState:
     daily_pnl: float = 0.0
     performance_score: float = 0.0
     last_active: Optional[float] = None
-    
+
     # Self-tuning parameters (agent can modify these)
     self_tuning_enabled: bool = True
     dynamic_position_sizing: bool = True  # Whether to use dynamic position sizing
     adaptive_leverage: bool = True  # Whether to adjust leverage dynamically
     intelligence_tp_sl: bool = True  # Use intelligent TP/SL levels
     adaptive_params: Optional[Dict[str, Any]] = None
-    
+
     # Position sizing limits
     min_position_size_pct: float = 0.08
     max_position_size_pct: float = 0.25
-    
+
     # Risk limits
     max_leverage_limit: float = 50.0
     profit_target: float = 0.025  # 2.5% default
@@ -176,12 +176,12 @@ class MinimalAgentState:
                 "leverage": 20.0,
                 "position_size_pct": 0.15,
             }
-    
+
     def adjust_params(self, pnl: float):
         """Self-improvement: adjust params based on trade outcome."""
         if not self.self_tuning_enabled:
             return
-        
+
         # Simple adaptive logic: tighten threshold on losses, loosen on wins
         if pnl > 0:
             # Winning trade: slightly lower threshold to take more trades

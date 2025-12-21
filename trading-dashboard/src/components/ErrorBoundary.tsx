@@ -4,9 +4,9 @@ import { ErrorOutline, Refresh, ExpandMore, ContentCopy, Home } from '@mui/icons
 
 /**
  * Enhanced Error Boundary Component
- * 
+ *
  * First Principle: Errors should be actionable, not just displayed.
- * 
+ *
  * This component:
  * 1. Catches all React rendering errors
  * 2. Categorizes errors to provide specific recovery suggestions
@@ -308,4 +308,3 @@ class ErrorBoundary extends Component<Props, State> {
 }
 
 export default ErrorBoundary;
-
