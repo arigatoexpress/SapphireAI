@@ -1209,9 +1209,23 @@ async def get_consensus_state() -> Dict[str, Any]:
                 # Calculate NET PnL (after fees and funding)
                 total_pnl = unrealized_pnl + realized_pnl - total_fees + total_funding
 
-                # Calculate % return
+                # Fetch LIVE balance from exchange for accuracy
+                live_balance = 0.0
+                if hasattr(service, "_exchange_client") and service._exchange_client:
+                    try:
+                        account_info = await service._exchange_client.get_account_info_v4()
+                        if account_info:
+                            live_balance = float(account_info.get("totalMarginBalance", 0.0))
+                            # Also update cached balance
+                            if live_balance > 0:
+                                service._portfolio.balance = live_balance
+                    except Exception as balance_err:
+                        logger.debug(f"Could not fetch live balance: {balance_err}")
+                
+                # Use live balance if available, otherwise fall back to cached
                 initial_balance = (
-                    service._portfolio.balance if service._portfolio.balance > 0 else 3000.0
+                    live_balance if live_balance > 0 
+                    else (service._portfolio.balance if service._portfolio.balance > 0 else 1000.0)
                 )
                 total_pnl_percent = (
                     (total_pnl / initial_balance) * 100 if initial_balance > 0 else 0.0
@@ -1225,6 +1239,7 @@ async def get_consensus_state() -> Dict[str, Any]:
                     "total_fees": total_fees,
                     "total_funding": total_funding,
                     "portfolio_value": initial_balance + total_pnl,
+                    "cash_balance": initial_balance,
                 }
             except Exception as pnl_err:
                 logger.warning(f"Could not calculate PnL: {pnl_err}")

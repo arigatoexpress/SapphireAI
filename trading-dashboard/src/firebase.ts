@@ -4,12 +4,12 @@ import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
-    apiKey: "AIzaSyC60XD3QEdZdLFisXsGekrwIF66I0uh-Jo",
-    authDomain: "sapphire-479610.firebaseapp.com",
-    projectId: "sapphire-479610",
-    storageBucket: "sapphire-479610.firebasestorage.app",
-    messagingSenderId: "267358751314",
-    appId: "1:267358751314:web:4bda7e310604a455d22d8b"
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
 // Initialize Firebase
