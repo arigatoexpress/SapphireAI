@@ -173,7 +173,7 @@ export const StrategyStatusCard: React.FC<StrategyStatusCardProps> = ({
                     border: '1px solid rgba(255,255,255,0.04)'
                 }}>
                     <Typography variant="caption" sx={{ color: '#666', display: 'block', mb: 0.5 }}>
-                        Base Notional
+                        Position Sizing
                     </Typography>
                     <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
                         <Typography sx={{
@@ -182,9 +182,9 @@ export const StrategyStatusCard: React.FC<StrategyStatusCardProps> = ({
                             fontFamily: 'JetBrains Mono',
                             fontSize: '1.1rem'
                         }}>
-                            ${effectiveConfig.baseNotional}
+                            Dynamic
                         </Typography>
-                        <Typography variant="caption" sx={{ color: '#555' }}>USDT</Typography>
+                        <Typography variant="caption" sx={{ color: '#555' }}>Conviction</Typography>
                     </Box>
                 </Box>
 

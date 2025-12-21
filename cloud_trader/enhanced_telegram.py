@@ -45,12 +45,18 @@ class SmartNotificationThrottler:
             "risk_alert": 5,  # Highest priority
             "market_update": 1,  # Low priority
             "agent_decision": 1,  # Low priority
+            "reentry": 2,  # Medium priority
+            "stop_hunt": 2,  # Medium priority
         }
+        # Increased cooldowns to reduce notification spam
         self.cooldowns = {
-            "trade": 300,  # 5 minutes between trade notifications
-            "market_update": 3600,  # 1 hour between market updates
-            "agent_decision": 600,  # 10 minutes between agent decisions
-            "risk_alert": 900,  # 15 minutes between risk alerts
+            "trade": 600,  # 10 minutes between trade notifications (was 5)
+            "market_update": 7200,  # 2 hours between market updates (was 1h)
+            "agent_decision": 1800,  # 30 minutes between agent decisions (was 10)
+            "risk_alert": 1800,  # 30 minutes between risk alerts (was 15)
+            "reentry": 1800,  # 30 minutes between re-entry notifications per symbol
+            "stop_hunt": 3600,  # 1 hour between stop hunt notifications per symbol
+            "position_update": 900,  # 15 minutes between position updates per symbol
         }
 
     def should_send(self, category: str, symbol: str = None) -> bool:

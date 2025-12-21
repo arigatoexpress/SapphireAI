@@ -39,7 +39,7 @@ export const NeuralConsensus: React.FC = () => {
         return () => clearInterval(interval);
     }, [apiBaseUrl]);
 
-    if (!state) return (
+    if (!state || !state.stats) return (
         <GlassCard title="NEURAL CONSENSUS" height={300}>
             <div className="flex items-center justify-center h-full text-blue-400/50 animate-pulse">
                 INITIALIZING NEURAL LINK...
@@ -47,8 +47,8 @@ export const NeuralConsensus: React.FC = () => {
         </GlassCard>
     );
 
-    const agents = Object.entries(state.weights).sort(([, a], [, b]) => b - a).slice(0, 5); // Top 5
-    const totalWeight = Object.values(state.weights).reduce((a, b) => a + b, 0);
+    const agents = Object.entries(state.weights || {}).sort(([, a], [, b]) => b - a).slice(0, 5); // Top 5
+    const totalWeight = Object.values(state.weights || {}).reduce((a, b) => a + b, 0) || 1;
 
     return (
         <GlassCard title="SWARM INTELLIGENCE" height={340} className="relative overflow-hidden group">

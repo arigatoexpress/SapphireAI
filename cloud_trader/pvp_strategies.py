@@ -57,6 +57,61 @@ class CounterRetailStrategy:
         self._retail_traps: Dict[str, Dict] = {}
         self._capitulation_signals: Dict[str, float] = {}
     
+    async def apply_crowd_sentiment_weighting(
+        self,
+        symbol: str,
+        base_signal: str,  # "LONG" or "SHORT"
+        base_confidence: float
+    ) -> float:
+        """
+        Apply crowd sentiment weighting to boost or fade signal confidence.
+        
+        Logic:
+        - If crowd agrees with signal (60%+ votes) → +20% confidence boost
+        - If crowd is extreme (90%+ bullish) and we're shorting → +30% confidence (fade the crowd)
+        - Minimum 10 votes required for weighting
+        
+        Returns:
+            Adjusted confidence
+        """
+        try:
+            from .voting_service import get_voting_service
+            
+            voting_service = get_voting_service()
+            crowd = await voting_service.get_crowd_sentiment(symbol)
+            
+            vote_count = crowd.get("vote_count", 0)
+            
+            # Require minimum votes
+            if vote_count < 10:
+                return base_confidence
+            
+            bullish_pct = crowd.get("bullish_pct", 0)
+            bearish_pct = crowd.get("bearish_pct", 0)
+            
+            # Crowd agrees with our signal
+            if base_signal == "LONG" and bullish_pct > 0.6:
+                logger.info(f"📊 Crowd sentiment boost: {symbol} {bullish_pct:.0%} bullish, signal LONG → +20% confidence")
+                return base_confidence * 1.2
+            elif base_signal == "SHORT" and bearish_pct > 0.6:
+                logger.info(f"📊 Crowd sentiment boost: {symbol} {bearish_pct:.0%} bearish, signal SHORT → +20% confidence")
+                return base_confidence * 1.2
+            
+            # Contrarian: crowd is extreme, we fade
+            elif base_signal == "SHORT" and bullish_pct > 0.9:
+                logger.info(f"📊 Fade the crowd: {symbol} {bullish_pct:.0%} bullish, signal SHORT → +30% confidence")
+                return base_confidence * 1.3
+            elif base_signal == "LONG" and bearish_pct > 0.9:
+                logger.info(f"📊 Fade the crowd: {symbol} {bearish_pct:.0%} bearish, signal LONG → +30% confidence")
+                return base_confidence * 1.3
+            
+            # No strong crowd signal
+            return base_confidence
+            
+        except Exception as e:
+            logger.error(f"Failed to apply crowd sentiment: {e}")
+            return base_confidence
+    
     def analyze_retail_trap(
         self,
         symbol: str,
@@ -181,17 +236,19 @@ class DynamicLeverageCalculator:
     """
     Dynamic leverage based on confidence, volatility, and win rate.
     
-    Philosophy:
-    - High confidence + low volatility = higher leverage (up to 50x)
-    - Medium confidence = standard leverage (10-20x)
-    - Low confidence or high volatility = lower leverage (5-10x)
+    Philosophy (CONSERVATIVE):
+    - High confidence + low volatility = max 10x leverage
+    - Medium confidence = standard 5-7x leverage
+    - Low confidence or high volatility = min 3x leverage
+    
+    SAFETY FIRST: Max leverage capped at 10x to prevent catastrophic losses.
     """
     
     def __init__(
         self,
-        min_leverage: float = 5.0,
-        standard_leverage: float = 15.0,
-        max_leverage: float = 50.0,
+        min_leverage: float = 3.0,
+        standard_leverage: float = 5.0,
+        max_leverage: float = 10.0,  # SAFETY: Hard cap at 10x
     ):
         self.min_leverage = min_leverage
         self.standard_leverage = standard_leverage
@@ -217,24 +274,24 @@ class DynamicLeverageCalculator:
             is_capitulation: True if this is a capitulation signal
             
         Returns:
-            Optimal leverage (5x to 50x)
+            Optimal leverage (3x to 10x) - CAPPED FOR SAFETY
         """
         # Base leverage from confidence
         # High confidence (0.85+) = use max leverage
         # Medium confidence (0.7-0.85) = standard leverage
         # Low confidence (<0.7) = min leverage
         if confidence >= 0.90:
-            base_lev = self.max_leverage
+            base_lev = self.max_leverage  # 10x
         elif confidence >= 0.85:
-            base_lev = self.max_leverage * 0.8  # 40x
+            base_lev = self.max_leverage * 0.8  # 8x
         elif confidence >= 0.80:
-            base_lev = self.standard_leverage * 1.5  # 22.5x
+            base_lev = self.standard_leverage * 1.4  # 7x
         elif confidence >= 0.75:
-            base_lev = self.standard_leverage  # 15x
+            base_lev = self.standard_leverage  # 5x
         elif confidence >= 0.70:
-            base_lev = self.standard_leverage * 0.8  # 12x
+            base_lev = self.standard_leverage * 0.8  # 4x
         else:
-            base_lev = self.min_leverage  # 5x
+            base_lev = self.min_leverage  # 3x
         
         # Volatility adjustment
         # High ATR = reduce leverage (more volatile = more risk)
@@ -251,11 +308,11 @@ class DynamicLeverageCalculator:
         else:
             win_factor = 0.7
         
-        # Re-entry bonus (we have better price, more conviction)
-        reentry_factor = 1.3 if is_reentry else 1.0
+        # Re-entry bonus (capped to not exceed max leverage)
+        reentry_factor = 1.1 if is_reentry else 1.0  # Reduced from 1.3
         
-        # Capitulation bonus (extreme conditions = high conviction)
-        capitulation_factor = 1.4 if is_capitulation else 1.0
+        # Capitulation bonus (capped to not exceed max leverage)
+        capitulation_factor = 1.15 if is_capitulation else 1.0  # Reduced from 1.4
         
         # Calculate final leverage
         leverage = base_lev * volatility_factor * win_factor * reentry_factor * capitulation_factor
@@ -290,8 +347,8 @@ def get_dynamic_leverage_calculator() -> DynamicLeverageCalculator:
     global _dynamic_leverage
     if _dynamic_leverage is None:
         _dynamic_leverage = DynamicLeverageCalculator(
-            min_leverage=5.0,
-            standard_leverage=15.0,
-            max_leverage=50.0
+            min_leverage=3.0,     # Safer minimum
+            standard_leverage=5.0,  # Conservative standard
+            max_leverage=10.0     # HARD CAP at 10x for safety
         )
     return _dynamic_leverage

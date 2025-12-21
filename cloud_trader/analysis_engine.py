@@ -61,8 +61,15 @@ class AnalysisEngine:
 
             # 2. Derived Indicators
             is_uptrend = price_change_pct > 0
+            rsi = 50.0
+            bid_pressure = 0.5
+            spread_pct = 0.0
+
             if ta_analysis:
                 is_uptrend = ta_analysis.get("trend") == "BULLISH"
+                rsi = ta_analysis.get("rsi", 50.0)
+                bid_pressure = ta_analysis.get("bid_pressure", 0.5)
+                spread_pct = ta_analysis.get("spread_pct", 0.0)
 
             is_volatile = (high_24h - low_24h) / price > 0.05
             if ta_analysis:
@@ -94,26 +101,37 @@ class AnalysisEngine:
                 
                 if abs(price_change_pct) > 1.5:  # Significant 24h move
                     if is_uptrend:
-                        signal = "BUY"
-                        confidence = base_conf
-                        thesis_parts.append(f"Strong uptrend +{price_change_pct:.1f}%. Momentum BUY.")
+                        if rsi < 75: # Not overbought
+                            signal = "BUY"
+                            confidence = base_conf
+                            thesis_parts.append(f"Strong uptrend +{price_change_pct:.1f}%. Momentum BUY.")
+                        else:
+                            thesis_parts.append(f"Uptrend but RSI Overbought ({rsi:.0f}). Waiting.")
                     else:
-                        signal = "SELL"
-                        confidence = base_conf
-                        thesis_parts.append(f"Strong downtrend {price_change_pct:.1f}%. Momentum SELL.")
+                        if rsi > 25: # Not oversold
+                            signal = "SELL"
+                            confidence = base_conf
+                            thesis_parts.append(f"Strong downtrend {price_change_pct:.1f}%. Momentum SELL.")
+                        else:
+                            thesis_parts.append(f"Downtrend but RSI Oversold ({rsi:.0f}). Waiting.")
+
                 elif abs(price_change_pct) > 0.5:  # Moderate move
-                    if is_uptrend:
+                    if is_uptrend and rsi < 70:
                         signal = "BUY"
-                        confidence = base_conf * 0.9  # Slightly lower for weaker trend
+                        confidence = base_conf * 0.9
                         thesis_parts.append(f"Moderate uptrend +{price_change_pct:.1f}%.")
-                    else:
+                    elif not is_uptrend and rsi > 30:
                         signal = "SELL"
                         confidence = base_conf * 0.9
                         thesis_parts.append(f"Moderate downtrend {price_change_pct:.1f}%.")
-                else:
-                    signal = "NEUTRAL"
-                    confidence = 0.40
-                    thesis_parts.append(f"Weak momentum ({price_change_pct:.1f}%). Waiting for breakout.")
+                
+                # Order Flow Confirmation
+                if signal == "BUY" and bid_pressure > 0.55:
+                    confidence *= 1.1
+                    thesis_parts.append(f"Order Flow Bullish (Bid Press: {bid_pressure:.2f}).")
+                elif signal == "SELL" and bid_pressure < 0.45:
+                    confidence *= 1.1
+                    thesis_parts.append(f"Order Flow Bearish (Bid Press: {bid_pressure:.2f}).")
 
             # ═══════════════════════════════════════════════════════════════
             # MARKET MAKER AGENT: Mean reversion, likes range-bound markets
@@ -121,23 +139,32 @@ class AnalysisEngine:
             elif agent_type == "market_maker":
                 base_conf = 0.65 + (volatility_score * 0.20)  # 0.65 to 0.85
                 
-                if near_support:  # Price near daily low - expect bounce
+                # Market Makers hate wide spreads (takers) or love them (makers). 
+                # Since we TAKE liquidity via API key usually, we prefer tight spreads.
+                if spread_pct > 0.002: # >0.2% spread is expensive
+                     base_conf *= 0.8
+                     thesis_parts.append(f"⚠️ High Spread ({spread_pct:.2%}). Reducing size.")
+
+                if near_support or rsi < 35:  # Oversold - expect bounce
                     signal = "BUY"
                     confidence = base_conf
-                    thesis_parts.append(f"Price at {range_pos:.0%} of daily range (near support). Mean reversion BUY.")
-                elif near_resistance:  # Price near daily high - expect pullback
+                    if rsi < 30: confidence *= 1.1
+                    thesis_parts.append(f"Price Support/Oversold (RSI {rsi:.0f}). Mean Reversion BUY.")
+                    
+                elif near_resistance or rsi > 65:  # Overbought - expect pullback
                     signal = "SELL"
                     confidence = base_conf
-                    thesis_parts.append(f"Price at {range_pos:.0%} of daily range (near resistance). Mean reversion SELL.")
-                else:  # Mid-range - still trade with lower confidence
-                    if is_uptrend:
-                        signal = "BUY"
-                        confidence = base_conf * 0.85
-                        thesis_parts.append(f"Mid-range but uptrend bias. Cautious BUY.")
-                    else:
-                        signal = "SELL"
-                        confidence = base_conf * 0.85
-                        thesis_parts.append(f"Mid-range but downtrend bias. Cautious SELL.")
+                    if rsi > 70: confidence *= 1.1
+                    thesis_parts.append(f"Price Resistance/Overbought (RSI {rsi:.0f}). Mean Reversion SELL.")
+                
+                # Order Book Imbalance acts as magnet? or simplified pressure?
+                # If heavy buying pressure (bids) at support -> Stronger Buy
+                if signal == "BUY" and bid_pressure > 0.60:
+                     confidence *= 1.15
+                     thesis_parts.append(f"Strong Bid Wall (Pressure {bid_pressure:.2f}).")
+                elif signal == "SELL" and bid_pressure < 0.40:
+                     confidence *= 1.15
+                     thesis_parts.append(f"Strong Ask Wall (Pressure {bid_pressure:.2f}).")
 
             # ═══════════════════════════════════════════════════════════════
             # SWING AGENT: Looks for multi-day trend reversals and continuations
@@ -146,33 +173,41 @@ class AnalysisEngine:
                 base_conf = 0.65 + (trend_strength * 0.20)  # 0.65 to 0.85
                 
                 # Swing traders like buying dips in uptrends, selling rallies in downtrends
-                if is_uptrend and near_support:  # Uptrend + dip = strong buy
-                    signal = "BUY"
-                    confidence = base_conf * 1.1  # Boost for confluence
-                    thesis_parts.append(f"Uptrend with pullback to support. Swing BUY.")
-                elif not is_uptrend and near_resistance:  # Downtrend + rally = strong sell
-                    signal = "SELL"
-                    confidence = base_conf * 1.1
-                    thesis_parts.append(f"Downtrend with rally to resistance. Swing SELL.")
-                elif is_uptrend:
-                    signal = "BUY"
-                    confidence = base_conf
-                    thesis_parts.append(f"Established uptrend. Swing BUY.")
-                else:
-                    signal = "SELL"
-                    confidence = base_conf
-                    thesis_parts.append(f"Established downtrend. Swing SELL.")
+                if is_uptrend:
+                    if rsi < 45: # Dip
+                        signal = "BUY"
+                        confidence = base_conf * 1.1
+                        thesis_parts.append(f"Uptrend with RSI Dip ({rsi:.0f}). Swing BUY.")
+                    elif rsi > 75: # Exhaustion?
+                        # Maybe take profit logic elsewhere, but don't enter new long
+                         pass
+                    else:
+                        signal = "BUY"
+                        confidence = base_conf
+                        thesis_parts.append(f"Established uptrend continuation.")
+
+                else: # Downtrend
+                     if rsi > 55: # Rally
+                        signal = "SELL"
+                        confidence = base_conf * 1.1
+                        thesis_parts.append(f"Downtrend with RSI Rally ({rsi:.0f}). Swing SELL.")
+                     elif rsi < 25:
+                        pass # Don't sell into hole
+                     else:
+                        signal = "SELL"
+                        confidence = base_conf
+                        thesis_parts.append(f"Established downtrend continuation.")
 
             # ═══════════════════════════════════════════════════════════════
             # DEFAULT/GENERAL: Simple trend following
             # ═══════════════════════════════════════════════════════════════
             else:
                 base_conf = 0.65 + (trend_strength * 0.20)
-                if is_uptrend:
+                if is_uptrend and rsi < 70:
                     signal = "BUY"
                     confidence = base_conf
                     thesis_parts.append(f"General trend: Uptrend +{price_change_pct:.1f}%.")
-                else:
+                elif not is_uptrend and rsi > 30:
                     signal = "SELL"
                     confidence = base_conf
                     thesis_parts.append(f"General trend: Downtrend {price_change_pct:.1f}%.")
@@ -221,7 +256,7 @@ class AnalysisEngine:
             
             if PVP_AVAILABLE and ta_analysis:
                 try:
-                    rsi = ta_analysis.get("rsi")
+                    # rsi already extracted
                     
                     if rsi is not None:
                         counter_retail = get_counter_retail_strategy()

@@ -34,7 +34,7 @@ const MissionControl: React.FC = () => {
     console.log(`Updating TP/SL for ${symbol}: ${tp}/${sl}`);
     try {
       // Determine API URL based on environment (similar to hook)
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://cloud-trader-456064053912.northamerica-northeast1.run.app';
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://cloud-trader-267358751314.europe-west1.run.app';
       const baseUrl = apiUrl.replace('/ws/dashboard', ''); // messy fix, better to use env
 
       await fetch(`${baseUrl}/positions/${symbol}/tpsl`, {

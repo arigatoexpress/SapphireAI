@@ -1,33 +1,63 @@
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { MasterLayout } from './layouts/MasterLayout';
+import { AuthProvider } from './contexts/AuthContext';
+import ProtectedRoute from './components/ProtectedRoute';
 
 // Core Pages
 import { UnifiedDashboard } from './pages/UnifiedDashboard';
 import { AgentLab } from './pages/AgentLab';
 import { PortfolioPro } from './pages/PortfolioPro';
 import { About } from './pages/About';
+import Leaderboard from './pages/Leaderboard';
+import Login from './pages/Login';
+import { TerminalPro } from './pages/TerminalPro';
+
+import ErrorBoundary from './components/ErrorBoundary';
 
 const App: React.FC = () => {
   return (
-    <MasterLayout>
-      <Routes>
-        {/* Main Dashboard */}
-        <Route path="/" element={<UnifiedDashboard />} />
+    <ErrorBoundary>
+      <AuthProvider>
+        <Routes>
+          {/* Public Route */}
+          <Route path="/login" element={<Login />} />
 
-        {/* Agents Page */}
-        <Route path="/agents" element={<AgentLab />} />
+          {/* Protected Routes */}
+          <Route
+            path="/*"
+            element={
+              <ProtectedRoute>
+                <MasterLayout>
+                  <Routes>
+                    {/* Main Dashboard */}
+                    <Route path="/" element={<UnifiedDashboard />} />
 
-        {/* Portfolio Page */}
-        <Route path="/portfolio" element={<PortfolioPro />} />
+                    {/* Terminal Pro (New Social Dashboard) */}
+                    <Route path="/terminal" element={<TerminalPro />} />
 
-        {/* About Page */}
-        <Route path="/about" element={<About />} />
+                    {/* Agents Page */}
+                    <Route path="/agents" element={<AgentLab />} />
 
-        {/* Fallback */}
-        <Route path="*" element={<UnifiedDashboard />} />
-      </Routes>
-    </MasterLayout>
+                    {/* Portfolio Page */}
+                    <Route path="/portfolio" element={<PortfolioPro />} />
+
+                    {/* About Page */}
+                    <Route path="/about" element={<About />} />
+
+                    {/* Leaderboard Page */}
+                    <Route path="/leaderboard" element={<Leaderboard />} />
+
+                    {/* Fallback */}
+                    <Route path="*" element={<UnifiedDashboard />} />
+                  </Routes>
+                </MasterLayout>
+              </ProtectedRoute>
+            }
+          />
+        </Routes>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 };
 

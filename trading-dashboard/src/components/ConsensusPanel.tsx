@@ -16,7 +16,7 @@ interface ConsensusData {
     };
 }
 
-const API_BASE = import.meta.env.VITE_API_URL || 'https://cloud-trader-267358751314.northamerica-northeast1.run.app';
+const API_BASE = import.meta.env.VITE_API_URL || 'https://cloud-trader-267358751314.europe-west1.run.app';
 
 export const ConsensusPanel: React.FC = () => {
     const [data, setData] = useState<ConsensusData | null>(null);
@@ -42,7 +42,7 @@ export const ConsensusPanel: React.FC = () => {
         return () => clearInterval(interval);
     }, []);
 
-    if (loading || !data) {
+    if (loading || !data || !data.stats) {
         return (
             <Paper sx={{
                 p: 3,
@@ -56,8 +56,8 @@ export const ConsensusPanel: React.FC = () => {
     }
 
     const { stats } = data;
-    const confPercent = stats.avg_confidence * 100;
-    const agreePercent = stats.avg_agreement * 100;
+    const confPercent = (stats.avg_confidence || 0) * 100;
+    const agreePercent = (stats.avg_agreement || 0) * 100;
     const longCount = stats.signal_distribution?.entry_long || 0;
     const shortCount = stats.signal_distribution?.entry_short || 0;
     const totalSignals = longCount + shortCount;

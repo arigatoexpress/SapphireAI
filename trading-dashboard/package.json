@@ -1,6 +1,6 @@
 {
   "name": "sapphire-trading-dashboard",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Real-time autonomous trading dashboard powered by Firebase",
   "type": "module",
   "private": true,
@@ -14,8 +14,8 @@
     "@types/react-router-dom": "^5.3.3",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
-    "firebase": "^10.7.0",
-    "framer-motion": "^12.23.25",
+    "firebase": "^10.14.1",
+    "framer-motion": "^12.23.26",
     "lightweight-charts": "^4.1.3",
     "lucide-react": "^0.554.0",
     "react": "^18.2.0",

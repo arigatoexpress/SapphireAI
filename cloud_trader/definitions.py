@@ -1,6 +1,6 @@
 """Shared definitions to avoid circular imports.
 
-VERSION: 2.0.0 - 2025-12-13 - 3 Agent Architecture
+VERSION: 2.0.1 - 2025-12-19 - String Formatting Precision Fix
 """
 
 from dataclasses import dataclass

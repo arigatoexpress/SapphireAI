@@ -60,8 +60,8 @@ COPY --from=builder /install/bin /usr/local/bin
 COPY trading-dashboard/dist /app/static
 
 # Copy application code with forced cache invalidation
-ARG CACHE_BUST
-RUN echo "CACHE_BUST=1764645934" > /dev/null
+ARG CACHE_BUST=20251219_073000
+RUN echo "CACHE_BUST=${CACHE_BUST}" > /dev/null
 COPY --chown=trader:trader cloud_trader ./cloud_trader
 COPY --chown=trader:trader start.py ./
 COPY --chown=trader:trader pyproject.toml ./

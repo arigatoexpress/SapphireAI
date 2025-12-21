@@ -23,28 +23,47 @@ class PositionManager:
         self._tpsl_placed: set = set()  # Track which symbols have TP/SL already placed
         self._symbol_precision_cache: Dict[str, int] = {}  # Cache price precision
 
-    async def _round_price(self, symbol: str, price: float) -> float:
-        """
-        Round a price to the symbol's tick size precision.
-        This prevents the -1111 'Precision is over the maximum' error.
-        """
+    async def _round_price(self, symbol: str, price: float) -> str:
+        """Round price to tickSize and return formatted string."""
         try:
-            # Check cache first
-            if symbol in self._symbol_precision_cache:
-                precision = self._symbol_precision_cache[symbol]
-            else:
-                # Fetch from exchange if not cached
-                filters = await self.exchange_client.get_symbol_filters(symbol)
-                precision = filters.get("price_precision", 2)
-                self._symbol_precision_cache[symbol] = precision
+            filters = await self.exchange_client.get_symbol_filters(symbol)
+            tick_size = filters.get("tick_size", Decimal("0.01"))
+            price_precision = filters.get("price_precision", 2)
             
-            # Round to precision using Decimal for accuracy
-            multiplier = 10 ** precision
-            rounded = round(price * multiplier) / multiplier
-            return rounded
+            price_dec = Decimal(str(price))
+            rounded = (price_dec / tick_size).quantize(Decimal('1'), rounding=ROUND_DOWN) * tick_size
+            
+            # Format with exact decimal places
+            format_str = f"{{:.{price_precision}f}}"
+            return format_str.format(float(rounded))
         except Exception as e:
-            logger.warning(f"Price rounding failed for {symbol}: {e}, using 4 decimals")
-            return round(price, 4)
+            logger.warning(f"Price rounding failed for {symbol}: {e}")
+            return f"{price:.2f}"
+
+    async def _round_quantity(self, symbol: str, quantity: float) -> str:
+        """Round quantity to stepSize and return formatted string."""
+        try:
+            filters = await self.exchange_client.get_symbol_filters(symbol)
+            step_size = filters.get("step_size", Decimal("0.001"))
+            min_qty = filters.get("min_qty", Decimal("0.001"))
+            quantity_precision = filters.get("quantity_precision", 3)
+            
+            qty_dec = Decimal(str(quantity))
+            
+            # Floor to step_size
+            rounded = (qty_dec / step_size).quantize(Decimal('1'), rounding=ROUND_DOWN) * step_size
+            
+            # Ensure at least min_qty
+            if rounded < min_qty and quantity > 0:
+                rounded = min_qty
+            
+            # Format with exact decimal places
+            format_str = f"{{:.{quantity_precision}f}}"
+            result = format_str.format(float(rounded))
+            return result
+        except Exception as e:
+            logger.warning(f"Quantity rounding failed for {symbol}: {e}")
+            return f"{quantity:.3f}"
 
     async def sync_from_exchange(self):
         """Sync positions from exchange to inherit existing positions on startup."""
@@ -81,21 +100,31 @@ class PositionManager:
                 raw_quantity = float(pos.get("positionAmt", 0))
                 actual_side = "BUY" if raw_quantity > 0 else "SELL"
                 
+                # Store position in our tracking
+                # Compute actual side from quantity sign (Aster hedge mode)
+                raw_quantity = float(pos.get("positionAmt", 0))
+                actual_side = "BUY" if raw_quantity > 0 else "SELL"
+                
+                # Round prices for inherited sync
+                entry_price = float(pos.get("entryPrice", 0))
+                tp_price = await self._round_price(symbol, entry_price * 1.05)
+                sl_price = await self._round_price(symbol, entry_price * 0.95)
+
                 self.open_positions[symbol] = {
                     "symbol": symbol,
                     "side": actual_side,  # Use computed side, not 'BOTH'
                     "quantity": abs(raw_quantity),  # Always store positive quantity
-                    "entry_price": float(pos.get("entryPrice", 0)),
+                    "entry_price": entry_price,
                     "unrealized_pnl": float(pos.get("unrealizedProfit", 0)),
                     "leverage": int(pos.get("leverage", 1)),
                     "agent": agent,
                     "agent_id": agent.id,
-                    "tp_price": float(pos.get("entryPrice", 0)) * 1.05,  # Default TP
-                    "sl_price": float(pos.get("entryPrice", 0)) * 0.95,  # Default SL
+                    "tp_price": tp_price,
+                    "sl_price": sl_price,
                     "actual_side": actual_side,  # Explicit tracking
                 }
                 print(
-                    f"   ✅ Inherited position: {symbol} {actual_side} x{abs(raw_quantity)}"
+                    f"   ✅ Inheriting {symbol}: {actual_side} {abs(raw_quantity)} @ {entry_price} (TP={tp_price}, SL={sl_price})"
                 )
 
             print(f"✅ Sync complete: Inherited {len(self.open_positions)} positions")
@@ -232,13 +261,16 @@ class PositionManager:
             # Determine order side (Closing logic)
             order_side = "SELL" if side == "BUY" else "BUY"
 
+            # Round quantity to symbol's step size
+            rounded_qty = await self._round_quantity(symbol, abs(quantity))
+            
             # Place STOP_MARKET order
-            print(f"🛡️ Syncing Hard Stop for {symbol}: {order_side} {abs(quantity)} @ {rounded_sl}")
+            print(f"🛡️ Syncing Hard Stop for {symbol}: {order_side} {rounded_qty} @ {rounded_sl}")
             await self.exchange_client.place_order(
                 symbol=symbol,
                 side=order_side,
                 order_type=OrderType.STOP_MARKET,
-                quantity=abs(quantity),
+                quantity=rounded_qty,
                 stop_price=rounded_sl,
                 reduce_only=True,
             )
@@ -259,13 +291,16 @@ class PositionManager:
             # Determine order side (Closing logic)
             order_side = "SELL" if side == "BUY" else "BUY"
 
+            # Round quantity to symbol's step size
+            rounded_qty = await self._round_quantity(symbol, abs(quantity))
+            
             # Place TAKE_PROFIT_MARKET order
-            print(f"💰 Syncing Take Profit for {symbol}: {order_side} {quantity} @ {rounded_tp}")
+            print(f"💰 Syncing Take Profit for {symbol}: {order_side} {rounded_qty} @ {rounded_tp}")
             await self.exchange_client.place_order(
                 symbol=symbol,
                 side=order_side,
                 order_type=OrderType.TAKE_PROFIT_MARKET,
-                quantity=abs(quantity),
+                quantity=rounded_qty,
                 stop_price=rounded_tp,
                 reduce_only=True,
             )

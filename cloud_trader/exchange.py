@@ -216,6 +216,8 @@ class AsterClient:
         self._credentials = credentials
         self._base_url = base_url
         self._client = httpx.AsyncClient(base_url=self._base_url, timeout=10.0)
+        self._filter_cache: Dict[str, Dict[str, Any]] = {}
+        self._filter_cache_time: Dict[str, float] = {}
 
     async def close(self) -> None:
         await self._client.aclose()
@@ -440,6 +442,14 @@ class AsterClient:
         return symbols[0]
 
     async def get_symbol_filters(self, symbol: str) -> Dict[str, Any]:
+        """Fetch symbol filters with caching (1h TTL)."""
+        symbol = symbol.upper()
+        now = time.time()
+        
+        # Check cache (1h TTL)
+        if symbol in self._filter_cache and (now - self._filter_cache_time.get(symbol, 0)) < 3600:
+            return self._filter_cache[symbol]
+
         symbol_info = await self.get_symbol_info(symbol)
         filters = {f["filterType"]: f for f in symbol_info.get("filters", [])}
 
@@ -461,7 +471,7 @@ class AsterClient:
         quantity_precision = max(0, -step_size.normalize().as_tuple().exponent)
         price_precision = max(0, -tick_size.normalize().as_tuple().exponent)
 
-        return {
+        result = {
             "step_size": step_size,
             "min_qty": min_qty,
             "max_qty": max_qty,
@@ -470,6 +480,12 @@ class AsterClient:
             "quantity_precision": quantity_precision,
             "price_precision": price_precision,
         }
+        
+        # Store in cache
+        self._filter_cache[symbol] = result
+        self._filter_cache_time[symbol] = now
+        
+        return result
 
     async def get_position_risk(self) -> List[Dict[str, Any]]:
         return await self._make_request("GET", "/fapi/v2/positionRisk", signed=True)

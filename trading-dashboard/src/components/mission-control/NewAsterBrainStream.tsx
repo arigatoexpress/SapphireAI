@@ -28,7 +28,7 @@ interface ActivityItem {
     color: string;
 }
 
-const API_BASE = import.meta.env.VITE_API_URL || 'https://cloud-trader-267358751314.northamerica-northeast1.run.app';
+const API_BASE = import.meta.env.VITE_API_URL || 'https://cloud-trader-267358751314.europe-west1.run.app';
 
 export const NewAsterBrainStream: React.FC = () => {
     const [activities, setActivities] = useState<ActivityItem[]>([]);
@@ -97,6 +97,8 @@ export const NewAsterBrainStream: React.FC = () => {
                 const res = await fetch(`${API_BASE}/consensus/state`);
                 if (res.ok) {
                     const data = await res.json();
+                    // Add null safety check
+                    if (!data.stats) return;
                     const newStats = data.stats as ConsensusStats;
 
                     // Generate new activities based on changes

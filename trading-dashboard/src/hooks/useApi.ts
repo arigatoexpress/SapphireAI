@@ -7,7 +7,7 @@ const getApiUrl = (): string => {
         return envUrl.replace(/\/$/, ''); // Remove trailing slash
     }
     // Fallback to Cloud Run URL for production
-    return 'https://cloud-trader-267358751314.northamerica-northeast1.run.app';
+    return 'https://cloud-trader-267358751314.europe-west1.run.app';
 };
 
 export interface AgentData {

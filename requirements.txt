@@ -374,3 +374,5 @@ alembic>=1.12.0
 sqlalchemy>=2.0.0
 bandit
 google-cloud-pubsub>=2.18.0
+google-cloud-firestore>=2.14.0
+firebase-admin>=6.5.0

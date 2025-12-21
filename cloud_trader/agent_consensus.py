@@ -388,7 +388,7 @@ class AgentConsensusEngine:
 
         # Generate reasoning
         reasoning = self._generate_consensus_reasoning(
-            winning_signal, max_score, agreement_level, participation_rate, signal_scores
+            winning_signal, max_score, agreement_level, participation_rate, signal_scores, agent_votes
         )
 
         return ConsensusResult(
@@ -411,40 +411,53 @@ class AgentConsensusEngine:
         agreement_level: float,
         participation_rate: float,
         signal_scores: Dict,
+        agent_votes: Dict[str, AgentSignal] = None, # Added agent_votes
     ) -> str:
         """Generate human-readable reasoning for consensus result."""
 
         if not winning_signal:
             return "No consensus reached - insufficient signals or participation"
 
-        reasons = [f"Winning signal: {winning_signal.value}"]
+        reasons = []
+        
+        # 1. EXTRACT AGENT THESIS (The "Intelligence")
+        # Find the agent with highest confidence who voted for the winner
+        best_thesis = ""
+        best_conf = -1.0
+        
+        if agent_votes:
+            for agent_id, signal in agent_votes.items():
+                if signal.signal_type == winning_signal:
+                    if signal.confidence > best_conf and signal.reasoning:
+                        best_conf = signal.confidence
+                        best_thesis = signal.reasoning
+
+        if best_thesis:
+            # Clean up thesis (remove duplicates if multiple agents same logic)
+            reasons.append(f"Logic: {best_thesis}")
+        else:
+            reasons.append(f"Winning signal: {winning_signal.value}")
+
 
         if max_score > 0.8:
-            reasons.append("Strong consensus with high confidence")
+            reasons.append("Strong consensus")
         elif max_score > 0.6:
-            reasons.append("Moderate consensus achieved")
-        else:
-            reasons.append("Weak consensus - low confidence")
+            reasons.append("Moderate consensus")
 
         if agreement_level > 0.8:
-            reasons.append("High agreement among participating agents")
-        elif agreement_level > 0.6:
-            reasons.append("Moderate agreement level")
-        else:
-            reasons.append("Low agreement - potential conflicts")
-
-        if participation_rate < self.min_participation_rate:
-            reasons.append(f"Low participation rate ({participation_rate:.1%})")
+            reasons.append("High agreement")
+        elif agreement_level < 0.5:
+             reasons.append("Low agreement")
 
         # Add signal breakdown
         signal_breakdown = []
         for signal_type, scores in signal_scores.items():
-            signal_breakdown.append(f"{signal_type.value}: {scores['votes']} votes")
+            signal_breakdown.append(f"{signal_type.value}: {scores['votes']}")
 
         if signal_breakdown:
-            reasons.append(f"Signal breakdown: {', '.join(signal_breakdown)}")
+            reasons.append(f"Votes: {', '.join(signal_breakdown)}")
 
-        return "; ".join(reasons)
+        return " | ".join(reasons)
 
     def update_performance_feedback(
         self,
@@ -569,6 +582,28 @@ class AgentConsensusEngine:
                 "current_weight": self.agent_weights[agent_id],
             }
 
+        # Recent Activity Feed (for Frontend Intelligence)
+        recent_activity = []
+        # We need to extract individual agent signals from the history or pending queue?
+        # Actually simplest is to just show the CONSENSUS results which contain the aggregate thesis
+        # But user wants "Agent Logic".
+        # Let's check if ConsensusResult has a 'reasoning' or 'trace'.
+        
+        # If we want detailed agent signals, we might need to store them in history too. 
+        # For now, let's expose the Consensus History as the activity feed.
+        for res in reversed(recent_results[-20:]): # Last 20 events
+             recent_activity.append({
+                 "symbol": res.symbol,
+                 "timestamp_us": res.timestamp_us,
+                 "winning_signal": res.winning_signal.value if res.winning_signal else "NEUTRAL",
+                 "confidence": res.consensus_confidence,
+                 "agreement": res.agreement_level,
+                 "is_strong": res.consensus_confidence >= 0.75 and res.agreement_level >= 0.6,
+                 # If we had a 'primary_thesis' field in ConsensusResult it would be great.
+                 # Since we don't, we'll return the consensus data.
+                 # TODO: Future - store top agent thesis in ConsensusResult
+             })
+
         return {
             "total_consensus_events": len(self.consensus_history),
             "success_rate": success_rate,
@@ -578,6 +613,7 @@ class AgentConsensusEngine:
             "signal_distribution": signal_distribution,
             "agent_performance": agent_summary,
             "active_agents": len(self.agent_registry),
+            "recent_activity": recent_activity
         }
 
 

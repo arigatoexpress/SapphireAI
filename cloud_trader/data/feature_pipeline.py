@@ -85,23 +85,53 @@ class FeaturePipeline:
 
     async def get_market_analysis(self, symbol: str) -> Dict[str, Any]:
         """Get full analysis snapshot for an agent."""
-        df = await self.fetch_candles(symbol, interval="1h", limit=100)
-        if pd is None or not isinstance(df, pd.DataFrame) or df.empty:
-            return {}
-
-        df = self.calculate_indicators(df)
-        latest = df.iloc[-1]
+        
+        # Parallel fetch for speed
+        candles_task = self.fetch_candles(symbol, interval="1h", limit=100)
+        orderbook_task = self.client.get_order_book(symbol, limit=20)
+        
+        results = await asyncio.gather(candles_task, orderbook_task, return_exceptions=True)
+        df, orderbook = results[0], results[1]
+        
+        # 1. Technical Analysis
+        ta_data = {}
+        if pd is not None and isinstance(df, pd.DataFrame) and not df.empty:
+            df = self.calculate_indicators(df)
+            latest = df.iloc[-1]
+            ta_data = {
+                "rsi": float(latest.get("RSI_14", 50)),
+                "atr": float(latest.get("ATRr_14", 0)),
+                "ema_20": float(latest.get("EMA_20", 0)),
+                "ema_50": float(latest.get("EMA_50", 0)),
+                "trend": "BULLISH" if latest["close"] > latest.get("EMA_50", 0) else "BEARISH",
+                "volatility_state": (
+                    "HIGH" if latest.get("ATRr_14", 0) > (latest["close"] * 0.02) else "LOW"
+                ),
+            }
+        
+        # 2. Order Book Analysis (Depth & Pressure)
+        ob_data = {"bid_pressure": 0.0, "spread_pct": 0.0}
+        if isinstance(orderbook, dict) and "bids" in orderbook:
+            try:
+                bids = [float(x[1]) for x in orderbook["bids"]]
+                asks = [float(x[1]) for x in orderbook["asks"]]
+                bid_vol = sum(bids)
+                ask_vol = sum(asks)
+                total_vol = bid_vol + ask_vol
+                
+                if total_vol > 0:
+                    ob_data["bid_pressure"] = bid_vol / total_vol  # >0.5 means buying pressure
+                
+                best_bid = float(orderbook["bids"][0][0])
+                best_ask = float(orderbook["asks"][0][0])
+                if best_ask > 0:
+                    ob_data["spread_pct"] = (best_ask - best_bid) / best_ask
+            except Exception:
+                pass
 
         return {
             "symbol": symbol,
-            "price": latest["close"],
-            "rsi": latest.get("RSI_14"),
-            # "macd": latest.get("MACD_12_26_9"), # Skipped for now
-            "atr": latest.get("ATRr_14"),
-            "ema_20": latest.get("EMA_20"),
-            "ema_50": latest.get("EMA_50"),
-            "trend": "BULLISH" if latest["close"] > latest.get("EMA_50", 0) else "BEARISH",
-            "volatility_state": (
-                "HIGH" if latest.get("ATRr_14", 0) > (latest["close"] * 0.02) else "LOW"
-            ),
+            "price": ta_data.get("close", 0) if ta_data else 0, # Fallback
+            **ta_data,
+            **ob_data
         }
