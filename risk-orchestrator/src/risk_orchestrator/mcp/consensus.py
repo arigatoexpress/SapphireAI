@@ -37,7 +37,6 @@ class ProposalState:
 class ConsensusEngine:
     """Engine for managing consensus voting on MCP proposals."""
 
-
     def __init__(self):
         self._proposals: Dict[str, ProposalState] = {}
         self._lock = asyncio.Lock()
@@ -116,7 +115,9 @@ class ConsensusEngine:
         if approval_rate >= state.consensus_threshold:
             consensus_reached = True
             participants = [vote.agent_id for vote in state.votes.values()]
-            notes = f"Consensus reached with {len(state.votes)} votes ({approval_rate:.1%} approval)"
+            notes = (
+                f"Consensus reached with {len(state.votes)} votes ({approval_rate:.1%} approval)"
+            )
 
             # Clean up
             self._proposals.pop(state.proposal_id, None)

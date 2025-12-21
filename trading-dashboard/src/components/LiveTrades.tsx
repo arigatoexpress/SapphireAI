@@ -56,9 +56,9 @@ const LiveTrades: React.FC = () => {
   useEffect(() => {
     const generateLiveTrades = () => {
       const liveTrades: LiveTrade[] = [];
-      
+
       recentSignals.forEach((signal, index) => {
-        const agent = agentActivities.find(a => 
+        const agent = agentActivities.find(a =>
           a.agent_id.includes(signal.source?.toLowerCase() || '') ||
           signal.source?.toLowerCase().includes(a.agent_type)
         );
@@ -119,7 +119,7 @@ const LiveTrades: React.FC = () => {
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffSecs = Math.floor(diffMs / 1000);
-    
+
     if (diffSecs < 60) return `${diffSecs}s ago`;
     if (diffSecs < 3600) return `${Math.floor(diffSecs / 60)}m ago`;
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });

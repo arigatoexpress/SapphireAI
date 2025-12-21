@@ -51,14 +51,38 @@ class AgentPersonality:
     def _get_expertise_for_role(self, role: AgentRole) -> List[str]:
         """Get expertise areas for each role."""
         expertise_map = {
-            AgentRole.MOMENTUM_TRADER: ["trend_analysis", "breakout_detection", "momentum_indicators"],
-            AgentRole.MEAN_REVERSION_TRADER: ["support_resistance", "overbought_oversold", "statistical_arbitrage"],
+            AgentRole.MOMENTUM_TRADER: [
+                "trend_analysis",
+                "breakout_detection",
+                "momentum_indicators",
+            ],
+            AgentRole.MEAN_REVERSION_TRADER: [
+                "support_resistance",
+                "overbought_oversold",
+                "statistical_arbitrage",
+            ],
             AgentRole.SENTIMENT_ANALYST: ["news_analysis", "social_sentiment", "market_psychology"],
-            AgentRole.VOLATILITY_SPECIALIST: ["volatility_forecasting", "options_strategies", "tail_risk_management"],
-            AgentRole.TECHNICAL_ANALYST: ["pattern_recognition", "indicator_analysis", "quantitative_modeling"],
-            AgentRole.MARKET_MAKER: ["liquidity_provision", "spread_management", "order_flow_analysis"],
+            AgentRole.VOLATILITY_SPECIALIST: [
+                "volatility_forecasting",
+                "options_strategies",
+                "tail_risk_management",
+            ],
+            AgentRole.TECHNICAL_ANALYST: [
+                "pattern_recognition",
+                "indicator_analysis",
+                "quantitative_modeling",
+            ],
+            AgentRole.MARKET_MAKER: [
+                "liquidity_provision",
+                "spread_management",
+                "order_flow_analysis",
+            ],
             AgentRole.RISK_MANAGER: ["position_sizing", "correlation_analysis", "stress_testing"],
-            AgentRole.PORTFOLIO_OPTIMIZER: ["asset_allocation", "risk_parity", "performance_attribution"]
+            AgentRole.PORTFOLIO_OPTIMIZER: [
+                "asset_allocation",
+                "risk_parity",
+                "performance_attribution",
+            ],
         }
         return expertise_map.get(role, [])
 
@@ -72,7 +96,7 @@ class AgentPersonality:
             AgentRole.TECHNICAL_ANALYST: "Generates quantitative signals across timeframes",
             AgentRole.MARKET_MAKER: "Provides liquidity and reduces slippage costs",
             AgentRole.RISK_MANAGER: "Ensures portfolio stability and risk control",
-            AgentRole.PORTFOLIO_OPTIMIZER: "Optimizes asset allocation and performance"
+            AgentRole.PORTFOLIO_OPTIMIZER: "Optimizes asset allocation and performance",
         }
         return contribution_map.get(role, "Contributes to portfolio diversification")
 
@@ -86,7 +110,7 @@ class AgentPersonality:
             AgentRole.TECHNICAL_ANALYST: "Data-driven and systematic",
             AgentRole.MARKET_MAKER: "Practical and execution-focused",
             AgentRole.RISK_MANAGER: "Conservative and cautionary",
-            AgentRole.PORTFOLIO_OPTIMIZER: "Strategic and holistic"
+            AgentRole.PORTFOLIO_OPTIMIZER: "Strategic and holistic",
         }
         return style_map.get(role, "Collaborative and informative")
 
@@ -94,13 +118,25 @@ class AgentPersonality:
         """Get preferred collaboration partners."""
         partners_map = {
             AgentRole.MOMENTUM_TRADER: [AgentRole.TECHNICAL_ANALYST, AgentRole.SENTIMENT_ANALYST],
-            AgentRole.MEAN_REVERSION_TRADER: [AgentRole.VOLATILITY_SPECIALIST, AgentRole.TECHNICAL_ANALYST],
+            AgentRole.MEAN_REVERSION_TRADER: [
+                AgentRole.VOLATILITY_SPECIALIST,
+                AgentRole.TECHNICAL_ANALYST,
+            ],
             AgentRole.SENTIMENT_ANALYST: [AgentRole.MOMENTUM_TRADER, AgentRole.RISK_MANAGER],
-            AgentRole.VOLATILITY_SPECIALIST: [AgentRole.MEAN_REVERSION_TRADER, AgentRole.RISK_MANAGER],
-            AgentRole.TECHNICAL_ANALYST: [AgentRole.MOMENTUM_TRADER, AgentRole.MEAN_REVERSION_TRADER],
+            AgentRole.VOLATILITY_SPECIALIST: [
+                AgentRole.MEAN_REVERSION_TRADER,
+                AgentRole.RISK_MANAGER,
+            ],
+            AgentRole.TECHNICAL_ANALYST: [
+                AgentRole.MOMENTUM_TRADER,
+                AgentRole.MEAN_REVERSION_TRADER,
+            ],
             AgentRole.MARKET_MAKER: [AgentRole.TECHNICAL_ANALYST, AgentRole.PORTFOLIO_OPTIMIZER],
-            AgentRole.RISK_MANAGER: [AgentRole.VOLATILITY_SPECIALIST, AgentRole.PORTFOLIO_OPTIMIZER],
-            AgentRole.PORTFOLIO_OPTIMIZER: [AgentRole.RISK_MANAGER, AgentRole.TECHNICAL_ANALYST]
+            AgentRole.RISK_MANAGER: [
+                AgentRole.VOLATILITY_SPECIALIST,
+                AgentRole.PORTFOLIO_OPTIMIZER,
+            ],
+            AgentRole.PORTFOLIO_OPTIMIZER: [AgentRole.RISK_MANAGER, AgentRole.TECHNICAL_ANALYST],
         }
         return partners_map.get(role, [])
 
@@ -114,7 +150,7 @@ class AgentPersonality:
             AgentRole.TECHNICAL_ANALYST: "medium",
             AgentRole.MARKET_MAKER: "low",
             AgentRole.RISK_MANAGER: "low",
-            AgentRole.PORTFOLIO_OPTIMIZER: "medium"
+            AgentRole.PORTFOLIO_OPTIMIZER: "medium",
         }
         return tolerance_map.get(role, "medium")
 
@@ -128,7 +164,7 @@ class AgentPersonality:
             AgentRole.TECHNICAL_ANALYST: "multi_timeframe",
             AgentRole.MARKET_MAKER: "ultra_short_term",
             AgentRole.RISK_MANAGER: "continuous",
-            AgentRole.PORTFOLIO_OPTIMIZER: "long_term"
+            AgentRole.PORTFOLIO_OPTIMIZER: "long_term",
         }
         return horizon_map.get(role, "short_term")
 
@@ -178,9 +214,9 @@ class PortfolioOrchestrator:
 
         # Risk-weighted allocations
         risk_weights = {
-            "high": 0.15,    # 15% for high-risk agents
+            "high": 0.15,  # 15% for high-risk agents
             "medium": 0.10,  # 10% for medium-risk agents
-            "low": 0.05      # 5% for low-risk agents
+            "low": 0.05,  # 5% for low-risk agents
         }
 
         for agent_id, personality in self.agent_personalities.items():
@@ -216,7 +252,7 @@ class PortfolioOrchestrator:
             "relevant_partners": [partner.value for partner in relevant_partners],
             "portfolio_goal": self.portfolio_goal.value,
             "context": context or {},
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
         self.collaboration_topics.append(collaboration_context)
@@ -224,7 +260,9 @@ class PortfolioOrchestrator:
         # This would broadcast to relevant agents via MCP
         await self._broadcast_collaboration_opportunity(collaboration_context)
 
-        logger.info(f"Coordinated collaboration: {agent_id} ({personality.role.value}) on topic: {topic}")
+        logger.info(
+            f"Coordinated collaboration: {agent_id} ({personality.role.value}) on topic: {topic}"
+        )
 
     async def _broadcast_collaboration_opportunity(self, collaboration_context: Dict):
         """Broadcast collaboration opportunity to relevant agents."""
@@ -243,7 +281,9 @@ class PortfolioOrchestrator:
         symbol = trade_details.get("symbol", "")
         if personality.preferred_assets != ["all"] and symbol not in personality.preferred_assets:
             # Allow but log preference mismatch
-            logger.debug(f"{agent_id} trading {symbol} outside preferred assets {personality.preferred_assets}")
+            logger.debug(
+                f"{agent_id} trading {symbol} outside preferred assets {personality.preferred_assets}"
+            )
 
         # Check position size against allocation
         notional = trade_details.get("notional", 0)
@@ -256,11 +296,7 @@ class PortfolioOrchestrator:
 
         # Check leverage against role risk tolerance
         leverage = trade_details.get("leverage", 1.0)
-        max_leverage_by_risk = {
-            "high": 10.0,
-            "medium": 5.0,
-            "low": 2.0
-        }
+        max_leverage_by_risk = {"high": 10.0, "medium": 5.0, "low": 2.0}
 
         max_leverage = max_leverage_by_risk.get(personality.risk_tolerance, 5.0)
         if leverage > max_leverage:
@@ -281,7 +317,7 @@ class PortfolioOrchestrator:
                 for agent_id, personality in self.agent_personalities.items()
             },
             "active_collaborations": len(self.collaboration_topics),
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
     def update_portfolio_value(self, new_value: float):
@@ -311,7 +347,7 @@ class PortfolioOrchestrator:
             "preferred_assets": personality.preferred_assets,
             "portfolio_goal": self.portfolio_goal.value,
             "collaboration_partners": [p.value for p in personality.collaboration_partners],
-            "guidance": self._generate_role_guidance(personality)
+            "guidance": self._generate_role_guidance(personality),
         }
 
     def _generate_role_guidance(self, personality: AgentPersonality) -> str:

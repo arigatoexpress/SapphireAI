@@ -143,4 +143,3 @@ export const formatNumber = (value: number, decimals: number = 0): string => {
     maximumFractionDigits: decimals,
   }).format(value);
 };
-

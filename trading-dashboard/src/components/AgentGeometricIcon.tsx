@@ -177,4 +177,3 @@ const AgentGeometricIcon: React.FC<AgentGeometricIconProps> = ({ agentId, size =
 };
 
 export default AgentGeometricIcon;
-

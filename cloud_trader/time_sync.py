@@ -11,6 +11,7 @@ from typing import Dict, List, Optional, Tuple
 
 try:
     import ntplib
+
     NTP_AVAILABLE = True
 except ImportError:
     ntplib = None
@@ -23,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 class TimeSyncConfig(BaseModel):
     """Configuration for time synchronization."""
+
     ntp_servers: List[str] = ["pool.ntp.org", "time.nist.gov", "time.google.com"]
     sync_interval_seconds: int = 300  # 5 minutes
     max_drift_microseconds: int = 1000  # 1ms max acceptable drift
@@ -32,6 +34,7 @@ class TimeSyncConfig(BaseModel):
 @dataclass
 class TimeSample:
     """NTP time sample with precision metrics."""
+
     ntp_time: float
     local_time: float
     offset: float
@@ -104,7 +107,7 @@ class PrecisionClock:
                         local_time=time.time(),
                         offset=response.offset,
                         delay=response.delay,
-                        precision=response.precision
+                        precision=response.precision,
                     )
 
                     # Keep the sample with lowest delay (most accurate)
@@ -129,11 +132,9 @@ class PrecisionClock:
 
             drift_us = best_sample.drift_microseconds
             if drift_us > self.config.max_drift_microseconds:
-                logger.warning(".2f"
-                              f"server={best_sample.delay:.3f}s")
+                logger.warning(".2f" f"server={best_sample.delay:.3f}s")
 
-            logger.debug(".6f"
-                        f"offset={best_sample.offset:.6f}s")
+            logger.debug(".6f" f"offset={best_sample.offset:.6f}s")
 
     def now_ns(self) -> int:
         """Get current time in nanoseconds (NTP-synchronized)."""
@@ -163,7 +164,7 @@ class PrecisionClock:
             "samples": len(drifts),
             "avg_drift_us": sum(drifts) / len(drifts),
             "max_drift_us": max(drifts),
-            "current_offset_ns": self._offset_ns
+            "current_offset_ns": self._offset_ns,
         }
 
 

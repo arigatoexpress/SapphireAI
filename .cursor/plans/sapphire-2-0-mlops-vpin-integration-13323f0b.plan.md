@@ -94,7 +94,7 @@ Script responsibilities:
 class VpinHFTAgent:
     def __init__(self, exchange_client, pubsub_topic, risk_manager_queue):
         # Initialize with exchange client, Pub/Sub topic, risk manager queue
-        
+
     def calculate_vpin(self, tick_data_batch: list) -> float:
         """
         VPIN = (sum(|Vbuy - Vsell|) / sum(Vbuy + Vsell)) * sqrt(N)
@@ -102,7 +102,7 @@ class VpinHFTAgent:
     - Rolling window calculation for real-time processing
     - Returns VPIN value (0-1 scale, typically 0.1-0.5)
         """
-        
+
     async def execute_trade(self, vpin_signal: float, symbol: str):
         """
         If VPIN > threshold (dynamic, typically 0.3-0.5):
@@ -194,8 +194,8 @@ class VpinHFTAgent:
   diskSizeGb: 100
   minNodeCount: 2
   maxNodeCount: 5
-  
-# HFT Pool  
+
+# HFT Pool
 - name: hft-pool
   machineType: n1-highcpu-8
   diskSizeGb: 50
@@ -240,10 +240,10 @@ def __init__(self, settings: Settings):
     self._max_leverage = settings.max_portfolio_leverage
     # Initialize Pub/Sub listener for VPIN positions
     self._vpin_position_listener = None
-    
+
 def update_portfolio_risk(self, portfolio: PortfolioState, vpin_positions: Dict[str, Any]) -> None:
     # Include VPIN positions in total exposure
-    vpin_exposure = sum(pos.get('notional', 0) * pos.get('leverage', 30) 
+    vpin_exposure = sum(pos.get('notional', 0) * pos.get('leverage', 30)
                        for pos in vpin_positions.values())
     total_exposure = portfolio.total_exposure + vpin_exposure
     # Check against $1,250 max loss limit
@@ -359,16 +359,16 @@ def calculate_vpin(self, tick_data_batch: list) -> float:
     """Calculate VPIN from tick data batch."""
     if len(tick_data_batch) < 10:
         return 0.0
-    
+
     buy_volume = 0.0
     sell_volume = 0.0
     total_volume = 0.0
-    
+
     for tick in tick_data_batch:
         price_change = tick['price'] - tick.get('prev_price', tick['price'])
         volume = tick.get('volume', 0.0)
         total_volume += volume
-        
+
         if price_change > 0:
             buy_volume += volume
         elif price_change < 0:
@@ -377,13 +377,13 @@ def calculate_vpin(self, tick_data_batch: list) -> float:
             # Neutral tick, split volume
             buy_volume += volume / 2
             sell_volume += volume / 2
-    
+
     if total_volume == 0:
         return 0.0
-    
+
     volume_imbalance = abs(buy_volume - sell_volume)
     vpin = (volume_imbalance / total_volume) * math.sqrt(len(tick_data_batch))
-    
+
     return min(vpin, 1.0)  # Cap at 1.0
 ```
 
@@ -398,7 +398,7 @@ def __init__(self, settings: Settings):
     # Initialize Pub/Sub client for VPIN positions
     self._pubsub_client = PubSubClient(settings)
     self._vpin_positions: Dict[str, Any] = {}
-    
+
 def update_portfolio_risk(self, portfolio: PortfolioState) -> None:
     # Include VPIN positions in exposure calculation
     vpin_exposure = sum(
@@ -407,13 +407,13 @@ def update_portfolio_risk(self, portfolio: PortfolioState) -> None:
     )
     total_exposure = portfolio.total_exposure + vpin_exposure
     current_leverage = total_exposure / self._total_capital
-    
+
     # Check maximum loss limit
     unrealized_pnl = portfolio.unrealized_pnl or 0.0
     if unrealized_pnl < -self._max_loss:
         # Emergency: reduce all positions
         return False, "Maximum loss limit exceeded"
-    
+
     return True, ""
 ```
 
@@ -429,4 +429,4 @@ def update_portfolio_risk(self, portfolio: PortfolioState) -> None:
 
 ### To-dos
 
-- [ ] 
+- [ ]

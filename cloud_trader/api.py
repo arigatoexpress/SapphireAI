@@ -71,23 +71,66 @@ logger = logging.getLogger(__name__)
 class RateLimiter:
     """Simple in-memory rate limiter."""
 
-    def __init__(self, requests_per_minute: int = 60):
+    def __init__(self, requests_per_minute: int = 60, burst_limit: int = 10):
         self.requests_per_minute = requests_per_minute
+        self.burst_limit = burst_limit
         self.requests = defaultdict(list)
 
     def is_allowed(self, key: str) -> bool:
         now = time.time()
-        # Clean old requests
+        # Clean old requests (older than 60s)
         self.requests[key] = [req_time for req_time in self.requests[key] if now - req_time < 60]
 
         if len(self.requests[key]) >= self.requests_per_minute:
+            logger.warning(f"🛡️ Rate limit exceeded for {key}")
             return False
 
         self.requests[key].append(now)
         return True
 
 
-rate_limiter = RateLimiter(requests_per_minute=60)  # 60 requests per minute per IP
+rate_limiter = RateLimiter(requests_per_minute=100)  # Standard limit
+
+
+class SecurityHeadersMiddleware:
+    """
+    Middleware to add important security headers to all responses.
+    Ensures 'top-notch' security benchmarks.
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        async def send_with_security_headers(message):
+            if message["type"] == "http.response.start":
+                headers = list(message.get("headers", []))
+                
+                # Security Best Practices - OWASP Recommendations
+                security_headers = [
+                    (b"X-Content-Type-Options", b"nosniff"),
+                    (b"X-Frame-Options", b"DENY"),
+                    (b"X-XSS-Protection", b"1; mode=block"),
+                    (b"Strict-Transport-Security", b"max-age=31536000; includeSubDomains"),
+                    (b"Content-Security-Policy", b"default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' *;"),
+                    (b"Referrer-Policy", b"strict-origin-when-cross-origin"),
+                    (b"Permissions-Policy", b"geolocation=(), microphone=(), camera=()"),
+                ]
+                
+                # Avoid duplicates
+                existing_header_names = {h[0].lower() for h in headers}
+                for name, value in security_headers:
+                    if name.lower() not in existing_header_names:
+                        headers.append((name, value))
+                        
+                message["headers"] = headers
+            await send(message)
+
+        await self.app(scope, receive, send_with_security_headers)
 
 
 class TTLCache:
@@ -200,6 +243,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Apply Security Headers Middleware
+app.add_middleware(SecurityHeadersMiddleware)
+
 # CORS headers will be handled manually in OPTIONS handlers
 
 # Add Prometheus instrumentation
@@ -291,16 +337,18 @@ async def get_dashboard_data() -> Dict[str, Any]:
         # Get recent signals from consensus engine
         signals = []
         if hasattr(service, "_consensus_engine"):
-            recent = getattr(service._consensus_engine, "_recent_results", [])
+            recent = getattr(service._consensus_engine, "consensus_history", [])
             for result in list(recent)[-20:]:
                 signals.append(
                     {
                         "symbol": getattr(result, "symbol", ""),
-                        "winning_signal": getattr(result, "winning_signal", "hold"),
+                        "winning_signal": (
+                            result.winning_signal.value if result.winning_signal else "hold"
+                        ),
                         "confidence": getattr(result, "consensus_confidence", 0),
-                        "agreement": getattr(result, "agreement_ratio", 0),
+                        "agreement": getattr(result, "agreement_level", 0),
                         "is_strong": getattr(result, "consensus_confidence", 0) > 0.7,
-                        "timestamp_us": int(time.time() * 1000000),
+                        "timestamp_us": getattr(result, "timestamp_us", int(time.time() * 1000000)),
                     }
                 )
 
@@ -325,8 +373,8 @@ async def get_dashboard_data() -> Dict[str, Any]:
 
         return {
             "portfolio": {
-                "balance": portfolio_data.get("balance", 0),
-                "equity": portfolio_data.get("equity", 0),
+                "balance": portfolio_data.get("portfolio_value", 0),
+                "equity": portfolio_data.get("portfolio_value", 0),
                 "pnl_percent": portfolio_data.get("total_pnl_percent", 0),
             },
             "agents": agents_data,
@@ -1221,10 +1269,11 @@ async def get_consensus_state() -> Dict[str, Any]:
                                 service._portfolio.balance = live_balance
                     except Exception as balance_err:
                         logger.debug(f"Could not fetch live balance: {balance_err}")
-                
+
                 # Use live balance if available, otherwise fall back to cached
                 initial_balance = (
-                    live_balance if live_balance > 0 
+                    live_balance
+                    if live_balance > 0
                     else (service._portfolio.balance if service._portfolio.balance > 0 else 1000.0)
                 )
                 total_pnl_percent = (
@@ -3118,8 +3167,24 @@ async def verify_firebase_token(request: Request, call_next):
         "/api/dashboard",  # Batch dashboard data
     ]
 
-    # Check if path is public (startswith to handle subpaths)
-    if any(request.url.path.startswith(p) for p in public_paths):
+    # Check if path is public
+    is_public = False
+    for p in public_paths:
+        if p == "/":
+            if request.url.path == "/":
+                is_public = True
+                break
+        elif request.url.path.startswith(p):
+            is_public = True
+            break
+
+    # Global Rate Limiting
+    client_ip = request.client.host if request.client else "unknown"
+    if not rate_limiter.is_allowed(f"global_{client_ip}"):
+        RATE_LIMIT_EVENTS.inc()
+        return JSONResponse({"error": "Global rate limit exceeded"}, status_code=429)
+
+    if is_public:
         return await call_next(request)
 
     # Special handling for admin cron job (protected by header secret)
@@ -3331,7 +3396,7 @@ async def send_chat_message(request: Request) -> Dict[str, Any]:
         # Get authenticated user from middleware (already verified)
         uid = getattr(request.state, "uid", None)
         if not uid:
-            return {"error": "Authentication required"}
+            raise HTTPException(status_code=401, detail="Authentication required")
 
         from .chat_bot import get_chat_bot
         from .chat_service import get_chat_service
@@ -3386,7 +3451,7 @@ async def like_chat_message(request: Request) -> Dict[str, Any]:
     try:
         uid = getattr(request.state, "uid", None)
         if not uid:
-            return {"error": "Authentication required"}
+            raise HTTPException(status_code=401, detail="Authentication required")
 
         from .chat_service import get_chat_service
 

@@ -36,7 +36,11 @@ interface Toast {
     message: string;
 }
 
-const API_URL = 'https://cloud-trader-267358751314.europe-west1.run.app';
+const getApiUrl = () => {
+    if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
+    return 'https://cloud-trader-267358751314.europe-west1.run.app';
+};
+const API_URL = getApiUrl();
 
 // Quick ticker buttons
 const QUICK_TICKERS = ['$BTC', '$ETH', '$SOL', '$XRP'];
@@ -109,12 +113,12 @@ const ChatMessageItem: React.FC<{
 
     return (
         <div className={`group p-3 rounded-lg transition-all ${isBot
-                ? 'bg-gradient-to-r from-purple-500/10 to-slate-800/50 border border-purple-500/20'
-                : message.points_awarded > 0
-                    ? 'bg-gradient-to-r from-yellow-500/10 to-slate-800/50 border border-yellow-500/20'
-                    : isOwn
-                        ? 'bg-cyan-500/5 border border-cyan-500/10'
-                        : 'bg-slate-800/30 hover:bg-slate-800/50 border border-transparent'
+            ? 'bg-gradient-to-r from-purple-500/10 to-slate-800/50 border border-purple-500/20'
+            : message.points_awarded > 0
+                ? 'bg-gradient-to-r from-yellow-500/10 to-slate-800/50 border border-yellow-500/20'
+                : isOwn
+                    ? 'bg-cyan-500/5 border border-cyan-500/10'
+                    : 'bg-slate-800/30 hover:bg-slate-800/50 border border-transparent'
             }`}>
             {/* Point Award Banner */}
             {message.points_awarded > 0 && (
@@ -292,6 +296,11 @@ export const LiveChatPanel: React.FC = () => {
                 body: JSON.stringify({ content: newMessage }),
             });
 
+            if (res.status === 401) {
+                addToast('error', 'Session expired. Please log out and back in.');
+                return;
+            }
+
             const data = await res.json();
             console.log('Send response:', data);
 
@@ -301,7 +310,7 @@ export const LiveChatPanel: React.FC = () => {
                 await fetchMessages();
                 inputRef.current?.focus();
             } else {
-                addToast('error', data.error || 'Failed to send message');
+                addToast('error', data.error || data.message || 'Failed to send message');
             }
         } catch (e) {
             console.error('Failed to send message:', e);

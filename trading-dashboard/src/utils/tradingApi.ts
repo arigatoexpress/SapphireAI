@@ -22,7 +22,7 @@ export const toggleAgent = async (agentId: string, enabled: boolean): Promise<bo
     throw new Error('Admin API token required for agent control');
   }
 
-  const endpoint = enabled 
+  const endpoint = enabled
     ? `/api/agents/${agentId}/enable`
     : `/api/agents/${agentId}/disable`;
 
@@ -54,14 +54,14 @@ export const toggleAgent = async (agentId: string, enabled: boolean): Promise<bo
 export const getAgentStatus = async (agentId: string): Promise<{ enabled: boolean }> => {
   try {
     const response = await fetch(`${API_BASE_URL}/api/agents`);
-    
+
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
     const agents = await response.json();
     const agent = agents.agents?.find((a: any) => a.id === agentId || a.agent_id === agentId);
-    
+
     return {
       enabled: agent?.status === 'active' || agent?.enabled === true,
     };
@@ -77,7 +77,7 @@ export const getAgentStatus = async (agentId: string): Promise<{ enabled: boolea
 export const getPaperTradingStatus = async (): Promise<{ enabled: boolean }> => {
   try {
     const response = await fetch(`${API_BASE_URL}/healthz`);
-    
+
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
@@ -94,7 +94,7 @@ export const getPaperTradingStatus = async (): Promise<{ enabled: boolean }> => 
 
 /**
  * Toggle paper trading mode (requires API endpoint to be implemented)
- * Note: Currently paper trading is controlled via env var, 
+ * Note: Currently paper trading is controlled via env var,
  * but this function is ready for when a toggle endpoint is added
  */
 export const togglePaperTrading = async (enabled: boolean): Promise<boolean> => {
@@ -108,4 +108,3 @@ export const togglePaperTrading = async (enabled: boolean): Promise<boolean> => 
   console.warn('Paper trading toggle endpoint not yet implemented - controlled via env var');
   return false;
 };
-

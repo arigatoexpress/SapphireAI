@@ -1,3 +1,1 @@
 """Model service package initializer."""
-
-

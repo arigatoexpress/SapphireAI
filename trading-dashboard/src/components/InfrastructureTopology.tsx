@@ -643,4 +643,3 @@ const InfrastructureTopology: React.FC = () => {
 };
 
 export default InfrastructureTopology;
-

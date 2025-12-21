@@ -155,7 +155,7 @@ const MCPChat: React.FC = () => {
       ];
 
       setMessages(sampleMessages);
-      
+
       // Log initial sample messages to backend
       sampleMessages.forEach(msg => logMessageToBackend(msg));
     };
@@ -375,7 +375,7 @@ const MCPChat: React.FC = () => {
       };
 
       setMessages(prev => [...prev.slice(-9), newMessage]); // Keep last 10 messages
-      
+
       // Log new message to backend
       logMessageToBackend(newMessage);
     }, 15000); // New message every 15 seconds
@@ -397,7 +397,7 @@ const MCPChat: React.FC = () => {
 
     setMessages(prev => [...prev, userMessage]);
     setNewMessage('');
-    
+
     // Log user message to backend
     logMessageToBackend(userMessage);
 
@@ -410,7 +410,7 @@ const MCPChat: React.FC = () => {
         'Directive integrated. Agent ensemble adapting. Expect to see modified behavior across all trading algorithms.',
         'Human override accepted. All agents updating their models and strategies based on your market intelligence.'
       ];
-      
+
       const aiResponse: MCPMessage = {
         id: (Date.now() + 1).toString(),
         timestamp: new Date().toISOString(),
@@ -421,7 +421,7 @@ const MCPChat: React.FC = () => {
         confidence: 0.95
       };
       setMessages(prev => [...prev, aiResponse]);
-      
+
       // Log AI response to backend
       logMessageToBackend(aiResponse);
     }, 2000 + Math.random() * 1000);

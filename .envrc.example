@@ -32,4 +32,3 @@ export KELLY_FRACTION_CAP="0.5"
 # These should reference secret names, not actual keys
 export ASTER_API_KEY="ASTER_API_KEY:latest"
 export ASTER_SECRET_KEY="ASTER_SECRET_KEY:latest"
-

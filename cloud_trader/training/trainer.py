@@ -1,4 +1,5 @@
 """Model fine-tuning entrypoints for Vertex AI custom jobs."""
+
 from __future__ import annotations
 
 from typing import Any, Dict
@@ -43,7 +44,9 @@ def train_language_model(dataset, profile: TrainingProfile, *, run_name: str) ->
             padding="max_length",
         )
 
-    tokenized_dataset = dataset.map(tokenize_function, batched=False, remove_columns=dataset.column_names)
+    tokenized_dataset = dataset.map(
+        tokenize_function, batched=False, remove_columns=dataset.column_names
+    )
 
     data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
 

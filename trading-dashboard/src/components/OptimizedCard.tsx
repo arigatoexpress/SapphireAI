@@ -14,13 +14,13 @@ interface OptimizedCardProps {
   onClick?: () => void;
 }
 
-const OptimizedCard: React.FC<OptimizedCardProps> = ({ 
-  children, 
-  gradient, 
+const OptimizedCard: React.FC<OptimizedCardProps> = ({
+  children,
+  gradient,
   sx = {},
-  onClick 
+  onClick
 }) => {
-  const baseStyles = gradient 
+  const baseStyles = gradient
     ? gradientCardStyles(gradient.color1, gradient.color2)
     : commonCardStyles;
 
@@ -38,4 +38,3 @@ const OptimizedCard: React.FC<OptimizedCardProps> = ({
 };
 
 export default OptimizedCard;
-

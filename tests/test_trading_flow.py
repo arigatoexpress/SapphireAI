@@ -1,14 +1,15 @@
 """End-to-end tests for full trading flow with mocked APIs."""
 
-import pytest
 from contextlib import ExitStack
-from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from cloud_trader.service import TradingService
+import pytest
+
 from cloud_trader.config import Settings
-from cloud_trader.strategy import MarketSnapshot
 from cloud_trader.credentials import Credentials
+from cloud_trader.service import TradingService
+from cloud_trader.strategy import MarketSnapshot
 
 
 @pytest.fixture
@@ -104,11 +105,11 @@ async def test_trading_loop_execution(mock_settings):
         with patch.object(TradingService, "_run_loop", loop_mock):
         service = TradingService(settings=mock_settings)
             service._start_symbol_refresh = AsyncMock()
-        
+
         await service.start()
         assert service.health().running is True
         assert service.health().paper_trading is True
-        
+
         await service.stop()
         assert service.health().running is False
         loop_mock.assert_awaited()
@@ -149,14 +150,14 @@ async def test_position_verification(mock_settings, mock_aster_client):
     mock_aster_client.get_position_risk = AsyncMock(
         return_value=[{"symbol": "BTCUSDT", "positionAmt": "0.1"}]
     )
-        
+
     verified, _ = await service._verify_position_execution(
             symbol="BTCUSDT",
             side="BUY",
             order_id="test-order",
             timeout=5.0,
         )
-        
+
         assert verified is True
 
 
@@ -177,13 +178,13 @@ async def test_risk_limits_enforcement(mock_settings):
     """Test that risk limits prevent oversized positions."""
     with patch("cloud_trader.service.load_credentials", return_value=Credentials(api_key=None, api_secret=None)):
         service = TradingService(settings=mock_settings)
-    
+
     service._health.paper_trading = True
     service._portfolio.balance = 100.0
     service._portfolio.total_exposure = 900.0  # Already at 9x leverage
-    
+
     can_open = service._risk.can_open_position(service._portfolio, 100.0)
-    
+
     assert can_open is False
 
 
@@ -191,7 +192,7 @@ async def test_risk_limits_enforcement(mock_settings):
 async def test_telegram_command_handler(mock_settings):
     """Test Telegram command handler initialization."""
     from cloud_trader.telegram_commands import TelegramCommandHandler
-    
+
     with patch("cloud_trader.telegram_commands.ApplicationBuilder") as mock_builder:
         builder_instance = MagicMock()
         application_instance = MagicMock()
@@ -204,7 +205,7 @@ async def test_telegram_command_handler(mock_settings):
         chat_id="test-chat",
         trading_service=MagicMock(),
     )
-    
+
     assert handler.chat_id == "test-chat"
     assert handler.application is application_instance
 
@@ -213,12 +214,12 @@ async def test_telegram_command_handler(mock_settings):
 async def test_ta_indicators():
     """Test TA-Lib indicator calculations."""
     from cloud_trader.ta_indicators import TAIndicators
-    
+
     # Test RSI
     prices = [100.0 + i * 0.1 for i in range(30)]
     rsi = TAIndicators.calculate_rsi(prices)
     assert rsi is not None or True  # May be None if TA-Lib not installed
-    
+
     # Test MACD
     macd = TAIndicators.calculate_macd(prices)
     assert macd is None or isinstance(macd, dict)
@@ -227,14 +228,14 @@ async def test_ta_indicators():
 def test_kelly_criterion():
     """Test Kelly Criterion position sizing."""
     from cloud_trader.ta_indicators import kelly_criterion
-    
+
     position_size = kelly_criterion(
         expected_return=0.05,
         volatility=0.15,
         account_balance=1000.0,
         risk_fraction=0.01,
     )
-    
+
     assert position_size > 0
     assert position_size <= 1000.0 * 0.01  # Should not exceed 1%
 
@@ -242,4 +243,3 @@ def test_kelly_criterion():
 if __name__ == "__main__":
     import asyncio
     pytest.main([__file__, "-v"])
-

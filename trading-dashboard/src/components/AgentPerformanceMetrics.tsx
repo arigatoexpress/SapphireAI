@@ -69,17 +69,17 @@ const AgentPerformanceMetrics: React.FC<AgentPerformanceMetricsProps> = ({ agent
     try {
       setLoading(true);
       setError(null);
-      const url = agentId 
+      const url = agentId
         ? `${API_BASE_URL}/api/agents/metrics?agent_id=${agentId}`
         : `${API_BASE_URL}/api/agents/metrics`;
-      
+
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`Failed to fetch metrics: ${response.statusText}`);
       }
-      
+
       const data = await response.json();
-      
+
       if (agentId) {
         // Single agent response
         setMetrics({ [agentId]: data });
@@ -338,4 +338,3 @@ const AgentPerformanceMetrics: React.FC<AgentPerformanceMetricsProps> = ({ agent
 };
 
 export default AgentPerformanceMetrics;
-

@@ -23,7 +23,7 @@ export const useDelayedData = <T extends { timestamp?: string; last_activity?: s
 
       // Parse timestamp (handle ISO strings)
       const itemTime = new Date(timestamp).getTime();
-      
+
       // Only include items older than the delay
       return itemTime <= cutoffTime;
     });
@@ -50,7 +50,7 @@ export const useDelayedAgentActivities = <T extends {
 
     return activities.map((activity) => {
       const timestamp = activity.timestamp || activity.last_activity;
-      
+
       // If activity is recent (within delay window), hide trading_count
       if (timestamp) {
         const activityTime = new Date(timestamp).getTime();
@@ -78,4 +78,3 @@ export const useDelayedSignals = <T extends { timestamp?: string }>(
 ): T[] => {
   return useDelayedData(signals, delayMinutes);
 };
-

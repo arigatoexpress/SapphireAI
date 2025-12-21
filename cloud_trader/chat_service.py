@@ -444,7 +444,7 @@ class ChatService:
         # Create new profile
         import hashlib
 
-        avatar_seed = hashlib.md5(uid.encode()).hexdigest()[:8]
+        avatar_seed = hashlib.sha256(uid.encode()).hexdigest()[:8]
 
         profile = UserProfile(
             uid=uid,

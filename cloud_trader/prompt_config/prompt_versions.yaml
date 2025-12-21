@@ -12,7 +12,7 @@ versions:
       - Market data context
       - Technical signals integration
       - Constraints and risk limits
-    
+
   v1.1:
     description: "Enhanced prompts with historical context"
     created: "2025-11-15"
@@ -34,4 +34,3 @@ ab_testing:
     - success_rate
     - confidence_distribution
     - latency
-

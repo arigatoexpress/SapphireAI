@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import contextlib
+import json
 from typing import Any, Awaitable, Callable, Dict, Optional
 
 import httpx
-
 
 HandleQueryCallable = Callable[[Dict[str, Any]], Awaitable[Dict[str, Any]]]
 
@@ -152,4 +151,3 @@ class MCPAdapter:
 
 
 __all__ = ["MCPAdapter"]
-

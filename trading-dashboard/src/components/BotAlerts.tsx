@@ -482,4 +482,3 @@ const BotAlerts: React.FC = () => {
 };
 
 export default BotAlerts;
-

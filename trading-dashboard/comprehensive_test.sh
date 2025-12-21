@@ -21,7 +21,7 @@ echo "--------------------"
 LB_IP=$(kubectl get ingress -n trading -o jsonpath='{.items[0].status.loadBalancer.ingress[0].ip}' 2>/dev/null)
 if [ -n "$LB_IP" ]; then
     echo "✅ Load Balancer: $LB_IP"
-    
+
     # Test health endpoint
     HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 https://api.sapphiretrade.xyz/healthz 2>/dev/null || echo "timeout")
     if [ "$HEALTH_STATUS" = "200" ]; then
@@ -29,7 +29,7 @@ if [ -n "$LB_IP" ]; then
     else
         echo "❌ API Health: Failed ($HEALTH_STATUS)"
     fi
-    
+
     # Test portfolio endpoint
     PORTFOLIO_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 https://api.sapphiretrade.xyz/portfolio-status 2>/dev/null || echo "timeout")
     if [ "$PORTFOLIO_STATUS" = "200" ]; then

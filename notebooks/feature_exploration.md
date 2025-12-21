@@ -55,4 +55,3 @@ similarity
 ```python
 frame.to_parquet("feature_snapshot.parquet")
 ```
-

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 
 // Backend API base URL
 const getApiUrl = (): string => {
@@ -67,6 +68,7 @@ export interface DashboardState {
 interface UseApiOptions {
     pollInterval?: number; // ms, 0 to disable polling
     enabled?: boolean;
+    requiresAuth?: boolean;
 }
 
 interface UseApiResult<T> {
@@ -84,7 +86,8 @@ export function useApi<T>(
     endpoint: string,
     options: UseApiOptions = {}
 ): UseApiResult<T> {
-    const { pollInterval = 5000, enabled = true } = options;
+    const { pollInterval = 5000, enabled = true, requiresAuth = false } = options;
+    const { user } = useAuth();
 
     const [data, setData] = useState<T | null>(null);
     const [loading, setLoading] = useState(true);
@@ -108,11 +111,20 @@ export function useApi<T>(
             const url = `${getApiUrl()}${endpoint}`;
             console.log(`📡 Fetching: ${url}`);
 
+            const headers: HeadersInit = {
+                'Accept': 'application/json',
+            };
+
+            if (user) {
+                const token = await user.getIdToken();
+                headers['Authorization'] = `Bearer ${token}`;
+            } else if (requiresAuth) {
+                throw new Error('Authentication required');
+            }
+
             const response = await fetch(url, {
                 signal: abortControllerRef.current.signal,
-                headers: {
-                    'Accept': 'application/json',
-                },
+                headers,
             });
 
             if (!response.ok) {

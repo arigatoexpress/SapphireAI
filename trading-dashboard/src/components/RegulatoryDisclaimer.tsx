@@ -22,19 +22,19 @@ const RegulatoryDisclaimer: React.FC = () => {
         Important Risk Disclosure
       </AlertTitle>
       <Typography variant="body2" sx={{ mb: 1 }}>
-        <strong>Trading cryptocurrencies and digital assets involves substantial risk of loss.</strong> Past performance does not guarantee future results. 
+        <strong>Trading cryptocurrencies and digital assets involves substantial risk of loss.</strong> Past performance does not guarantee future results.
         The AI trading system operates autonomously and may execute trades that result in financial losses.
       </Typography>
       <Typography variant="body2" sx={{ mb: 1 }}>
-        <strong>Capital Allocation:</strong> This system allocates $500 per AI agent ($3,000 total) for trading purposes. 
+        <strong>Capital Allocation:</strong> This system allocates $500 per AI agent ($3,000 total) for trading purposes.
         You may lose some or all of your invested capital. Only trade with funds you can afford to lose.
       </Typography>
       <Typography variant="body2" sx={{ mb: 1 }}>
-        <strong>No Investment Advice:</strong> This platform provides automated trading services. It does not constitute investment, 
+        <strong>No Investment Advice:</strong> This platform provides automated trading services. It does not constitute investment,
         financial, trading, or other advice. All trading decisions are made by AI algorithms without human intervention.
       </Typography>
       <Typography variant="body2">
-        <strong>Regulatory Notice:</strong> Cryptocurrency trading may be subject to regulatory oversight in your jurisdiction. 
+        <strong>Regulatory Notice:</strong> Cryptocurrency trading may be subject to regulatory oversight in your jurisdiction.
         Please ensure compliance with all applicable laws and regulations. This system is for informational and educational purposes only.
       </Typography>
     </Alert>
@@ -42,4 +42,3 @@ const RegulatoryDisclaimer: React.FC = () => {
 };
 
 export default RegulatoryDisclaimer;
-

@@ -12,7 +12,7 @@ const LiveMetricsPanel: React.FC = () => {
       <Typography variant="h6" sx={{ fontWeight: 700, color: '#00ffff', mb: 1 }}>
         Live Metrics
       </Typography>
-      
+
       <Card sx={{
         background: '#000000',
         border: '2px solid rgba(0, 255, 255, 0.3)',
@@ -114,4 +114,3 @@ const LiveMetricsPanel: React.FC = () => {
 };
 
 export default LiveMetricsPanel;
-

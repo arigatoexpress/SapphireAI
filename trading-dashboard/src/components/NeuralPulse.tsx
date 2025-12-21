@@ -96,4 +96,3 @@ const NeuralPulse: React.FC<NeuralPulseProps> = ({
 };
 
 export default NeuralPulse;
-

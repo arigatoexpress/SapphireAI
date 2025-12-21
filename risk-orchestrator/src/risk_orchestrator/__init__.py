@@ -8,4 +8,3 @@ __all__ = [
 
 from .models import OrderIntent, RiskCheckResponse
 from .risk_engine import RiskEngine
-

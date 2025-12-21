@@ -220,4 +220,3 @@ export const mobileOptimizedTheme: ThemeOptions = {
 };
 
 export const mobileTheme = createTheme(mobileOptimizedTheme);
-

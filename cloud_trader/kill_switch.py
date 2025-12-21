@@ -136,33 +136,39 @@ class KillSwitch:
         logger.warning("Cancelling all open orders...")
 
         if self.pubsub_client:
-            await self.pubsub_client.publish_reasoning({
-                "event": "cancel_all_orders",
-                "reason": "Kill switch activated",
-                "timestamp": datetime.now().isoformat(),
-            })
+            await self.pubsub_client.publish_reasoning(
+                {
+                    "event": "cancel_all_orders",
+                    "reason": "Kill switch activated",
+                    "timestamp": datetime.now().isoformat(),
+                }
+            )
 
     async def _close_all_positions(self):
         """Close all open positions across all components."""
         logger.warning("Closing all positions...")
 
         if self.pubsub_client:
-            await self.pubsub_client.publish_reasoning({
-                "event": "close_all_positions",
-                "reason": "Kill switch activated",
-                "timestamp": datetime.now().isoformat(),
-            })
+            await self.pubsub_client.publish_reasoning(
+                {
+                    "event": "close_all_positions",
+                    "reason": "Kill switch activated",
+                    "timestamp": datetime.now().isoformat(),
+                }
+            )
 
     async def _freeze_trading(self):
         """Freeze all trading activities."""
         logger.warning("Freezing trading activities...")
 
         if self.pubsub_client:
-            await self.pubsub_client.publish_reasoning({
-                "event": "freeze_trading",
-                "reason": "Kill switch activated",
-                "timestamp": datetime.now().isoformat(),
-            })
+            await self.pubsub_client.publish_reasoning(
+                {
+                    "event": "freeze_trading",
+                    "reason": "Kill switch activated",
+                    "timestamp": datetime.now().isoformat(),
+                }
+            )
 
     async def _send_emergency_alerts(self):
         """Send emergency alerts to administrators."""

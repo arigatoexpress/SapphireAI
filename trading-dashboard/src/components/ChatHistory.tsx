@@ -77,7 +77,7 @@ const ChatHistory: React.FC = () => {
       const params = new URLSearchParams({
         limit: filters.limit.toString(),
       });
-      
+
       if (filters.agent_type !== 'all') {
         params.append('agent_type', filters.agent_type);
       }
@@ -92,7 +92,7 @@ const ChatHistory: React.FC = () => {
       if (!response.ok) {
         throw new Error(`Failed to fetch chat history: ${response.statusText}`);
       }
-      
+
       const data = await response.json();
       setMessages(data.messages || []);
     } catch (err) {
@@ -118,7 +118,7 @@ const ChatHistory: React.FC = () => {
       if (!response.ok) {
         throw new Error(`Failed to fetch statistics: ${response.statusText}`);
       }
-      
+
       const data = await response.json();
       setStatistics(data);
     } catch (err) {
@@ -138,14 +138,14 @@ const ChatHistory: React.FC = () => {
         start_time: filters.start_time || '',
         end_time: filters.end_time || '',
       })}`);
-      
+
       if (!response.ok) {
         throw new Error('Failed to export chat history');
       }
-      
+
       const data = await response.json();
       const messages = data.messages || [];
-      
+
       let content = '';
       let filename = '';
       let mimeType = '';
@@ -167,7 +167,7 @@ const ChatHistory: React.FC = () => {
       a.download = filename;
       a.click();
       URL.revokeObjectURL(url);
-      
+
       setExportDialogOpen(false);
     } catch (err) {
       console.error('Failed to export chat history:', err);
@@ -490,4 +490,3 @@ const ChatHistory: React.FC = () => {
 };
 
 export default ChatHistory;
-

@@ -29,7 +29,7 @@ class PubSubClient:
     def __init__(self, settings: Settings):
         self._settings = settings
         self._project_id = settings.gcp_project_id
-        
+
         # Topics
         self._decisions_topic = settings.decisions_topic
         self._positions_topic = settings.positions_topic

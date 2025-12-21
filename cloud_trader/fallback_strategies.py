@@ -5,6 +5,7 @@ from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
+
 class FallbackStrategySelector:
     """
     Selects and executes fallback strategies when primary trading agents are throttled
@@ -17,7 +18,9 @@ class FallbackStrategySelector:
             "position_holding": self._position_holding,
             "reduced_symbol_scanning": self._reduced_symbol_scanning,
         }
-        logger.info("FallbackStrategySelector initialized with strategies: %s", list(self.strategies.keys()))
+        logger.info(
+            "FallbackStrategySelector initialized with strategies: %s", list(self.strategies.keys())
+        )
 
     async def select_and_execute(self, symbol: str, position: Optional[Dict[str, Any]]) -> str:
         """
@@ -30,7 +33,9 @@ class FallbackStrategySelector:
             logger.info(f"Selecting 'position_holding' fallback for {symbol} due to open position.")
             return await self._position_holding(symbol, position)
         else:
-            selected_strategy_name = random.choice(["low_frequency_momentum", "reduced_symbol_scanning"])
+            selected_strategy_name = random.choice(
+                ["low_frequency_momentum", "reduced_symbol_scanning"]
+            )
             logger.info(f"Selecting '{selected_strategy_name}' fallback for {symbol}.")
             return await self.strategies[selected_strategy_name](symbol, position)
 
@@ -58,7 +63,9 @@ class FallbackStrategySelector:
             return "HOLD"
         return "HOLD"
 
-    async def _reduced_symbol_scanning(self, symbol: str, position: Optional[Dict[str, Any]]) -> str:
+    async def _reduced_symbol_scanning(
+        self, symbol: str, position: Optional[Dict[str, Any]]
+    ) -> str:
         """
         Fallback strategy: Focus on top 10-20 high-volume symbols only.
         This reduces the number of symbols to fetch data for, saving API calls.

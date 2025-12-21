@@ -29,7 +29,7 @@ COPY cloud_trader/ cloud_trader/
 COPY symphony_lib/ symphony_lib/
 
 # Install local package in editable mode
-# Assuming setup.py or pyproject.toml exists? 
+# Assuming setup.py or pyproject.toml exists?
 # The original Dockerfile likely did something else. Let's check.
 # Original Dockerfile copies everything `COPY . .` in stage 2.
 # Let's verify `symphony_lib` handling.

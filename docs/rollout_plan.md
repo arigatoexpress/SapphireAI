@@ -54,5 +54,3 @@ This rollout plan ensures Sapphire AI arrives at demo day as a polished, product
 - Hold 24h hypercare with increased logging retention.
 - Schedule key rotation (Aster, Firebase, Telegram) within first week.
 - Publish public roadmap & security summary to community to reinforce transparency.
-
-

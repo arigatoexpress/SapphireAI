@@ -90,12 +90,12 @@ export const getDynamicAgentColor = (
   recentActivity: boolean = false
 ): AgentColorPalette => {
   const base = basePalettes[agentId] || basePalettes.coordinator;
-  
+
   // Create dynamic variations based on activity
   const intensity = Math.min(1, activityScore / 100);
   const isActive = status === 'active' || status === 'trading' || status === 'analyzing';
   const pulse = recentActivity ? 0.3 : 0;
-  
+
   // Adjust colors based on activity level
   const adjustColor = (color: string, factor: number) => {
     // Convert hex to RGB
@@ -103,13 +103,13 @@ export const getDynamicAgentColor = (
     const r = parseInt(hex.substr(0, 2), 16);
     const g = parseInt(hex.substr(2, 2), 16);
     const b = parseInt(hex.substr(4, 2), 16);
-    
+
     // Brighten based on activity
     const brightness = isActive ? 1 + (intensity * 0.2) + pulse : 0.7;
     const newR = Math.min(255, Math.floor(r * brightness));
     const newG = Math.min(255, Math.floor(g * brightness));
     const newB = Math.min(255, Math.floor(b * brightness));
-    
+
     return `#${newR.toString(16).padStart(2, '0')}${newG.toString(16).padStart(2, '0')}${newB.toString(16).padStart(2, '0')}`;
   };
 
@@ -122,4 +122,3 @@ export const getDynamicAgentColor = (
 };
 
 export const AGENT_COLORS = basePalettes;
-

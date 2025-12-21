@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from prometheus_fastapi_instrumentator import Instrumentator
-import logging
+
 logger = logging.getLogger(__name__)
 import httpx
 
@@ -48,9 +49,11 @@ _portfolio_task: Optional[asyncio.Task] = None
 
 app.include_router(get_mcp_router())
 
+
 async def _broadcast_message(message: MCPMessage) -> None:
     session_id = message.session_id
     await mcp_manager.broadcast(session_id, message)
+
 
 async def _broadcast_observation(account: dict) -> None:
     session_id = MCPManagerSingleton.default_session_id
@@ -79,6 +82,7 @@ async def _broadcast_observation(account: dict) -> None:
     )
     await _broadcast_message(message)
 
+
 async def _broadcast_query(intent: OrderIntent, bot_id: str) -> Optional[str]:
     session_id = MCPManagerSingleton.default_session_id
     if not session_id:
@@ -105,7 +109,10 @@ async def _broadcast_query(intent: OrderIntent, bot_id: str) -> Optional[str]:
     await _broadcast_message(message)
     return reference_id
 
-async def _broadcast_consensus(reference_id: Optional[str], approved: bool, participants: list[str], notes: str | None = None) -> None:
+
+async def _broadcast_consensus(
+    reference_id: Optional[str], approved: bool, participants: list[str], notes: str | None = None
+) -> None:
     """Broadcast consensus result with voting algorithm integration."""
     session_id = MCPManagerSingleton.default_session_id
     if not session_id:
@@ -152,6 +159,7 @@ async def _broadcast_consensus(reference_id: Optional[str], approved: bool, part
     )
     await _broadcast_message(message)
 
+
 async def _broadcast_execution(order_id: str, status: str, error: str | None = None) -> None:
     session_id = MCPManagerSingleton.default_session_id
     if not session_id:
@@ -166,6 +174,7 @@ async def _broadcast_execution(order_id: str, status: str, error: str | None = N
     )
     await _broadcast_message(message)
 
+
 @app.on_event("startup")
 async def startup() -> None:
     global aster_client, pubsub_client, _portfolio_task
@@ -178,6 +187,7 @@ async def startup() -> None:
     MCPManagerSingleton.default_session_id = session_id
     logger.info("MCP coordinator ready (session_id=%s)", session_id)
 
+
 @app.on_event("shutdown")
 async def shutdown() -> None:
     if _portfolio_task:
@@ -189,21 +199,26 @@ async def shutdown() -> None:
     if aster_client:
         await aster_client.close()
 
+
 @app.get("/")
 async def root() -> dict:
     return {"status": "ok", "service": "risk-orchestrator"}
+
 
 @app.get("/healthz")
 async def healthz() -> dict:
     return {"status": "ok"}
 
+
 @app.post("/order/{bot_id}", response_model=RiskCheckResponse)
-async def submit_order(bot_id: str, intent: OrderIntent, background: BackgroundTasks) -> RiskCheckResponse:
+async def submit_order(
+    bot_id: str, intent: OrderIntent, background: BackgroundTasks
+) -> RiskCheckResponse:
     if not aster_client:
         raise HTTPException(status_code=503, detail="Service not ready")
 
     order_id = generate_order_id(bot_id, intent.symbol)
-    
+
     portfolio = await aster_client.get_account()
     if not portfolio:
         raise HTTPException(status_code=503, detail="Portfolio not ready")
@@ -211,7 +226,9 @@ async def submit_order(bot_id: str, intent: OrderIntent, background: BackgroundT
     query_reference = await _broadcast_query(intent, bot_id)
     engine = RiskEngine(portfolio, bot_id)
     result = engine.evaluate(intent, bot_id, order_id)
-    await _broadcast_consensus(query_reference, result.approved, [bot_id, "risk-engine"], notes=result.reason)
+    await _broadcast_consensus(
+        query_reference, result.approved, [bot_id, "risk-engine"], notes=result.reason
+    )
     if not result.approved:
         return result
 
@@ -219,6 +236,7 @@ async def submit_order(bot_id: str, intent: OrderIntent, background: BackgroundT
     order_payload["clientOrderId"] = order_id
     background.add_task(route_to_aster, order_payload, bot_id, order_id)
     return result
+
 
 @app.get("/portfolio")
 async def get_portfolio() -> dict:
@@ -232,21 +250,28 @@ async def get_portfolio() -> dict:
     except httpx.HTTPStatusError as exc:
         raise HTTPException(status_code=503, detail="Failed to fetch live portfolio")
 
+
 @prefixed_router.get("/")
 async def prefixed_root() -> dict:
     return await root()
+
 
 @prefixed_router.get("/healthz")
 async def prefixed_healthz() -> dict:
     return await healthz()
 
+
 @prefixed_router.post("/order/{bot_id}")
-async def prefixed_submit_order(bot_id: str, intent: OrderIntent, background: BackgroundTasks) -> RiskCheckResponse:
+async def prefixed_submit_order(
+    bot_id: str, intent: OrderIntent, background: BackgroundTasks
+) -> RiskCheckResponse:
     return await submit_order(bot_id, intent, background)
+
 
 @prefixed_router.get("/portfolio")
 async def prefixed_portfolio() -> dict:
     return await get_portfolio()
+
 
 @prefixed_router.get("/diagnostics/aster")
 async def diagnostics_aster() -> dict:
@@ -256,6 +281,7 @@ async def diagnostics_aster() -> dict:
 
     result = await aster_client.test_connectivity()
     return result
+
 
 @prefixed_router.get("/diagnostics/egress")
 async def diagnostics_egress() -> dict:
@@ -270,13 +296,11 @@ async def diagnostics_egress() -> dict:
             "status": "ok",
             "egress_ip": egress_ip,
             "expected_nat_ip": "34.172.187.70",
-            "using_static_nat": egress_ip == "34.172.187.70"
+            "using_static_nat": egress_ip == "34.172.187.70",
         }
     except Exception as e:
-        return {
-            "status": "error",
-            "error": str(e)
-        }
+        return {"status": "error", "error": str(e)}
+
 
 @prefixed_router.get("/diagnostics/aster-debug")
 async def diagnostics_aster_debug() -> dict:
@@ -302,7 +326,7 @@ async def diagnostics_aster_debug() -> dict:
 
         # Check if it might be base64 encoded
         try:
-            decoded_secret = base64.b64decode(raw_secret).decode('utf-8')
+            decoded_secret = base64.b64decode(raw_secret).decode("utf-8")
             results["secret_appears_base64"] = True
             results["decoded_length"] = len(decoded_secret)
         except Exception:
@@ -321,7 +345,9 @@ async def diagnostics_aster_debug() -> dict:
 
     return results
 
+
 app.include_router(prefixed_router)
+
 
 async def route_to_aster(order: dict, bot_id: str, order_id: str) -> None:
     if not aster_client or not pubsub_client:
@@ -345,6 +371,7 @@ async def route_to_aster(order: dict, bot_id: str, order_id: str) -> None:
             {"bot_id": bot_id, "event": "order_failed", "order_id": order_id, "error": str(exc)}
         )
         await _broadcast_execution(order_id, "failed", error=str(exc))
+
 
 async def portfolio_watcher() -> None:
     assert aster_client

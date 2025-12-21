@@ -51,6 +51,7 @@ class MCPResponsePayload(BaseModel):
 
 class MCPHFTSignalPayload(BaseModel):
     """HFT trading signal from specialized AI agents."""
+
     symbol: str
     side: str  # "buy", "sell", "hold"
     confidence: float
@@ -64,6 +65,7 @@ class MCPHFTSignalPayload(BaseModel):
 
 class MCPMarketDataPayload(BaseModel):
     """Real-time market data updates."""
+
     symbol: str
     price: float
     volume: float
@@ -75,6 +77,7 @@ class MCPMarketDataPayload(BaseModel):
 
 class MCPOrderExecutionPayload(BaseModel):
     """Order execution notifications."""
+
     symbol: str
     side: str
     quantity: float
@@ -88,6 +91,7 @@ class MCPOrderExecutionPayload(BaseModel):
 
 class MCRiskUpdatePayload(BaseModel):
     """Risk management updates."""
+
     symbol: Optional[str] = None
     portfolio_risk: float
     position_risk: Optional[Dict[str, float]] = None
@@ -99,6 +103,7 @@ class MCRiskUpdatePayload(BaseModel):
 
 class MCPStrategyAdjustmentPayload(BaseModel):
     """Strategy parameter adjustments."""
+
     strategy_name: str
     parameter: str
     old_value: Any
@@ -108,10 +113,9 @@ class MCPStrategyAdjustmentPayload(BaseModel):
     timestamp: str
 
 
-
-
 class MCPLiquidityUpdatePayload(BaseModel):
     """Liquidity provision updates."""
+
     symbol: str
     bid_orders: List[Dict[str, Any]]
     ask_orders: List[Dict[str, Any]]
@@ -123,6 +127,7 @@ class MCPLiquidityUpdatePayload(BaseModel):
 
 class MCPMarketMakingStatusPayload(BaseModel):
     """Market making operational status."""
+
     symbol: str
     active: bool
     spread_bps: float
@@ -135,6 +140,7 @@ class MCPMarketMakingStatusPayload(BaseModel):
 
 class MCPPortfolioRebalancePayload(BaseModel):
     """Portfolio rebalancing instructions."""
+
     target_allocations: Dict[str, float]
     current_allocations: Dict[str, float]
     rebalance_trades: List[Dict[str, Any]]
@@ -145,6 +151,7 @@ class MCPPortfolioRebalancePayload(BaseModel):
 
 class MCPStrategyPerformancePayload(BaseModel):
     """Strategy performance metrics."""
+
     strategy_name: str
     symbol: str
     timeframe: str
@@ -163,7 +170,9 @@ logger = logging.getLogger(__name__)
 
 
 class MCPClient:
-    def __init__(self, base_url: str, session_id: str | None = None, *, timeout: float = 10.0) -> None:
+    def __init__(
+        self, base_url: str, session_id: str | None = None, *, timeout: float = 10.0
+    ) -> None:
         self._base_url = base_url.rstrip("/")
         self._session_id = session_id
         self._client = httpx.AsyncClient(timeout=timeout)
@@ -174,6 +183,7 @@ class MCPClient:
         self._vertex_client = None
         try:
             from .vertex_ai_client import get_vertex_client
+
             self._vertex_client = get_vertex_client()
             self._vertex_enabled = True
             logger.info("MCP integrated with Vertex AI client")
@@ -259,11 +269,7 @@ class MCPClient:
             raise
 
     async def query_vertex_agent(
-        self,
-        agent_id: str,
-        query: str,
-        context: Optional[Dict[str, Any]] = None,
-        **kwargs
+        self, agent_id: str, query: str, context: Optional[Dict[str, Any]] = None, **kwargs
     ) -> Dict[str, Any]:
         """Query a Vertex AI agent through MCP."""
         if not self._vertex_enabled or not self._vertex_client:
@@ -274,7 +280,9 @@ class MCPClient:
             enhanced_query = self._enhance_query_with_context(query, context or {})
 
             # Query the Vertex AI agent
-            response = await self._vertex_client.predict_with_fallback(agent_id, enhanced_query, **kwargs)
+            response = await self._vertex_client.predict_with_fallback(
+                agent_id, enhanced_query, **kwargs
+            )
 
             # Publish MCP message about the query
             await self._publish_agent_query(agent_id, query, context, response)
@@ -313,11 +321,7 @@ class MCPClient:
         return query
 
     async def _publish_agent_query(
-        self,
-        agent_id: str,
-        query: str,
-        context: Optional[Dict[str, Any]],
-        response: Dict[str, Any]
+        self, agent_id: str, query: str, context: Optional[Dict[str, Any]], response: Dict[str, Any]
     ) -> None:
         """Publish MCP message about agent query."""
         try:
@@ -330,7 +334,9 @@ class MCPClient:
                     "success": True,
                     "confidence": response.get("confidence", 0.0),
                     "inference_time": response.get("metadata", {}).get("inference_time", 0),
-                    "circuit_breaker": response.get("metadata", {}).get("circuit_breaker", "unknown"),
+                    "circuit_breaker": response.get("metadata", {}).get(
+                        "circuit_breaker", "unknown"
+                    ),
                 },
                 "timestamp": asyncio.get_event_loop().time(),
             }
@@ -391,16 +397,26 @@ class MCPClient:
             # For now, return mock messages to demonstrate the UI
             # In a real implementation, this would fetch from a message store
             import time
+
             current_time = time.time()
 
             mock_messages = [
                 {
                     "id": f"msg_{i}",
-                    "type": "observation" if i % 4 == 0 else "proposal" if i % 4 == 1 else "critique" if i % 4 == 2 else "consensus",
-                    "sender": ["trend-momentum-agent", "strategy-optimization-agent", "financial-sentiment-agent", "market-prediction-agent"][i % 4],
+                    "type": (
+                        "observation"
+                        if i % 4 == 0
+                        else "proposal" if i % 4 == 1 else "critique" if i % 4 == 2 else "consensus"
+                    ),
+                    "sender": [
+                        "trend-momentum-agent",
+                        "strategy-optimization-agent",
+                        "financial-sentiment-agent",
+                        "market-prediction-agent",
+                    ][i % 4],
                     "timestamp": str(current_time - (i * 60)),  # One per minute
                     "content": f"Agent analysis for market conditions - confidence: {0.6 + (i % 4) * 0.1:.1f}",
-                    "context": f"Market regime: {'bull' if i % 2 == 0 else 'bear'}"
+                    "context": f"Market regime: {'bull' if i % 2 == 0 else 'bear'}",
                 }
                 for i in range(min(limit, 20))  # Max 20 messages for demo
             ]
@@ -427,11 +443,7 @@ class MCPClient:
             return "unhealthy"
 
     async def query_multiple_agents(
-        self,
-        agent_ids: list[str],
-        query: str,
-        context: Optional[Dict[str, Any]] = None,
-        **kwargs
+        self, agent_ids: list[str], query: str, context: Optional[Dict[str, Any]] = None, **kwargs
     ) -> Dict[str, Any]:
         """Query multiple Vertex AI agents and return consensus."""
         if not self._vertex_enabled or not self._vertex_client:
@@ -439,8 +451,7 @@ class MCPClient:
 
         # Query all agents concurrently
         tasks = [
-            self.query_vertex_agent(agent_id, query, context, **kwargs)
-            for agent_id in agent_ids
+            self.query_vertex_agent(agent_id, query, context, **kwargs) for agent_id in agent_ids
         ]
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -476,10 +487,12 @@ class MCPClient:
 
         # Publish consensus message
         try:
-            await self.publish({
-                "message_type": MCPMessageType.CONSENSUS,
-                "consensus": consensus_result,
-            })
+            await self.publish(
+                {
+                    "message_type": MCPMessageType.CONSENSUS,
+                    "consensus": consensus_result,
+                }
+            )
         except Exception as exc:
             logger.warning(f"Failed to publish consensus message: {exc}")
 
@@ -500,4 +513,3 @@ __all__ = [
     "MCRiskUpdatePayload",
     "MCPStrategyAdjustmentPayload",
 ]
-

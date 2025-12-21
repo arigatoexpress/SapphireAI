@@ -89,7 +89,7 @@ const EasterEgg: React.FC<{ trigger: boolean; onClose: () => void }> = ({ trigge
               animation: `${bounce} 1s ease-in-out infinite`,
             }}
           />
-          
+
           <Typography
             variant="h3"
             sx={{
@@ -185,4 +185,3 @@ const EasterEgg: React.FC<{ trigger: boolean; onClose: () => void }> = ({ trigge
 };
 
 export default EasterEgg;
-

@@ -74,4 +74,3 @@ jupyter lab --notebook-dir notebooks
 - Prometheus FastAPI Instrumentator – https://github.com/trallnag/prometheus-fastapi-instrumentator
 - Panel documentation – https://panel.holoviz.org/
 - Feast quickstart – https://docs.feast.dev/
-

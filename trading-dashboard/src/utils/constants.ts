@@ -65,4 +65,3 @@ export const TRADE_STATUS_COLORS = {
   partial: '#3b82f6',
   cancelled: '#ef4444',
 } as const;
-

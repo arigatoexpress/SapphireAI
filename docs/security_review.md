@@ -56,5 +56,3 @@ _Run date: 2025-11-03_
 ## Decentralized science hooks
 - `cloud_trader/sui_clients.py` contains Walrus/Seal/Nautilus stubs. No external calls occur until endpoints + credentials are configured.
 - TODOs emphasize encrypting user research before Walrus uploads and keeping community data anonymized when fed into FinGPT/Lag-LLaMA.
-
-

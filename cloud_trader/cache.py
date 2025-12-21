@@ -1,4 +1,5 @@
 """Caching layer for market data and computations."""
+
 from __future__ import annotations
 
 import asyncio
@@ -14,6 +15,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 try:  # pragma: no cover - optional dependency
     import redis.asyncio as redis
     from redis.asyncio import ConnectionPool
+
     REDIS_AVAILABLE = True
 except ImportError:  # pragma: no cover - optional dependency
     redis = None  # type: ignore
@@ -67,32 +69,25 @@ class BaseCache(ABC):
         pass
 
     @abstractmethod
-    async def connect(self) -> None:
-        ...
+    async def connect(self) -> None: ...
 
     @abstractmethod
-    async def disconnect(self) -> None:
-        ...
+    async def disconnect(self) -> None: ...
 
     @abstractmethod
-    def is_connected(self) -> bool:
-        ...
+    def is_connected(self) -> bool: ...
 
     @abstractmethod
-    async def get(self, key: str) -> Optional[Any]:
-        ...
+    async def get(self, key: str) -> Optional[Any]: ...
 
     @abstractmethod
-    async def set(self, key: str, value: Any, ttl: Optional[int] = None) -> bool:
-        ...
+    async def set(self, key: str, value: Any, ttl: Optional[int] = None) -> bool: ...
 
     @abstractmethod
-    async def delete(self, key: str) -> bool:
-        ...
+    async def delete(self, key: str) -> bool: ...
 
     @abstractmethod
-    async def clear_pattern(self, pattern: str) -> int:
-        ...
+    async def clear_pattern(self, pattern: str) -> int: ...
 
     @abstractmethod
     async def ping(self) -> bool:
@@ -133,9 +128,7 @@ class BaseCache(ABC):
         key = CacheKeys.HISTORICAL_DATA.format(symbol=symbol, interval=interval, limit=limit)
         return await self.get(key)
 
-    async def set_historical_data(
-        self, symbol: str, interval: str, limit: int, data: Any
-    ) -> bool:
+    async def set_historical_data(self, symbol: str, interval: str, limit: int, data: Any) -> bool:
         key = CacheKeys.HISTORICAL_DATA.format(symbol=symbol, interval=interval, limit=limit)
         return await self.set(key, data, self.ttls["historical_data"])
 

@@ -97,7 +97,7 @@ const SapphireDust: React.FC<SapphireDustProps> = ({
         // Draw particle with glow
         ctx.save();
         ctx.globalAlpha = currentOpacity;
-        
+
         // Outer glow
         const gradient = ctx.createRadialGradient(
           particle.x,
@@ -167,4 +167,3 @@ const SapphireDust: React.FC<SapphireDustProps> = ({
 };
 
 export default SapphireDust;
-

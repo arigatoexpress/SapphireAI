@@ -1,11 +1,14 @@
 """Pub/Sub utilities for the Risk Orchestrator."""
+
 from __future__ import annotations
 
 import json
 from typing import Any, Dict, Optional
 
 from google.cloud import pubsub_v1
+
 from .config import settings
+
 
 class PubSubClient:
     """Wrapper around Google Cloud Pub/Sub for event publishing."""
@@ -31,9 +34,9 @@ class PubSubClient:
         if not self._publisher or not self._project_id:
             return
 
-        topic_name = settings.POSITIONS_TOPIC # Or choose based on event type
+        topic_name = settings.POSITIONS_TOPIC  # Or choose based on event type
         topic_path = self._publisher.topic_path(self._project_id, topic_name)
         data = json.dumps(event, default=str).encode("utf-8")
-        
+
         future = self._publisher.publish(topic_path, data)
         # Fire-and-forget

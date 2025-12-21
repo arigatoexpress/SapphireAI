@@ -56,7 +56,7 @@ Added new configuration options:
 
 **Validation Mechanisms**:
 - **FinGPT**: Checks for NaN, undefined, obvious errors
-- **Lag-Llama**: 
+- **Lag-Llama**:
   - Rejects forecasts >50% away from current price
   - Rejects CI spans >20% variance
 - Graceful degradation (fail open) if validation fails
@@ -193,4 +193,3 @@ All recommended enhancements from Grok's research plan have been implemented and
 - **Comprehensive documentation** and testing
 
 The implementation is production-ready, backward compatible, and fully configurable.
-

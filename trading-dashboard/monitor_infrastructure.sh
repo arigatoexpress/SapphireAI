@@ -3,7 +3,7 @@ echo "🔍 INFRASTRUCTURE MONITORING - $(date)"
 
 echo ""
 echo "📊 GKE CLUSTER STATUS:"
-kubectl get pods -n trading --no-headers | wc -l | xargs echo "Pods running:" 
+kubectl get pods -n trading --no-headers | wc -l | xargs echo "Pods running:"
 
 echo ""
 echo "🌐 LOAD BALANCER STATUS:"

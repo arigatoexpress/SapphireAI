@@ -33,7 +33,9 @@ async def list_sessions(manager: MCPManager = Depends(get_manager)) -> dict:
 
 
 @router.post("/sessions/{session_id}/messages", response_model=dict)
-async def publish_message(session_id: str, message: MCPMessage, manager: MCPManager = Depends(get_manager)) -> dict:
+async def publish_message(
+    session_id: str, message: MCPMessage, manager: MCPManager = Depends(get_manager)
+) -> dict:
     sessions = await manager.list_sessions()
     if session_id not in sessions:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -42,7 +44,9 @@ async def publish_message(session_id: str, message: MCPMessage, manager: MCPMana
 
 
 @router.websocket("/ws/{session_id}")
-async def websocket_endpoint(ws: WebSocket, session_id: str, manager: MCPManager = Depends(get_manager)) -> None:
+async def websocket_endpoint(
+    ws: WebSocket, session_id: str, manager: MCPManager = Depends(get_manager)
+) -> None:
     await manager.register(session_id, ws)
     try:
         while True:

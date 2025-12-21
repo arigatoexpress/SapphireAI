@@ -30,7 +30,7 @@ class VectorClock:
         for node, time in other_clock.items():
             self.clock[node] = max(self.clock[node], time)
 
-    def merge(self, other_clock: 'VectorClock') -> None:
+    def merge(self, other_clock: "VectorClock") -> None:
         """Merge with another vector clock."""
         self.increment()
         for node, time in other_clock.clock.items():
@@ -65,7 +65,7 @@ class VectorClock:
         else:
             return 0
 
-    def copy(self) -> 'VectorClock':
+    def copy(self) -> "VectorClock":
         """Create a copy of this vector clock."""
         new_clock = VectorClock(self.node_id)
         new_clock.clock = self.clock.copy()
@@ -76,7 +76,7 @@ class VectorClock:
         return dict(self.clock)
 
     @classmethod
-    def from_dict(cls, node_id: str, clock_dict: Dict[str, int]) -> 'VectorClock':
+    def from_dict(cls, node_id: str, clock_dict: Dict[str, int]) -> "VectorClock":
         """Create vector clock from dictionary."""
         clock = cls(node_id)
         clock.clock.update(clock_dict)
@@ -92,7 +92,14 @@ class VectorClock:
 class DistributedEvent:
     """Distributed event with vector clock timestamp."""
 
-    def __init__(self, event_id: str, node_id: str, event_type: str, data: Dict, vector_clock: Optional[VectorClock] = None):
+    def __init__(
+        self,
+        event_id: str,
+        node_id: str,
+        event_type: str,
+        data: Dict,
+        vector_clock: Optional[VectorClock] = None,
+    ):
         self.event_id = event_id
         self.node_id = node_id
         self.event_type = event_type
@@ -103,26 +110,26 @@ class DistributedEvent:
     def to_dict(self) -> Dict:
         """Convert to dictionary for serialization."""
         return {
-            'event_id': self.event_id,
-            'node_id': self.node_id,
-            'event_type': self.event_type,
-            'data': self.data,
-            'timestamp_us': self.timestamp_us,
-            'vector_clock': self.vector_clock.to_dict()
+            "event_id": self.event_id,
+            "node_id": self.node_id,
+            "event_type": self.event_type,
+            "data": self.data,
+            "timestamp_us": self.timestamp_us,
+            "vector_clock": self.vector_clock.to_dict(),
         }
 
     @classmethod
-    def from_dict(cls, data: Dict) -> 'DistributedEvent':
+    def from_dict(cls, data: Dict) -> "DistributedEvent":
         """Create event from dictionary."""
-        vector_clock = VectorClock.from_dict(data['node_id'], data['vector_clock'])
+        vector_clock = VectorClock.from_dict(data["node_id"], data["vector_clock"])
         event = cls(
-            event_id=data['event_id'],
-            node_id=data['node_id'],
-            event_type=data['event_type'],
-            data=data['data'],
-            vector_clock=vector_clock
+            event_id=data["event_id"],
+            node_id=data["node_id"],
+            event_type=data["event_type"],
+            data=data["data"],
+            vector_clock=vector_clock,
         )
-        event.timestamp_us = data['timestamp_us']
+        event.timestamp_us = data["timestamp_us"]
         return event
 
 
@@ -192,7 +199,9 @@ class AgentCoordinator:
 
     async def _process_event(self, event: DistributedEvent) -> None:
         """Process a delivered event."""
-        logger.debug(f"Processing event: {event.event_id} ({event.event_type}) from {event.node_id}")
+        logger.debug(
+            f"Processing event: {event.event_id} ({event.event_type}) from {event.node_id}"
+        )
 
         # Handle different event types
         if event.event_type == "trade_signal":
@@ -223,11 +232,11 @@ class AgentCoordinator:
     def get_coordination_stats(self) -> Dict:
         """Get coordination statistics."""
         return {
-            'node_id': self.node_id,
-            'vector_clock': self.vector_clock.to_dict(),
-            'pending_events': len(self.pending_events),
-            'delivered_events': len(self.delivered_events),
-            'queue_size': self.event_queue.qsize()
+            "node_id": self.node_id,
+            "vector_clock": self.vector_clock.to_dict(),
+            "pending_events": len(self.pending_events),
+            "delivered_events": len(self.delivered_events),
+            "queue_size": self.event_queue.qsize(),
         }
 
 

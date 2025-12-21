@@ -9,7 +9,7 @@ const SystemStatus: React.FC = () => {
   const getStatusMessage = () => {
     const activeAgents = agentActivities?.filter(a => a.status === 'active' || a.status === 'trading').length || 0;
     const totalAgents = agentActivities?.length || 6;
-    
+
     if (activeAgents === totalAgents) {
       return {
         icon: <CheckCircle sx={{ color: '#10b981', fontSize: 20 }} />,
@@ -59,7 +59,7 @@ const SystemStatus: React.FC = () => {
             System Status
           </Typography>
         </Box>
-        
+
         <Typography
           variant="body1"
           sx={{
@@ -124,4 +124,3 @@ const SystemStatus: React.FC = () => {
 };
 
 export default SystemStatus;
-

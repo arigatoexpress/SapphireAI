@@ -26,4 +26,3 @@ ENV PYTHONPATH=/app/src:$PYTHONPATH
 EXPOSE 8080
 
 CMD ["uvicorn", "risk_orchestrator.main:app", "--host", "0.0.0.0", "--port", "8080"]
-

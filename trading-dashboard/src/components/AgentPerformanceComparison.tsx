@@ -67,19 +67,19 @@ const AgentPerformanceComparison: React.FC = () => {
     return agentActivities.map((agent) => {
       // Calculate win rate (simulated based on activity score)
       const winRate = Math.min(0.95, 0.5 + agent.activity_score * 0.45);
-      
+
       // Calculate average P&L per trade (simulated)
       const avgPnl = (Math.random() - 0.2) * 50; // Slight positive bias
-      
+
       // Total P&L based on trade count
       const totalPnl = avgPnl * (agent.trading_count || 0);
-      
+
       // Get capital allocation
-      const capital = portfolio?.agent_allocations?.[agent.agent_id] || 
+      const capital = portfolio?.agent_allocations?.[agent.agent_id] ||
                       portfolio?.agent_allocations?.[agent.agent_type] || 500;
-      
+
       // Count positions from recent signals
-      const positions = recentSignals.filter(s => 
+      const positions = recentSignals.filter(s =>
         s.source?.toLowerCase().includes(agent.agent_type) ||
         agent.agent_id.includes(s.source?.toLowerCase() || '')
       ).length;
@@ -102,7 +102,7 @@ const AgentPerformanceComparison: React.FC = () => {
   };
 
   const performances = calculatePerformance();
-  
+
   // Sort performances
   const sortedPerformances = [...performances].sort((a, b) => {
     switch (sortBy) {
@@ -497,4 +497,3 @@ const AgentPerformanceComparison: React.FC = () => {
 };
 
 export default AgentPerformanceComparison;
-

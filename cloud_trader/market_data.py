@@ -1,10 +1,12 @@
 from typing import Any, Dict
 
+
 class MarketDataManager:
     """
     Manages market data, including exchange structure (precision, filters)
     and potentially ticker data.
     """
+
     def __init__(self, exchange_client):
         self.exchange_client = exchange_client
         self.market_structure: Dict[str, Dict[str, Any]] = {}

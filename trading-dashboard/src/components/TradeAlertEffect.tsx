@@ -129,4 +129,3 @@ const TradeAlertEffect: React.FC<TradeAlertEffectProps> = ({
 };
 
 export default TradeAlertEffect;
-

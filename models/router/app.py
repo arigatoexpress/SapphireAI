@@ -4,15 +4,16 @@ Simplified AI Model Services for Testing
 These mock services simulate LLM responses for the trading system
 """
 
-import os
 import asyncio
-import random
 import json
+import os
+import random
 from datetime import datetime
+
+import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import httpx
 
 app = FastAPI(title="AI Model Service", version="1.0.0")
 
@@ -25,11 +26,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 class InferenceRequest(BaseModel):
     prompt: str
     context: dict = {}
     max_tokens: int = 100
     temperature: float = 0.7
+
 
 class InferenceResponse(BaseModel):
     text: str
@@ -37,29 +40,31 @@ class InferenceResponse(BaseModel):
     reasoning: str
     model_used: str
 
+
 # Model-specific behaviors
 MODEL_CONFIGS = {
     "deepseek": {
         "name": "DeepSeek-Coder-V2",
         "strengths": ["mathematical reasoning", "technical analysis", "market regime detection"],
-        "personality": "analytical and methodical"
+        "personality": "analytical and methodical",
     },
     "qwen": {
         "name": "Qwen2.5-Coder",
         "strengths": ["algorithmic trading", "code generation", "pattern recognition"],
-        "personality": "precise and systematic"
+        "personality": "precise and systematic",
     },
     "fingpt": {
         "name": "FinGPT",
         "strengths": ["financial sentiment", "market psychology", "news analysis"],
-        "personality": "market-savvy and contextual"
+        "personality": "market-savvy and contextual",
     },
     "phi3": {
         "name": "Phi-3",
         "strengths": ["fast decision making", "risk assessment", "trend following"],
-        "personality": "agile and responsive"
-    }
+        "personality": "agile and responsive",
+    },
 }
+
 
 def get_model_from_path(path: str) -> str:
     """Extract model name from URL path"""
@@ -73,13 +78,18 @@ def get_model_from_path(path: str) -> str:
         return "phi3"
     return "deepseek"  # default
 
+
 def generate_trading_decision(model: str, prompt: str, context: dict) -> InferenceResponse:
     """Generate a mock trading decision based on model personality"""
     config = MODEL_CONFIGS[model]
 
     # Analyze prompt for trading context
-    is_buy_signal = any(word in prompt.lower() for word in ["bullish", "buy", "long", "uptrend", "support"])
-    is_sell_signal = any(word in prompt.lower() for word in ["bearish", "sell", "short", "downtrend", "resistance"])
+    is_buy_signal = any(
+        word in prompt.lower() for word in ["bullish", "buy", "long", "uptrend", "support"]
+    )
+    is_sell_signal = any(
+        word in prompt.lower() for word in ["bearish", "sell", "short", "downtrend", "resistance"]
+    )
 
     # Model-specific decision logic
     if model == "deepseek":
@@ -136,8 +146,9 @@ def generate_trading_decision(model: str, prompt: str, context: dict) -> Inferen
         text=f"Decision: {decision}",
         confidence=round(confidence, 2),
         reasoning=reasoning,
-        model_used=config["name"]
+        model_used=config["name"],
     )
+
 
 @app.get("/")
 async def root():
@@ -148,8 +159,9 @@ async def root():
         "service": f"{config['name']} Trading Model",
         "model": config["name"],
         "strengths": config["strengths"],
-        "version": "1.0.0"
+        "version": "1.0.0",
     }
+
 
 @app.get("/health")
 async def health():
@@ -157,8 +169,9 @@ async def health():
     return {
         "status": "healthy",
         "model": MODEL_CONFIGS[model]["name"],
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.utcnow().isoformat(),
     }
+
 
 @app.post("/inference")
 async def inference(request: InferenceRequest):
@@ -166,6 +179,7 @@ async def inference(request: InferenceRequest):
     model = get_model_from_path(app.url_path_for("inference"))
     response = generate_trading_decision(model, request.prompt, request.context)
     return response
+
 
 @app.post("/chat/completions")
 async def chat_completions(request: dict):
@@ -187,22 +201,26 @@ async def chat_completions(request: dict):
         "object": "chat.completion",
         "created": int(datetime.utcnow().timestamp()),
         "model": inference_response.model_used,
-        "choices": [{
-            "index": 0,
-            "message": {
-                "role": "assistant",
-                "content": f"{inference_response.text}\n\nReasoning: {inference_response.reasoning}"
-            },
-            "finish_reason": "stop"
-        }],
+        "choices": [
+            {
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": f"{inference_response.text}\n\nReasoning: {inference_response.reasoning}",
+                },
+                "finish_reason": "stop",
+            }
+        ],
         "usage": {
             "prompt_tokens": len(prompt.split()),
             "completion_tokens": len(inference_response.text.split()),
-            "total_tokens": len(prompt.split()) + len(inference_response.text.split())
-        }
+            "total_tokens": len(prompt.split()) + len(inference_response.text.split()),
+        },
     }
+
 
 if __name__ == "__main__":
     import uvicorn
+
     # When run as app.py, the module name is __main__, so use the app object directly
     uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 8080)))

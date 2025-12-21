@@ -1,4 +1,5 @@
 """Dataset utilities for model fine-tuning."""
+
 from __future__ import annotations
 
 from typing import Optional
@@ -51,12 +52,17 @@ def _load_from_bigquery(config: MarketDatasetConfig) -> "Dataset":
 
     client = bigquery.Client()
     table = config.bigquery_table
-    symbols_filter = ""
+    query_params = []
+    where_clause = ""
+    
     if config.symbols:
-        quoted = ",".join(f"'{symbol}'" for symbol in config.symbols)
-        symbols_filter = f"WHERE symbol IN ({quoted})"
+        where_clause = "WHERE symbol IN UNNEST(@symbols)"
+        query_params.append(bigquery.ArrayQueryParameter("symbols", "STRING", config.symbols))
 
-    limit_clause = f"LIMIT {config.max_rows}" if config.max_rows else ""
+    limit_clause = ""
+    if config.max_rows:
+        limit_clause = "LIMIT @limit"
+        query_params.append(bigquery.ScalarQueryParameter("limit", "INT64", int(config.max_rows)))
 
     query = f"""
         SELECT
@@ -66,11 +72,12 @@ def _load_from_bigquery(config: MarketDatasetConfig) -> "Dataset":
           reasoning,
           label
         FROM `{table}`
-        {symbols_filter}
+        {where_clause}
         {limit_clause}
     """
 
-    frame: pd.DataFrame = client.query(query).to_dataframe(create_bqstorage_client=True)
+    job_config = bigquery.QueryJobConfig(query_parameters=query_params)
+    frame: pd.DataFrame = client.query(query, job_config=job_config).to_dataframe(create_bqstorage_client=True)
     if frame.empty:
         raise ValueError(f"No rows returned from BigQuery source {table}")
     dataset = Dataset.from_pandas(frame, preserve_index=False)

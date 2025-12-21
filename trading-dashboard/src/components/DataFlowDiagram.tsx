@@ -99,7 +99,7 @@ const DataFlowDiagram: React.FC = () => {
           Data Flow Architecture
         </Typography>
         <Typography variant="body1" sx={{ color: 'text.secondary', mb: 4, fontSize: '1.05rem', lineHeight: 1.7 }}>
-          Understanding how data flows through the system from market data ingestion to trade execution. 
+          Understanding how data flows through the system from market data ingestion to trade execution.
           Each step represents a critical component in the trading pipeline.
         </Typography>
 
@@ -179,4 +179,3 @@ const DataFlowDiagram: React.FC = () => {
 };
 
 export default DataFlowDiagram;
-

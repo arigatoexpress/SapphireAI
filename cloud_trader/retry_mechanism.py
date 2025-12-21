@@ -11,6 +11,7 @@ from typing import Any, Callable, Optional, Type, Union
 
 logger = logging.getLogger(__name__)
 
+
 class RetryConfig:
     """Configuration for retry behavior."""
 
@@ -22,7 +23,7 @@ class RetryConfig:
         backoff_factor: float = 2.0,
         jitter: bool = True,
         retry_exceptions: tuple = (Exception,),
-        retry_condition: Optional[Callable[[Exception], bool]] = None
+        retry_condition: Optional[Callable[[Exception], bool]] = None,
     ):
         self.max_attempts = max_attempts
         self.initial_delay = initial_delay
@@ -31,6 +32,7 @@ class RetryConfig:
         self.jitter = jitter
         self.retry_exceptions = retry_exceptions
         self.retry_condition = retry_condition
+
 
 def calculate_delay(attempt: int, config: RetryConfig) -> float:
     """Calculate delay for the current attempt using exponential backoff."""
@@ -42,6 +44,7 @@ def calculate_delay(attempt: int, config: RetryConfig) -> float:
         delay = delay * (0.5 + random.random() * 0.5)
 
     return delay
+
 
 def should_retry(exception: Exception, config: RetryConfig) -> bool:
     """Determine if an exception should trigger a retry."""
@@ -55,12 +58,8 @@ def should_retry(exception: Exception, config: RetryConfig) -> bool:
 
     return True
 
-async def retry_async(
-    func: Callable,
-    *args,
-    config: RetryConfig = None,
-    **kwargs
-) -> Any:
+
+async def retry_async(func: Callable, *args, config: RetryConfig = None, **kwargs) -> Any:
     """Execute an async function with retry logic."""
     if config is None:
         config = RetryConfig()
@@ -97,8 +96,10 @@ async def retry_async(
     # This should never be reached, but just in case
     raise last_exception
 
+
 def retry(config: Optional[RetryConfig] = None):
     """Decorator for adding retry logic to functions."""
+
     def decorator(func: Callable) -> Callable:
         retry_config = config or RetryConfig()
 
@@ -125,6 +126,7 @@ def retry(config: Optional[RetryConfig] = None):
 
     return decorator
 
+
 # Pre-configured retry configurations for common scenarios
 API_RETRY_CONFIG = RetryConfig(
     max_attempts=5,
@@ -132,7 +134,9 @@ API_RETRY_CONFIG = RetryConfig(
     max_delay=30.0,
     backoff_factor=2.0,
     retry_exceptions=(Exception,),
-    retry_condition=lambda e: not isinstance(e, (ValueError, TypeError))  # Don't retry validation errors
+    retry_condition=lambda e: not isinstance(
+        e, (ValueError, TypeError)
+    ),  # Don't retry validation errors
 )
 
 DATABASE_RETRY_CONFIG = RetryConfig(
@@ -140,7 +144,7 @@ DATABASE_RETRY_CONFIG = RetryConfig(
     initial_delay=0.5,
     max_delay=10.0,
     backoff_factor=2.0,
-    retry_exceptions=(Exception,)
+    retry_exceptions=(Exception,),
 )
 
 REDIS_RETRY_CONFIG = RetryConfig(
@@ -148,7 +152,7 @@ REDIS_RETRY_CONFIG = RetryConfig(
     initial_delay=0.1,
     max_delay=5.0,
     backoff_factor=1.5,
-    retry_exceptions=(Exception,)
+    retry_exceptions=(Exception,),
 )
 
 EXTERNAL_API_RETRY_CONFIG = RetryConfig(
@@ -156,21 +160,25 @@ EXTERNAL_API_RETRY_CONFIG = RetryConfig(
     initial_delay=2.0,
     max_delay=60.0,
     backoff_factor=2.0,
-    retry_exceptions=(Exception,)
+    retry_exceptions=(Exception,),
 )
+
 
 # Convenience decorators
 def retry_api(func: Callable) -> Callable:
     """Decorator for API calls with retry logic."""
     return retry(API_RETRY_CONFIG)(func)
 
+
 def retry_database(func: Callable) -> Callable:
     """Decorator for database operations with retry logic."""
     return retry(DATABASE_RETRY_CONFIG)(func)
 
+
 def retry_redis(func: Callable) -> Callable:
     """Decorator for Redis operations with retry logic."""
     return retry(REDIS_RETRY_CONFIG)(func)
+
 
 def retry_external_api(func: Callable) -> Callable:
     """Decorator for external API calls with retry logic."""

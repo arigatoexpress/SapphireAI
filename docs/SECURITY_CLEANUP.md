@@ -1,6 +1,6 @@
 # Security Cleanup Report
 
-**Date**: November 19, 2025  
+**Date**: November 19, 2025
 **Status**: ✅ Complete
 
 ## 🔒 Sensitive Information Removed
@@ -11,7 +11,7 @@
    - **Content Found**:
      - Redis IP: `10.161.118.219:6379`
      - Service URLs: `wallet-orchestrator-880429861698.us-central1.run.app`, `model-router-880429861698.us-central1.run.app`
-   - **Action Taken**: 
+   - **Action Taken**:
      - Removed from git tracking (`git rm --cached .envrc`)
      - Added `.envrc` to `.gitignore`
      - Created `.envrc.example` with placeholder values
@@ -57,7 +57,7 @@
 
 ### Git History
 - **Warning**: The `.envrc` file with sensitive information exists in git history
-- **Recommendation**: 
+- **Recommendation**:
   - Rotate any exposed infrastructure credentials (Redis IP, service URLs)
   - Consider using `git filter-branch` or `git filter-repo` to remove from history if required
   - For new repositories, consider BFG Repo-Cleaner or similar tools
@@ -115,4 +115,3 @@
    - `scripts/cleanup-git-history.sh` - Clean sensitive data from git history
    - `scripts/rotate-credentials.sh` - Guide for credential rotation
    - `scripts/monitor-suspicious-activity.sh` - Monitor for suspicious activity
-

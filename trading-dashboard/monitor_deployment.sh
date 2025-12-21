@@ -9,13 +9,13 @@ MAX_ATTEMPTS=30  # 5 minutes with 10s intervals
 
 while [ "$READY" = false ] && [ $ATTEMPTS -lt $MAX_ATTEMPTS ]; do
     echo "Attempt $((ATTEMPTS+1))/$MAX_ATTEMPTS - $(date '+%H:%M:%S')"
-    
+
     # Check load balancer
     LB_IP=$(kubectl get ingress -n trading -o jsonpath='{.items[0].status.loadBalancer.ingress[0].ip}' 2>/dev/null)
-    
+
     # Check certificate
     CERT_STATUS=$(kubectl get managedcertificate -n trading -o jsonpath='{.items[0].status.certificateStatus}' 2>/dev/null)
-    
+
     if [ -n "$LB_IP" ] && [ "$CERT_STATUS" = "Active" ]; then
         echo ""
         echo "🎉 INFRASTRUCTURE READY!"
@@ -23,11 +23,11 @@ while [ "$READY" = false ] && [ $ATTEMPTS -lt $MAX_ATTEMPTS ]; do
         echo "✅ Load Balancer IP: $LB_IP"
         echo "✅ SSL Certificate: $CERT_STATUS"
         echo ""
-        
+
         # Test the API
         echo "🧪 TESTING API ENDPOINTS..."
         HEALTH_TEST=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 10 https://api.sapphiretrade.xyz/healthz 2>/dev/null || echo "failed")
-        
+
         if [ "$HEALTH_TEST" = "200" ]; then
             echo "✅ API Health Check: PASSED"
             echo ""
@@ -53,14 +53,14 @@ while [ "$READY" = false ] && [ $ATTEMPTS -lt $MAX_ATTEMPTS ]; do
         else
             echo "✅ Load Balancer: $LB_IP"
         fi
-        
+
         if [ "$CERT_STATUS" != "Active" ]; then
             echo "⏳ SSL Certificate: $CERT_STATUS"
         else
             echo "✅ SSL Certificate: $CERT_STATUS"
         fi
     fi
-    
+
     if [ "$READY" = false ]; then
         echo "⏳ Waiting 10 seconds..."
         sleep 10

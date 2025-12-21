@@ -40,4 +40,3 @@ def optimise_trailing_stop(
 
 
 __all__ = ["optimise_trailing_stop", "TrailingConfig"]
-

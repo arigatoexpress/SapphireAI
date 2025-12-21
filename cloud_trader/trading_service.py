@@ -1364,34 +1364,42 @@ class MinimalTradingService:
             # Apply Agreement Bonus (if everyone agrees, go bigger)
             agreement_bonus = 1.0 + (consensus.agreement_level - 0.5)
 
-            # Market Cap Tier Weighting: Larger bets on higher market cap tokens
-            # Tier 1 (BTC, ETH): 1.5x multiplier (max confidence)
-            # Tier 2 (SOL, BNB, XRP, ADA): 1.2x multiplier
-            # Tier 3 (Other large caps): 1.0x multiplier
-            # Tier 4 (Small caps): 0.7x multiplier (reduced risk)
-            TIER_1_TOKENS = {"BTCUSDT", "ETHUSDT"}
-            TIER_2_TOKENS = {
-                "SOLUSDT",
+            # --- ASYMMETRIC POSITION SIZING (Refined) ---
+            # Priority 1: User Bullish Bedrocks (BTC, ETH, SOL)
+            BULLISH_BEDROCKS = {"BTCUSDT", "ETHUSDT", "SOLUSDT"}
+
+            # Priority 2: User High-Growth Favorites (ZEC, ASTER, PENGU, HYPE)
+            BULLISH_FAVORITES = {"ZECUSDT", "ASTERUSDT", "PENGUUSDT", "HYPEUSDT"}
+
+            # Priority 3: Market Large Caps
+            LARGE_CAPS = {
                 "BNBUSDT",
                 "XRPUSDT",
                 "ADAUSDT",
                 "DOGEUSDT",
                 "AVAXUSDT",
                 "LINKUSDT",
+                "SUIUSDT",
+                "APTUSDT",
+                "NEARUSDT",
             }
 
-            if symbol in TIER_1_TOKENS:
-                mcap_multiplier = 1.5
-                print(f"📈 Market Cap Tier 1 (Major): {symbol} -> 1.5x size multiplier")
-            elif symbol in TIER_2_TOKENS:
-                mcap_multiplier = 1.2
-                print(f"📊 Market Cap Tier 2 (Large Cap): {symbol} -> 1.2x size multiplier")
-            elif any(major in symbol for major in ["MATIC", "DOT", "SHIB", "LTC", "TRX", "ATOM"]):
-                mcap_multiplier = 1.0
-                print(f"📉 Market Cap Tier 3 (Mid Cap): {symbol} -> 1.0x size multiplier")
+            if symbol in BULLISH_BEDROCKS:
+                mcap_multiplier = 2.0  # Largest capital allocation
+                print(f"💎 Bedrock Asset: {symbol} -> 2.0x size multiplier")
+            elif symbol in BULLISH_FAVORITES:
+                mcap_multiplier = 1.5  # High-conviction growth
+                print(f"🔥 Bullish Favorite: {symbol} -> 1.5x size multiplier")
+            elif symbol in LARGE_CAPS:
+                mcap_multiplier = 1.0  # Standard large cap
+                print(f"📊 Large Cap: {symbol} -> 1.0x size multiplier")
+            elif any(mid in symbol for mid in ["MATIC", "DOT", "SHIB", "LTC", "TRX", "ATOM"]):
+                mcap_multiplier = 0.8  # Mid cap
+                print(f"📈 Mid Cap: {symbol} -> 0.8x size multiplier")
             else:
-                mcap_multiplier = 0.7
-                print(f"⚠️ Market Cap Tier 4 (Small Cap): {symbol} -> 0.7x size multiplier")
+                # Small caps: Asymmetric bet (Small risk, huge potential)
+                mcap_multiplier = 0.4  # Small absolute notional, letting it run
+                print(f"🚀 Asymmetric Small Cap: {symbol} -> 0.4x size multiplier (High R/R)")
 
             target_notional = (
                 account_balance * base_size * size_multiplier * agreement_bonus * mcap_multiplier
@@ -2268,7 +2276,8 @@ SOURCE: *Source:* Sapphire Duality System"""
                     ticker = await self._exchange_client.get_ticker(symbol)
 
                 current_price = float(ticker.get("lastPrice", 0))
-            except Exception:
+            except Exception as e:
+                logger.error(f"⚠️ Failed to get ticker for {symbol}: {e}")
                 continue
 
             if current_price == 0:
@@ -2332,14 +2341,13 @@ SOURCE: *Source:* Sapphire Duality System"""
                                 f"Reason: {exit_signal.reason}",
                                 priority=NotificationPriority.MEDIUM,
                             )
-                        except Exception:
-                            pass
+                        except Exception as n_err:
+                            logger.warning(f"⚠️ Failed to send partial exit notification for {symbol}: {n_err}")
 
                         # Execute in strategy
                         self.partial_exit_strategy.execute_exit(symbol, exit_signal)
             except Exception as pe_err:
-                # Silent fail - partial exits are bonus, not critical
-                pass
+                logger.error(f"⚠️ Partial exit strategy failure for {symbol}: {pe_err}")
 
             # ═══════════════════════════════════════════════════════════════
             # DYNAMIC ATR-BASED THRESHOLDS (PvP Adversarial Strategy)
@@ -2381,20 +2389,25 @@ SOURCE: *Source:* Sapphire Duality System"""
             # Effective Scale: Tightened by Leverage, Loosened by Volatility
             effective_scale = max(0.5, scale / volatility_expansion)
 
-            MAX_SL_CAP = 0.05  # 5% Max SL (relaxed from 3%)
-            MAX_TP_CAP = 0.12  # 12% Max TP (relaxed from 8%)
+            # ASYMMETRIC BETTING Logic:
+            # For non-blue chips, we want to capture moonshots while risking little.
+            BLUE_CHIPS = {"BTCUSDT", "ETHUSDT", "SOLUSDT"}
+            tp_multiplier = 4.0
+            if symbol not in BLUE_CHIPS:
+                tp_multiplier = 7.0  # Asymmetric: Let small caps run much further
+                print(f"🚀 ASYMMETRIC TP: {symbol} using {tp_multiplier}x ATR target")
 
             if atr and atr > 0:
                 atr_pct = atr / current_price
-                # TIGHT STOP LOSS: 1.2x ATR / Effective Scale
+                # TIGHT STOP LOSS: 1.5x ATR / Effective Scale
                 SL_THRESHOLD = -min(atr_pct * 1.5, MAX_SL_CAP) / effective_scale
 
-                # WIDER TAKE PROFIT: 4.0x ATR / Effective Scale (Capture Trend)
-                TP_THRESHOLD = min(atr_pct * 4.0, MAX_TP_CAP) / effective_scale
+                # ASYMMETRIC TAKE PROFIT: Custom multiplier / Effective Scale
+                TP_THRESHOLD = min(atr_pct * tp_multiplier, MAX_TP_CAP * 2) / effective_scale
             else:
                 # Fallback
                 SL_THRESHOLD = -0.02 / effective_scale
-                TP_THRESHOLD = 0.05 / effective_scale
+                TP_THRESHOLD = 0.08 / effective_scale  # Loosened fallback for asymmetric strategy
 
             EMERGENCY_SL = -0.05 / effective_scale  # Base 5% scaled
 
@@ -2497,8 +2510,8 @@ SOURCE: *Source:* Sapphire Duality System"""
                                     )
                                 else:
                                     logger.debug(f"Throttled re-entry notification for {symbol}")
-                            except Exception:
-                                pass
+                            except Exception as n_err:
+                                logger.warning(f"⚠️ Failed to send re-entry queued notification for {symbol}: {n_err}")
 
                         except Exception as reentry_err:
                             logger.warning(f"Failed to queue re-entry for {symbol}: {reentry_err}")
@@ -2549,7 +2562,8 @@ SOURCE: *Source:* Sapphire Duality System"""
             try:
                 tickers = await self._exchange_client.get_all_tickers()
                 ticker_map = {t["symbol"]: t for t in tickers}
-            except Exception:
+            except Exception as e:
+                logger.error(f"⚠️ Failed to fetch tickers for re-entry check: {e}")
                 return
 
             triggered = reentry_queue.check_reentries(ticker_map)
@@ -2615,8 +2629,8 @@ SOURCE: *Source:* Sapphire Duality System"""
                             f"Savings: `{abs(current_price - order.original_stop_price) / order.original_stop_price:.1%}` better entry",
                             priority=NotificationPriority.HIGH,
                         )
-                    except Exception:
-                        pass
+                    except Exception as n_err:
+                        logger.warning(f"⚠️ Failed to send re-entry execution notification for {symbol}: {n_err}")
 
                 except Exception as re_err:
                     print(f"⚠️ Re-entry failed for {symbol}: {re_err}")

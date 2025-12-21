@@ -301,6 +301,27 @@ class AnalysisEngine:
                     # Silently continue if counter-retail fails
                     pass
 
+            # ═══════════════════════════════════════════════════════════════
+            # USER BULLISH BIAS (Custom Priority)
+            # ═══════════════════════════════════════════════════════════════
+            BULLISH_ASSETS = {
+                "BTCUSDT",
+                "ETHUSDT",
+                "SOLUSDT",
+                "ZECUSDT",
+                "ASTERUSDT",
+                "PENGUUSDT",
+                "HYPEUSDT",
+            }
+            if symbol in BULLISH_ASSETS and signal == "BUY":
+                confidence *= 1.25  # 25% boost for user-preferred bullish assets
+                thesis_parts.append(f"🌟 User Priority Bullish Asset: {symbol}.")
+            elif symbol in BULLISH_ASSETS and signal == "SELL":
+                confidence *= 0.85  # 15% reduction for selling user-preferred bullish assets (higher bar for shorts)
+                thesis_parts.append(
+                    f"⚠️ Counter-Bias: User is bullish on {symbol}. Shorting with caution."
+                )
+
             # Add small randomization to avoid identical signals
             if confidence > 0.3:
                 confidence += random.uniform(-0.02, 0.02)

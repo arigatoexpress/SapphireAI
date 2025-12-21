@@ -120,7 +120,7 @@ Public Client → │ Global HTTPS LB       │ → Serverless NEG → Cloud Run
 
 ## Cloud NAT Configuration
 - **NAT Name**: `aster-nat`
-- **Router**: `aster-router` 
+- **Router**: `aster-router`
 - **Network**: `aster-network`
 - **Static Egress IP**: `34.172.187.70`
 - **VPC Connector**: `aster-vpc-connector`

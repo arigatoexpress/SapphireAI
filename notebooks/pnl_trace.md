@@ -49,4 +49,3 @@ sharpe, sortino
 ```python
 combined.to_parquet("pnl_trace.parquet")
 ```
-

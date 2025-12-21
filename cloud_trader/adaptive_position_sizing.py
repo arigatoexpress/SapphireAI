@@ -14,19 +14,21 @@ from .time_sync import get_timestamp_us
 @dataclass
 class PositionSizingParams:
     """Parameters for position sizing calculation."""
+
     base_position_size: float  # Base position size as % of portfolio
-    max_position_size: float   # Maximum allowed position size
-    min_position_size: float   # Minimum allowed position size
+    max_position_size: float  # Maximum allowed position size
+    min_position_size: float  # Minimum allowed position size
     volatility_multiplier: float  # Adjustment for volatility
-    regime_multiplier: float    # Adjustment for market regime
+    regime_multiplier: float  # Adjustment for market regime
     correlation_penalty: float  # Penalty for high correlation
-    confidence_boost: float     # Boost for high confidence signals
-    drawdown_reduction: float   # Reduction during drawdowns
+    confidence_boost: float  # Boost for high confidence signals
+    drawdown_reduction: float  # Reduction during drawdowns
 
 
 @dataclass
 class RiskMetrics:
     """Real-time risk metrics for position sizing."""
+
     portfolio_value: float
     current_drawdown: float
     volatility_24h: float
@@ -65,19 +67,21 @@ class AdaptivePositionSizer:
             MarketRegime.RANGING: 0.8,
             MarketRegime.VOLATILE: 0.6,
             MarketRegime.CALM: 1.1,
-            MarketRegime.UNKNOWN: 1.0
+            MarketRegime.UNKNOWN: 1.0,
         }
 
         # Dynamic sizing history
         self.sizing_history: List[Dict] = []
 
-    def calculate_position_size(self,
-                              signal_strength: float,
-                              confidence: float,
-                              regime: Optional[RegimeMetrics],
-                              risk_metrics: RiskMetrics,
-                              current_positions: List[Dict],
-                              symbol: str) -> Dict[str, any]:
+    def calculate_position_size(
+        self,
+        signal_strength: float,
+        confidence: float,
+        regime: Optional[RegimeMetrics],
+        risk_metrics: RiskMetrics,
+        current_positions: List[Dict],
+        symbol: str,
+    ) -> Dict[str, any]:
         """
         Calculate optimal position size using multiple methodologies.
 
@@ -104,33 +108,33 @@ class AdaptivePositionSizer:
 
         # Record sizing decision
         sizing_decision = {
-            'timestamp_us': get_timestamp_us(),
-            'symbol': symbol,
-            'signal_strength': signal_strength,
-            'confidence': confidence,
-            'regime': regime.regime.value if regime else 'unknown',
-            'kelly_size': kelly_size,
-            'volatility_size': volatility_size,
-            'regime_size': regime_size,
-            'risk_adjusted_size': risk_adjusted_size,
-            'signal_adjusted_size': signal_adjusted_size,
-            'final_size': final_size,
-            'risk_metrics': {
-                'drawdown': risk_metrics.current_drawdown,
-                'volatility': risk_metrics.volatility_24h,
-                'sharpe': risk_metrics.sharpe_ratio
-            }
+            "timestamp_us": get_timestamp_us(),
+            "symbol": symbol,
+            "signal_strength": signal_strength,
+            "confidence": confidence,
+            "regime": regime.regime.value if regime else "unknown",
+            "kelly_size": kelly_size,
+            "volatility_size": volatility_size,
+            "regime_size": regime_size,
+            "risk_adjusted_size": risk_adjusted_size,
+            "signal_adjusted_size": signal_adjusted_size,
+            "final_size": final_size,
+            "risk_metrics": {
+                "drawdown": risk_metrics.current_drawdown,
+                "volatility": risk_metrics.volatility_24h,
+                "sharpe": risk_metrics.sharpe_ratio,
+            },
         }
 
         self.sizing_history.append(sizing_decision)
 
         return {
-            'recommended_size': final_size,
-            'confidence_interval': self._calculate_confidence_interval(final_size, confidence),
-            'risk_adjustment': risk_adjusted_size / kelly_size if kelly_size > 0 else 1.0,
-            'regime_multiplier': regime_size / kelly_size if kelly_size > 0 else 1.0,
-            'reasoning': self._generate_sizing_reasoning(sizing_decision),
-            'breakdown': sizing_decision
+            "recommended_size": final_size,
+            "confidence_interval": self._calculate_confidence_interval(final_size, confidence),
+            "risk_adjustment": risk_adjusted_size / kelly_size if kelly_size > 0 else 1.0,
+            "regime_multiplier": regime_size / kelly_size if kelly_size > 0 else 1.0,
+            "reasoning": self._generate_sizing_reasoning(sizing_decision),
+            "breakdown": sizing_decision,
         }
 
     def _calculate_kelly_position(self, risk_metrics: RiskMetrics, confidence: float) -> float:
@@ -142,16 +146,18 @@ class AdaptivePositionSizer:
 
         try:
             # Calculate win rate and win/loss ratio from recent trades
-            recent_trades = self.trade_history[-50:] if len(self.trade_history) >= 50 else self.trade_history
+            recent_trades = (
+                self.trade_history[-50:] if len(self.trade_history) >= 50 else self.trade_history
+            )
 
             if not recent_trades:
                 return self.max_portfolio_risk * confidence
 
-            wins = sum(1 for trade in recent_trades if trade.get('pnl', 0) > 0)
+            wins = sum(1 for trade in recent_trades if trade.get("pnl", 0) > 0)
             win_rate = wins / len(recent_trades)
 
-            winning_trades = [t['pnl'] for t in recent_trades if t['pnl'] > 0]
-            losing_trades = [abs(t['pnl']) for t in recent_trades if t['pnl'] < 0]
+            winning_trades = [t["pnl"] for t in recent_trades if t["pnl"] > 0]
+            losing_trades = [abs(t["pnl"]) for t in recent_trades if t["pnl"] < 0]
 
             avg_win = statistics.mean(winning_trades) if winning_trades else 0
             avg_loss = statistics.mean(losing_trades) if losing_trades else 1
@@ -160,7 +166,9 @@ class AdaptivePositionSizer:
 
             # Kelly formula: (win_rate * (win_loss_ratio + 1) - 1) / win_loss_ratio
             kelly_fraction = (win_rate * (win_loss_ratio + 1) - 1) / win_loss_ratio
-            kelly_fraction = max(0, min(kelly_fraction * self.kelly_fraction, self.max_kelly_fraction))
+            kelly_fraction = max(
+                0, min(kelly_fraction * self.kelly_fraction, self.max_kelly_fraction)
+            )
 
             # Apply confidence adjustment
             kelly_position = kelly_fraction * confidence
@@ -196,8 +204,9 @@ class AdaptivePositionSizer:
 
         return self.max_portfolio_risk * volatility_scalar
 
-    def _calculate_regime_adjusted_position(self, regime: Optional[RegimeMetrics],
-                                          base_size: float) -> float:
+    def _calculate_regime_adjusted_position(
+        self, regime: Optional[RegimeMetrics], base_size: float
+    ) -> float:
         """Adjust position size based on market regime."""
 
         if not regime:
@@ -216,12 +225,17 @@ class AdaptivePositionSizer:
         elif regime.regime in [MarketRegime.TRENDING_UP, MarketRegime.TRENDING_DOWN]:
             # Boost in strong trends, but cap it
             trend_boost = min(regime.trend_strength, 0.3)  # Max 30% boost
-            regime_multiplier *= (1.0 + trend_boost)
+            regime_multiplier *= 1.0 + trend_boost
 
         return base_size * regime_multiplier * confidence_adjustment
 
-    def _apply_risk_adjustments(self, base_size: float, risk_metrics: RiskMetrics,
-                               current_positions: List[Dict], symbol: str) -> float:
+    def _apply_risk_adjustments(
+        self,
+        base_size: float,
+        risk_metrics: RiskMetrics,
+        current_positions: List[Dict],
+        symbol: str,
+    ) -> float:
         """Apply comprehensive risk adjustments to position size."""
 
         adjusted_size = base_size
@@ -237,7 +251,7 @@ class AdaptivePositionSizer:
             adjusted_size *= sharpe_reduction
 
         # Portfolio concentration check
-        total_portfolio_exposure = sum(abs(p.get('size', 0)) for p in current_positions)
+        total_portfolio_exposure = sum(abs(p.get("size", 0)) for p in current_positions)
         if total_portfolio_exposure > 0.8:  # Over 80% utilized
             concentration_reduction = 0.7
             adjusted_size *= concentration_reduction
@@ -250,7 +264,9 @@ class AdaptivePositionSizer:
 
         return adjusted_size
 
-    def _calculate_symbol_correlation_risk(self, symbol: str, current_positions: List[Dict]) -> float:
+    def _calculate_symbol_correlation_risk(
+        self, symbol: str, current_positions: List[Dict]
+    ) -> float:
         """Calculate correlation risk for a symbol against current positions using advanced correlation analysis."""
 
         try:
@@ -260,12 +276,12 @@ class AdaptivePositionSizer:
 
         except Exception:
             # Fallback to simplified calculation
-            symbol_positions = [p for p in current_positions if p.get('symbol') == symbol]
+            symbol_positions = [p for p in current_positions if p.get("symbol") == symbol]
             if not symbol_positions:
                 return 0.0
 
-            total_exposure = sum(abs(p.get('size', 0)) for p in current_positions)
-            symbol_exposure = sum(abs(p.get('size', 0)) for p in symbol_positions)
+            total_exposure = sum(abs(p.get("size", 0)) for p in current_positions)
+            symbol_exposure = sum(abs(p.get("size", 0)) for p in symbol_positions)
 
             if total_exposure == 0:
                 return 0.0
@@ -273,8 +289,9 @@ class AdaptivePositionSizer:
             concentration_ratio = symbol_exposure / total_exposure
             return min(concentration_ratio * 2, 1.0)  # Scale and cap at 1.0
 
-    def _apply_signal_adjustments(self, base_size: float, signal_strength: float,
-                                confidence: float) -> float:
+    def _apply_signal_adjustments(
+        self, base_size: float, signal_strength: float, confidence: float
+    ) -> float:
         """Apply adjustments based on signal quality."""
 
         # Signal strength scaling (assuming signal_strength is in 0-10 range)
@@ -314,14 +331,14 @@ class AdaptivePositionSizer:
 
         reasons = []
 
-        if sizing_decision['regime'] != 'unknown':
+        if sizing_decision["regime"] != "unknown":
             reasons.append(f"Regime: {sizing_decision['regime']}")
 
-        risk_metrics = sizing_decision['risk_metrics']
-        if risk_metrics['drawdown'] > 0.05:
+        risk_metrics = sizing_decision["risk_metrics"]
+        if risk_metrics["drawdown"] > 0.05:
             reasons.append(f"Drawdown protection: {risk_metrics['drawdown']:.1%}")
 
-        if risk_metrics['volatility'] > 0.2:
+        if risk_metrics["volatility"] > 0.2:
             reasons.append(f"Volatility adjustment: {risk_metrics['volatility']:.1%}")
 
         if not reasons:
@@ -339,8 +356,8 @@ class AdaptivePositionSizer:
             self.trade_history = self.trade_history[-1000:]
 
         # Update daily returns if applicable
-        if 'daily_pnl' in trade_result:
-            daily_return = trade_result['daily_pnl'] / trade_result.get('portfolio_value', 1.0)
+        if "daily_pnl" in trade_result:
+            daily_return = trade_result["daily_pnl"] / trade_result.get("portfolio_value", 1.0)
             self.daily_returns.append(daily_return)
 
             if len(self.daily_returns) > 365:
@@ -352,18 +369,26 @@ class AdaptivePositionSizer:
         if not self.sizing_history:
             return {"total_decisions": 0}
 
-        recent_decisions = self.sizing_history[-100:] if len(self.sizing_history) >= 100 else self.sizing_history
+        recent_decisions = (
+            self.sizing_history[-100:] if len(self.sizing_history) >= 100 else self.sizing_history
+        )
 
-        avg_size = statistics.mean(d['final_size'] for d in recent_decisions)
-        size_volatility = statistics.stdev(d['final_size'] for d in recent_decisions) if len(recent_decisions) > 1 else 0
+        avg_size = statistics.mean(d["final_size"] for d in recent_decisions)
+        size_volatility = (
+            statistics.stdev(d["final_size"] for d in recent_decisions)
+            if len(recent_decisions) > 1
+            else 0
+        )
 
         return {
             "total_decisions": len(self.sizing_history),
             "avg_position_size": avg_size,
             "size_volatility": size_volatility,
             "regime_distribution": self._get_regime_distribution(recent_decisions),
-            "risk_adjustment_avg": statistics.mean(d['risk_adjusted_size'] / d['kelly_size'] if d['kelly_size'] > 0 else 1.0
-                                                 for d in recent_decisions)
+            "risk_adjustment_avg": statistics.mean(
+                d["risk_adjusted_size"] / d["kelly_size"] if d["kelly_size"] > 0 else 1.0
+                for d in recent_decisions
+            ),
         }
 
     def _get_regime_distribution(self, decisions: List[Dict]) -> Dict[str, int]:
@@ -371,7 +396,7 @@ class AdaptivePositionSizer:
 
         regime_counts = {}
         for decision in decisions:
-            regime = decision.get('regime', 'unknown')
+            regime = decision.get("regime", "unknown")
             regime_counts[regime] = regime_counts.get(regime, 0) + 1
 
         return regime_counts

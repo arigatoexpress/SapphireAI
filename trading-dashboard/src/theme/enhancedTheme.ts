@@ -303,4 +303,3 @@ export const enhancedThemeOptions: ThemeOptions = {
 };
 
 export const enhancedTheme = createTheme(enhancedThemeOptions);
-

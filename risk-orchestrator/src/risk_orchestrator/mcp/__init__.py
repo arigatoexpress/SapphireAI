@@ -1,4 +1,6 @@
+from .consensus import ConsensusEngine, get_consensus_engine
 from .manager import MCPManager
+from .router import MCPManagerSingleton, get_mcp_router
 from .schemas import (
     MCPConsensusPayload,
     MCPExecutionPayload,
@@ -12,8 +14,6 @@ from .schemas import (
     MCPResponsePayload,
     MCPRole,
 )
-from .router import get_mcp_router, MCPManagerSingleton
-from .consensus import ConsensusEngine, get_consensus_engine
 
 __all__ = [
     "MCPManager",

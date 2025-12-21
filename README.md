@@ -92,7 +92,7 @@ AIAster/
 ## Trading Logic
 
 1. **Every ~60 seconds:** Sample 20 random symbols from Aster market structure
-2. **For each symbol:** 
+2. **For each symbol:**
    - Skip if already have open position
    - Skip if traded in last 30 minutes (cooldown)
 3. **For each agent:**

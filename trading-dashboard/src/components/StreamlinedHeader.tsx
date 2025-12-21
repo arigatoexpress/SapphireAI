@@ -51,4 +51,3 @@ const StreamlinedHeader: React.FC = () => {
 };
 
 export default StreamlinedHeader;
-

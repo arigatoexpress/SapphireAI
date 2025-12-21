@@ -45,7 +45,7 @@ All agent theses must meet a minimum risk threshold (default: 0.7) to be accepte
 Agent prompts are enriched with:
 
 - **Volatility regime detection**: Low/Moderate/High based on ATR percentage
-- **Chain-specific context**: 
+- **Chain-specific context**:
   - AVAX: High-throughput chain (1K+ TPS), DeFi yield farming risks
   - ARB: Layer-2 scaling, rollup volumes, gas fee dynamics
 - **DeFi market structure**: Focus on TVL spikes, yield risks, bridge flows
@@ -206,4 +206,3 @@ Prometheus metrics available:
 - [ ] Dynamic agent weighting based on historical performance
 - [ ] A/B testing framework for agent combinations
 - [ ] Real-time agent performance monitoring dashboard
-

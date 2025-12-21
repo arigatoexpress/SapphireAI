@@ -92,4 +92,3 @@ export const STATUS_COLORS = {
     error: '#EF4444',
     warning: '#F59E0B',
 } as const;
-
